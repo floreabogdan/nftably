@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -21,12 +22,17 @@ func cmdServer(args []string) error {
 	fs := flag.NewFlagSet("server", flag.ExitOnError)
 	dbPath := fs.String("db", defaultDBPath, "path to nftably's SQLite database")
 	listen := fs.String("listen", "", "override listen address (defaults to the value set by \"nftably init\")")
+	tlsCert := fs.String("tls-cert", "", "PEM certificate file for native HTTPS (requires --tls-key)")
+	tlsKey := fs.String("tls-key", "", "PEM private key file for native HTTPS (requires --tls-cert)")
 	nftBinary := fs.String("nft-binary", "", "override the nft binary path (defaults to the value set by \"nftably init\", or \"nft\" on PATH)")
 	iptablesSave := fs.String("iptables-save", defaultIptablesSave, "iptables-save binary (coexistence probe + import preview)")
 	ip6tablesSave := fs.String("ip6tables-save", defaultIP6tablesSave, "ip6tables-save binary (coexistence probe + import preview)")
 	iptablesTranslate := fs.String("iptables-translate", "iptables-restore-translate", "iptables-restore-translate binary (import preview)")
 	ip6tablesTranslate := fs.String("ip6tables-translate", "ip6tables-restore-translate", "ip6tables-restore-translate binary (import preview)")
 	fs.Parse(args)
+	if (*tlsCert == "") != (*tlsKey == "") {
+		return fmt.Errorf("--tls-cert and --tls-key must be provided together")
+	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
@@ -77,22 +83,44 @@ Fix it with:
 		Ip6tablesTranslate: *ip6tablesTranslate,
 	})
 
-	// Said once, at startup: nftably binds every interface by default and has no
-	// TLS, so an allow-all access list means the login crosses the network in the
-	// clear to anyone who finds the port.
+	// Said once, at startup: nftably binds every interface by default, so an
+	// allow-all access list means anyone who finds the port reaches the login —
+	// and without TLS, the login crosses the network in the clear.
 	if srv.WideOpen() {
-		log.Warn("nftably is reachable from any IP and has no TLS — set the access list under Settings → Access control, or bind loopback with --listen 127.0.0.1:8080",
-			"addr", effListen)
+		if *tlsCert == "" {
+			log.Warn("nftably is reachable from any IP and has no TLS — set the access list under Settings → Access control, configure --tls-cert/--tls-key, or bind loopback with --listen 127.0.0.1:8080",
+				"addr", effListen)
+		} else {
+			log.Warn("nftably is reachable from any IP — narrow the access list under Settings → Access control",
+				"addr", effListen)
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	httpServer := &http.Server{Addr: effListen, Handler: srv}
+	// Bound connection lifetimes prevent a small number of slow clients from
+	// exhausting the public server's file descriptors or goroutines.
+	httpServer := &http.Server{
+		Addr:              effListen,
+		Handler:           srv,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       2 * time.Minute,
+		WriteTimeout:      2 * time.Minute,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    32 << 10,
+		TLSConfig:         &tls.Config{MinVersion: tls.VersionTLS12},
+	}
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("nftably listening", "addr", effListen)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Info("nftably listening", "addr", effListen, "tls", *tlsCert != "")
+		var err error
+		if *tlsCert != "" {
+			err = httpServer.ListenAndServeTLS(*tlsCert, *tlsKey)
+		} else {
+			err = httpServer.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
 	}()

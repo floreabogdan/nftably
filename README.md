@@ -78,17 +78,23 @@ nftably version   print the version
 
 ## Security posture
 
-nftably binds every interface by default and has **no TLS**. On a fresh install
-its access list is empty (allow-all), and the UI warns you about this until you
-narrow it. Two ways to close it down:
+nftably binds every interface by default and serves plain HTTP unless you give
+it a certificate. On a fresh install its access list is empty (allow-all), and
+the UI warns you about this until you narrow it. Ways to close it down:
 
 - **Access list** — Settings → Access control. One IP/CIDR per line. Loopback is
   always allowed, so an SSH tunnel can never lock you out.
+- **Native TLS** — `--tls-cert cert.pem --tls-key key.pem` (TLS 1.2 minimum).
 - **Loopback + SSH tunnel** — start with `--listen 127.0.0.1:8080` and reach it
   over `ssh -L 8080:127.0.0.1:8080 router`.
 
 The blocked-client path closes the TCP connection outright, so a scanner can't
-even tell there's a service on the port.
+even tell there's a service on the port. Every response carries hardening
+headers (a strict CSP with no inline scripts, no framing, no cross-origin
+reads), cross-origin POSTs are rejected server-side, failed logins are
+rate-limited per IP, and operator actions are recorded on the event timeline.
+
+Found a vulnerability? See [SECURITY.md](SECURITY.md).
 
 ## Architecture
 

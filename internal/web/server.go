@@ -13,6 +13,8 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/floreabogdan/nftably/internal/nft"
@@ -99,7 +101,37 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setSecurityHeaders(w)
+	if !sameOriginWrite(r) {
+		http.Error(w, "cross-origin write rejected", http.StatusForbidden)
+		return
+	}
 	s.mux.ServeHTTP(w, r)
+}
+
+// sameOriginWrite rejects browser write requests originating on another site.
+// SameSite=Strict cookies and CSP form-action already cover modern browsers;
+// this validates the request at the server as a separate boundary. Requests
+// without browser origin headers remain supported for local CLI automation.
+func sameOriginWrite(r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		return true
+	}
+	if site := strings.ToLower(r.Header.Get("Sec-Fetch-Site")); site == "cross-site" || site == "same-site" {
+		return false
+	}
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	expectedScheme := "http"
+	if r.TLS != nil {
+		expectedScheme = "https"
+	}
+	return strings.EqualFold(u.Scheme, expectedScheme) && strings.EqualFold(u.Host, r.Host)
 }
 
 func (s *Server) routes() {
@@ -143,6 +175,9 @@ func (s *Server) reloadAccess() {
 
 func (s *Server) accessAllowed(r *http.Request) bool {
 	ip := clientAddr(r)
+	if !ip.IsValid() {
+		return false // a malformed peer address must not bypass the allow-list
+	}
 	s.accessMu.RLock()
 	defer s.accessMu.RUnlock()
 	return store.AccessAllowed(s.accessList, ip)
@@ -152,8 +187,11 @@ func (s *Server) accessAllowed(r *http.Request) bool {
 // restriction — the fresh-install default, worth warning about once at startup.
 func (s *Server) WideOpen() bool {
 	if host, _, err := net.SplitHostPort(s.listenAddr); err == nil {
-		if ip, err := netip.ParseAddr(host); err == nil && ip.IsLoopback() {
+		if host == "localhost" {
 			return false // loopback-only: nothing off-box can reach it
+		}
+		if ip, err := netip.ParseAddr(host); err == nil && ip.IsLoopback() {
+			return false
 		}
 	}
 	s.accessMu.RLock()
@@ -177,19 +215,22 @@ func clientAddr(r *http.Request) netip.Addr {
 }
 
 // setSecurityHeaders hardens every response. nftably serves only its own
-// embedded assets and is never framed, so the policy can be tight. 'unsafe-inline'
-// is allowed for scripts/styles because the templates carry inline handlers and
-// style attributes; html/template's contextual escaping is the primary XSS
-// defense, with this as depth.
+// embedded assets and is never framed, so the policy can be tight: no external
+// resource loads, no framing, forms post only to nftably itself, and scripts
+// must be loaded from embedded static assets. Styles retain inline support
+// because a few compact layout values are data-driven style attributes.
 func setSecurityHeaders(w http.ResponseWriter) {
 	h := w.Header()
 	h.Set("X-Frame-Options", "DENY")
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Referrer-Policy", "same-origin")
+	h.Set("Cross-Origin-Opener-Policy", "same-origin")
+	h.Set("Cross-Origin-Resource-Policy", "same-origin")
+	h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
 	h.Set("Content-Security-Policy",
 		"default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "+
 			"frame-ancestors 'none'; img-src 'self' data:; "+
-			"style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
+			"style-src 'self' 'unsafe-inline'; script-src 'self'")
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
