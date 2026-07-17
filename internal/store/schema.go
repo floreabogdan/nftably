@@ -83,6 +83,13 @@ CREATE TABLE IF NOT EXISTS config_versions (
 	updated_at TEXT NOT NULL
 );
 
+-- Advisor suggestions the operator waved away, by stable suggestion key. A
+-- rescan re-derives suggestions but keeps honouring these until restored.
+CREATE TABLE IF NOT EXISTS advisor_dismissed (
+	key          TEXT PRIMARY KEY,
+	dismissed_at TEXT NOT NULL
+);
+
 -- The armed apply, persisted so a crash during the confirm window still ends
 -- in a revert: server startup finds this row and restores prev_table.
 CREATE TABLE IF NOT EXISTS pending_apply (

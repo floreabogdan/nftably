@@ -42,6 +42,7 @@ on a remote router **safe to make**:
 | **M1** | Detect backend, read-only ruleset viewer, iptables import preview | ✅ |
 | **M2** | Rule model → render → diff → preview (no apply) | ✅ |
 | **M3** | Apply + commit-confirmed auto-revert + lint guardrails | ✅ this release |
+| — | Suggestions: detect installed software & listeners, advise rules | ✅ this release |
 | **M4** | Zones / forward filtering / NAT / port-forwards | planned |
 | **M5** | Rule library ("pick rules") + one-click hardening | planned |
 
@@ -106,8 +107,11 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 cmd/nftably/       CLI: init · doctor · detect · server
 internal/nft/      shell out to nft (-j JSON for structure, -a text for rule wording);
                    backend detection; iptables coexistence probe + translate preview
-internal/store/    SQLite: settings, users, sessions, events, the rule model (pure-Go driver)
-internal/render/   rule model → `table inet nftably` config text; unified diff
+internal/store/    SQLite: settings, users, sessions, events, the rule model,
+                   config versions + the persisted pending apply (pure-Go driver)
+internal/render/   rule model → `table inet nftably` config text; apply/revert
+                   transactions; lockout lint; unified diff
+internal/advisor/  detect installed software + listening sockets, suggest rules
 internal/doctor/   preflight checks
 internal/web/      server-rendered UI (html/template), auth, access control
 ```

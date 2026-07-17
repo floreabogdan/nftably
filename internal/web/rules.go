@@ -47,9 +47,26 @@ type ruleFormVM struct {
 }
 
 func (s *Server) handleRuleNew(w http.ResponseWriter, r *http.Request) {
+	// The advisor links here with a prefilled starting point; absent params
+	// leave the defaults. Values go through the same Validate as a submit, so
+	// a crafted link can at worst prefill text the operator then reviews.
+	rule := store.Rule{Action: "accept", Proto: "tcp", Enabled: true}
+	q := r.URL.Query()
+	if v := q.Get("name"); v != "" {
+		rule.Name = v
+	}
+	if v := q.Get("action"); v != "" {
+		rule.Action = v
+	}
+	if v := q.Get("proto"); v != "" {
+		rule.Proto = v
+	}
+	if v := q.Get("dports"); v != "" {
+		rule.DPorts = v
+	}
 	render(w, s.log, "rule_form.html", ruleFormVM{
 		nav:   s.navFor(r, "rules"),
-		Rule:  store.Rule{Action: "accept", Proto: "tcp", Enabled: true},
+		Rule:  rule,
 		IsNew: true,
 	})
 }

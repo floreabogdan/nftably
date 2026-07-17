@@ -1,0 +1,93 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Manage</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Suggestions</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>Suggestions</h1>
+		<div class="page-sub">nftably looks at what actually runs on this box — installed software, listening sockets — and suggests rules and best practices for it. Advice only: nothing here changes the firewall.</div>
+	</div>
+	<div class="page-header-actions">
+		<a class="btn btn-sm" href="/suggestions">{{template "icon-search"}}Rescan</a>
+	</div>
+</div>
+
+{{if .Scan.Note}}
+<div class="card card-warning"><div class="card-body">{{.Scan.Note}}</div></div>
+{{end}}
+
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-info"}}Detected on this box</span>
+	</div>
+	<div class="card-body">
+		{{if .Scan.Software}}
+		<div class="attr-chips">
+			{{range .Scan.Software}}<span class="chip chip-primary" title="{{.Bin}}">{{.Name}}</span>{{end}}
+		</div>
+		{{else}}
+		<div class="text-muted">No well-known software detected.</div>
+		{{end}}
+	</div>
+	{{if .Scan.Listeners}}
+	<div class="table-scroll">
+		<table data-search-target>
+			<thead><tr><th>Proto</th><th>Port</th><th>Bound to</th><th>Process</th><th>Reachable</th></tr></thead>
+			<tbody>
+				{{range .Scan.Listeners}}
+				<tr>
+					<td class="mono">{{.Proto}}</td>
+					<td class="mono">{{.Port}}</td>
+					<td class="mono">{{.Addr}}</td>
+					<td>{{if .Process}}{{.Process}}{{else}}<span class="text-muted">unknown</span>{{end}}</td>
+					<td>{{if .Wild}}<span class="badge badge-warning">every address</span>{{else}}<span class="badge">local/specific</span>{{end}}</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	</div>
+	{{end}}
+</div>
+
+{{if .Current}}
+{{range .Current}}
+<div class="card {{if eq .Severity "warn"}}card-warning{{end}}">
+	<div class="card-header">
+		<span class="card-title">{{if eq .Severity "warn"}}{{template "icon-alert"}}{{else}}{{template "icon-bulb"}}{{end}}{{.Title}}</span>
+		{{if eq .Severity "warn"}}<span class="badge badge-warning">worth fixing</span>{{else}}<span class="badge badge-info">suggestion</span>{{end}}
+	</div>
+	<div class="card-body">
+		<p>{{.Body}}</p>
+		<div class="form-actions">
+			{{if .Prefill}}
+			<a class="btn btn-sm btn-primary" href="/rules/new?name={{.Prefill.Name}}&action={{.Prefill.Action}}&proto={{.Prefill.Proto}}&dports={{.Prefill.DPorts}}">{{template "icon-plus"}}Add this rule</a>
+			{{end}}
+			<form method="post" action="/suggestions/dismiss">
+				<input type="hidden" name="key" value="{{.Key}}">
+				<button type="submit" class="btn btn-sm">Dismiss</button>
+			</form>
+		</div>
+	</div>
+</div>
+{{end}}
+{{else}}
+<div class="card"><div class="card-body"><div class="empty">Nothing to suggest — either the box is quiet or the rules already cover what runs here.</div></div></div>
+{{end}}
+
+{{if .Dismissed}}
+<details class="card">
+	<summary class="card-header" style="cursor:pointer"><span class="card-title">{{template "icon-clock"}}Dismissed ({{len .Dismissed}})</span></summary>
+	{{range .Dismissed}}
+	<div class="card-body">
+		<strong>{{.Title}}</strong>
+		<p class="text-muted">{{.Body}}</p>
+		<form method="post" action="/suggestions/restore">
+			<input type="hidden" name="key" value="{{.Key}}">
+			<button type="submit" class="btn btn-sm">Restore</button>
+		</form>
+	</div>
+	{{end}}
+</details>
+{{end}}
+{{template "shell-close" .}}

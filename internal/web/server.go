@@ -186,6 +186,11 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /apply/confirm", s.requireAuth(s.handleApplyConfirm))
 	s.mux.Handle("POST /apply/rollback", s.requireAuth(s.handleApplyRollback))
 
+	// The advisor: detect what runs on the box, suggest rules for it.
+	s.mux.Handle("GET /suggestions", s.requireAuth(s.handleSuggestions))
+	s.mux.Handle("POST /suggestions/dismiss", s.requireAuth(s.handleSuggestionDismiss))
+	s.mux.Handle("POST /suggestions/restore", s.requireAuth(s.handleSuggestionRestore))
+
 	s.mux.Handle("GET /settings", s.requireAuth(s.handleSettingsPage))
 	s.mux.Handle("POST /settings/identity", s.requireAuth(s.handleSettingsIdentity))
 	s.mux.Handle("POST /settings/access", s.requireAuth(s.handleSettingsAccess))
