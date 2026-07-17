@@ -1,11 +1,13 @@
 // Package web is nftably's embedded UI: login, a dashboard that reports the
 // detected firewall backend, a read-only viewer of the live nftables ruleset, an
-// iptables import preview, plus settings and profile management. No frontend
-// build step — server-rendered html/template pages plus a little vanilla JS.
+// iptables import preview, the rule model with its render/diff preview, plus
+// settings and profile management. No frontend build step — server-rendered
+// html/template pages plus a little vanilla JS.
 //
-// This is the M1 surface: it reads the firewall and never writes it. The apply
-// pipeline (render → diff → preview → atomic apply with armed auto-revert)
-// arrives in later milestones and will hang off this same Server.
+// This is the M2 surface: it reads the firewall and models what it should be,
+// but never writes it. The apply pipeline (atomic `nft -f` with an armed
+// auto-revert, plus lint guardrails) arrives in M3 and will hang off this same
+// Server.
 package web
 
 import (
@@ -147,6 +149,19 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /ruleset/raw", s.requireAuth(s.handleRawRuleset))
 	s.mux.Handle("GET /import", s.requireAuth(s.handleImport))
 	s.mux.Handle("GET /timeline", s.requireAuth(s.handleTimeline))
+
+	// The M2 rule model: CRUD plus ordering, and the render/diff preview. All
+	// of it is model-only — nothing here writes to netfilter (that is M3).
+	s.mux.Handle("GET /rules", s.requireAuth(s.handleRulesList))
+	s.mux.Handle("GET /rules/new", s.requireAuth(s.handleRuleNew))
+	s.mux.Handle("POST /rules/new", s.requireAuth(s.handleRuleSave))
+	s.mux.Handle("POST /rules/policy", s.requireAuth(s.handleRulesPolicy))
+	s.mux.Handle("GET /rules/{id}/edit", s.requireAuth(s.handleRuleEdit))
+	s.mux.Handle("POST /rules/{id}/edit", s.requireAuth(s.handleRuleSave))
+	s.mux.Handle("POST /rules/{id}/delete", s.requireAuth(s.handleRuleDelete))
+	s.mux.Handle("POST /rules/{id}/toggle", s.requireAuth(s.handleRuleToggle))
+	s.mux.Handle("POST /rules/{id}/move", s.requireAuth(s.handleRuleMove))
+	s.mux.Handle("GET /changes", s.requireAuth(s.handleChanges))
 
 	s.mux.Handle("GET /settings", s.requireAuth(s.handleSettingsPage))
 	s.mux.Handle("POST /settings/identity", s.requireAuth(s.handleSettingsIdentity))

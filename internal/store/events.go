@@ -14,6 +14,7 @@ const (
 	EventLogout       = "logout"
 	EventSettings     = "settings_change"
 	EventRulesetError = "ruleset_error" // reading the live ruleset failed
+	EventModelChange  = "model_change"  // an operator created/edited/deleted a rule
 )
 
 // Event is one entry on the timeline, optionally attributed to an operator.

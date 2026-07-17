@@ -1,0 +1,53 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Manage</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Changes</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>Changes</h1>
+		<div class="page-sub">What the <a href="/rules">rule model</a> renders to, and how it differs from the live <span class="mono">table inet nftably</span>. Preview only — applying (with auto-revert) arrives in M3.</div>
+	</div>
+</div>
+
+{{if .LiveErr}}
+<div class="card card-danger"><div class="card-body">
+	<strong>Could not read the live table</strong> — the diff below has nothing to compare against.
+	<div class="code-block mono">{{.LiveErr}}</div>
+</div></div>
+{{end}}
+
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-changes"}}Diff against the kernel</span>
+		{{if or .Added .Removed}}<span class="diff-stat"><span class="add">+{{.Added}}</span> <span class="del">-{{.Removed}}</span></span>{{end}}
+	</div>
+	{{if .LiveErr}}
+	<div class="card-body text-muted">Unavailable until the live table can be read.</div>
+	{{else if not .TableExists}}
+	<div class="card-body">
+		<span class="badge badge-info">first apply</span>
+		<span class="text-muted">The kernel has no <span class="mono">table inet nftably</span> yet — everything below is new.</span>
+	</div>
+	{{else if .Hunks}}
+	<div class="diff" data-search-target>
+		{{range .Hunks}}
+		<div class="diff-hunk-head">{{.Header}}</div>
+		{{range .Lines}}<div class="diff-line op-{{printf "%c" .Op}}"><span class="op">{{printf "%c" .Op}}</span>{{.Text}}</div>{{end}}
+		{{end}}
+	</div>
+	{{else}}
+	<div class="card-body"><span class="badge badge-success"><span class="dot"></span>in sync</span> <span class="text-muted">The live table matches the model exactly.</span></div>
+	{{end}}
+</div>
+
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-list"}}Rendered config</span>
+		<span class="text-muted">{{.RuleCount}} rule{{if ne .RuleCount 1}}s{{end}} + baseline</span>
+	</div>
+	<div class="card-body">
+		<pre class="code-block mono" style="white-space:pre;overflow:auto" data-search-target>{{.Candidate}}</pre>
+	</div>
+</div>
+{{template "shell-close" .}}

@@ -1,7 +1,7 @@
 package store
 
-// schema is nftably's M1 (read-only) schema: just the state nftably keeps about
-// itself. The firewall model — zones, rules, NAT, config versions — arrives in
+// schema is nftably's schema: the state nftably keeps about itself, plus (from
+// M2 on) the firewall rule model. Zones, NAT and config versions arrive in
 // later milestones as new tables, added here (all IF NOT EXISTS) and wired
 // through migrate().
 const schema = `
@@ -43,4 +43,30 @@ CREATE TABLE IF NOT EXISTS events (
 	created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts DESC);
+
+-- The M2 rule model: an ordered list of input-chain filter rules. What nftably
+-- renders (and, from M3, applies) is exactly this list plus the baseline rules
+-- the render layer always emits. position is the render order; gaps are fine,
+-- uniqueness is maintained by the move/create paths.
+CREATE TABLE IF NOT EXISTS fw_rules (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	position   INTEGER NOT NULL,
+	name       TEXT NOT NULL DEFAULT '',
+	action     TEXT NOT NULL DEFAULT 'accept',   -- accept | drop | reject
+	proto      TEXT NOT NULL DEFAULT 'any',      -- any | tcp | udp
+	dports     TEXT NOT NULL DEFAULT '',         -- "22, 80, 8000-8100" (tcp/udp only)
+	saddrs     TEXT NOT NULL DEFAULT '',         -- source IPs/CIDRs; empty = any
+	iif        TEXT NOT NULL DEFAULT '',         -- ingress interface; empty = any
+	enabled    INTEGER NOT NULL DEFAULT 1,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+
+-- Single-row chain-wide configuration for the managed input chain.
+CREATE TABLE IF NOT EXISTS firewall (
+	id           INTEGER PRIMARY KEY CHECK (id = 1),
+	input_policy TEXT NOT NULL DEFAULT 'drop',   -- drop | accept
+	created_at   TEXT NOT NULL,
+	updated_at   TEXT NOT NULL
+);
 `

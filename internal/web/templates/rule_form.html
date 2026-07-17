@@ -1,0 +1,77 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Manage</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><a href="/rules">Rules</a><span class="sep">/</span><span class="current">{{if .IsNew}}New{{else}}Edit{{end}}</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>{{if .IsNew}}New rule{{else}}Edit rule{{end}}</h1>
+		<div class="page-sub">One rule covers IPv4 and IPv6 — sources from both families render into their family's match automatically.</div>
+	</div>
+</div>
+
+{{if .Errors}}
+<div class="card card-danger"><div class="card-body">
+	{{range .Errors}}<div class="field-error">{{.}}</div>{{end}}
+</div></div>
+{{end}}
+
+<div class="card">
+	<div class="card-body">
+		<form method="post" action="{{if .IsNew}}/rules/new{{else}}/rules/{{.Rule.ID}}/edit{{end}}">
+			<div class="field">
+				<label for="name">Name</label>
+				<input type="text" id="name" name="name" value="{{.Rule.Name}}" placeholder="e.g. ssh from mgmt" autocomplete="off">
+				<div class="field-hint text-muted">Shows up as the rule's comment in the rendered config.</div>
+			</div>
+			<div class="field">
+				<label for="action">Action</label>
+				<select id="action" name="action">
+					<option value="accept" {{if eq .Rule.Action "accept"}}selected{{end}}>accept</option>
+					<option value="drop" {{if eq .Rule.Action "drop"}}selected{{end}}>drop</option>
+					<option value="reject" {{if eq .Rule.Action "reject"}}selected{{end}}>reject (tell the sender)</option>
+				</select>
+			</div>
+			<div class="field">
+				<label for="proto">Protocol</label>
+				<select id="proto" name="proto">
+					<option value="tcp" {{if eq .Rule.Proto "tcp"}}selected{{end}}>tcp</option>
+					<option value="udp" {{if eq .Rule.Proto "udp"}}selected{{end}}>udp</option>
+					<option value="any" {{if eq .Rule.Proto "any"}}selected{{end}}>any</option>
+				</select>
+			</div>
+			<div class="field">
+				<label for="dports">Destination ports</label>
+				<input type="text" id="dports" name="dports" value="{{.Rule.DPorts}}" class="mono" placeholder="22, 80, 8000-8100" autocomplete="off">
+				<div class="field-hint text-muted">Numbers and ranges, comma-separated. Leave blank to match the whole protocol. Requires tcp or udp.</div>
+			</div>
+			<div class="field">
+				<label for="saddrs">Source addresses</label>
+				<textarea id="saddrs" name="saddrs" rows="3" class="mono" placeholder="10.0.0.0/8&#10;2001:db8::/32">{{.Rule.SAddrs}}</textarea>
+				<div class="field-hint text-muted">IPs or CIDRs, either family, comma or newline separated. Empty matches any source.</div>
+			</div>
+			<div class="field">
+				<label for="iif">Ingress interface</label>
+				<input type="text" id="iif" name="iif" value="{{.Rule.IIf}}" class="mono" placeholder="eth0" autocomplete="off">
+				<div class="field-hint text-muted">Empty matches any interface.</div>
+			</div>
+			<div class="field">
+				<label class="check-label"><input type="checkbox" name="enabled" {{if .Rule.Enabled}}checked{{end}}> Enabled</label>
+			</div>
+			<div class="form-actions">
+				<button type="submit" class="btn btn-primary">{{if .IsNew}}Add rule{{else}}Save rule{{end}}</button>
+				<a class="btn" href="/rules">Cancel</a>
+			</div>
+		</form>
+	</div>
+</div>
+
+{{if .Preview}}
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-changes"}}Renders as</span></div>
+	<div class="card-body">
+		<div class="code-block mono">{{range .Preview}}<div>{{.}}</div>{{end}}</div>
+	</div>
+</div>
+{{end}}
+{{template "shell-close" .}}

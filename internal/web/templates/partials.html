@@ -16,6 +16,13 @@
 {{define "icon-info"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>{{end}}
 {{define "icon-alert"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>{{end}}
 {{define "icon-copy"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>{{end}}
+{{define "icon-plus"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>{{end}}
+{{define "icon-edit"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>{{end}}
+{{define "icon-trash"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>{{end}}
+{{define "icon-power"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>{{end}}
+{{define "icon-up"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>{{end}}
+{{define "icon-down"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>{{end}}
+{{define "icon-changes"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><polyline points="8 8 4 12 8 16"/><polyline points="16 8 20 12 16 16"/></svg>{{end}}
 {{define "icon-menu"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>{{end}}
 
 {{define "sidebar"}}
@@ -28,6 +35,8 @@
 		<a href="/timeline" class="{{if eq .Active "timeline"}}active{{end}}">{{template "icon-clock"}}Timeline</a>
 
 		<div class="nav-label">Manage</div>
+		<a href="/rules" class="{{if eq .Active "rules"}}active{{end}}">{{template "icon-shield"}}Rules</a>
+		<a href="/changes" class="{{if eq .Active "changes"}}active{{end}}">{{template "icon-changes"}}Changes</a>
 		<a href="/import" class="{{if eq .Active "import"}}active{{end}}">{{template "icon-import"}}Import iptables</a>
 
 		<div class="nav-label">System</div>
@@ -35,7 +44,7 @@
 	</nav>
 	<div class="sidebar-foot">
 		<div class="conn-line"><span id="nft-conn" class="conn-dot"></span><span id="nft-conn-label">checking nft&hellip;</span></div>
-		<div>read-only (M1)</div>
+		<div>preview-only (M2)</div>
 	</div>
 </aside>
 {{end}}
@@ -66,6 +75,7 @@
 </div>
 <script src="/static/topbar.js"></script>
 <script src="/static/theme.js"></script>
+<script src="/static/ui.js" defer></script>
 {{end}}
 
 {{/* page is the shell every authenticated page uses: html head, sidebar,

@@ -62,6 +62,22 @@ func (c *Client) RawRuleset(ctx context.Context) (string, error) {
 	return c.run(ctx, "-a", "list", "ruleset")
 }
 
+// Table returns `nft list table <family> <name>` verbatim, with exists=false
+// (and no error) when the table simply is not there — the normal state before
+// the first apply, not a failure.
+func (c *Client) Table(ctx context.Context, family, name string) (text string, exists bool, err error) {
+	out, err := c.run(ctx, "list", "table", family, name)
+	if err != nil {
+		// nft says "Error: No such file or directory" (ENOENT passed through)
+		// for a table that does not exist.
+		if strings.Contains(err.Error(), "No such file or directory") {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return out, true, nil
+}
+
 // Ping is a cheap liveness/permission probe — `nft list tables` touches
 // netfilter without serialising the whole ruleset, so the status-dot poll can
 // run every few seconds without cost. A nil error means nft is present and

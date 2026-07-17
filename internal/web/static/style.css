@@ -439,6 +439,15 @@ svg.sparkline[data-spark] { cursor: crosshair; }
 .card-danger .card-body { background: color-mix(in srgb, var(--danger) 5%, var(--surface)); border-radius: 0 0 var(--radius-card) var(--radius-card); }
 .card-warning { border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); }
 .card-warning .card-body { background: color-mix(in srgb, var(--warning) 6%, var(--surface)); border-radius: 0 0 var(--radius-card) var(--radius-card); }
+.card-success { border-color: color-mix(in srgb, var(--success) 35%, var(--border)); }
+.card-success .card-body { background: color-mix(in srgb, var(--success) 6%, var(--surface)); border-radius: 0 0 var(--radius-card) var(--radius-card); }
+
+/* A disabled rule stays in the list but reads as inert. */
+.row-disabled td { opacity: 0.55; }
+.row-disabled .row-actions { opacity: 1; }
+
+/* Checkbox with its label on one line (the enabled toggle on the rule form). */
+.check-label { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
 
 /* Tables sit in gutters inside their card so the indigo header band reads as a
    band, not as the top edge of the card. */
