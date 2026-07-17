@@ -1,0 +1,32 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Observe</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><a href="/ruleset">Live ruleset</a><span class="sep">/</span><span class="current">Raw</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>Raw ruleset</h1>
+		<div class="page-sub"><span class="mono">nft -a list ruleset</span>, verbatim — handles included.</div>
+	</div>
+	<div class="page-header-actions">
+		<button class="btn btn-sm" type="button" onclick="copyRaw(this)">{{template "icon-copy"}}Copy</button>
+	</div>
+</div>
+{{if .Err}}
+<div class="card card-danger"><div class="card-body">{{.Err}}</div></div>
+{{else}}
+<div class="card"><div class="card-body">
+	<pre id="raw-ruleset" class="code-block mono" style="white-space:pre;overflow:auto">{{.Raw}}</pre>
+</div></div>
+<script>
+function copyRaw(btn) {
+	var text = document.getElementById("raw-ruleset").textContent;
+	navigator.clipboard.writeText(text).then(function () {
+		var old = btn.textContent;
+		btn.textContent = "Copied";
+		setTimeout(function () { btn.textContent = old; }, 1200);
+	});
+}
+</script>
+{{end}}
+{{template "shell-close" .}}

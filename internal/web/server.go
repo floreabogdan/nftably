@@ -1,0 +1,198 @@
+// Package web is nftably's embedded UI: login, a dashboard that reports the
+// detected firewall backend, a read-only viewer of the live nftables ruleset, an
+// iptables import preview, plus settings and profile management. No frontend
+// build step — server-rendered html/template pages plus a little vanilla JS.
+//
+// This is the M1 surface: it reads the firewall and never writes it. The apply
+// pipeline (render → diff → preview → atomic apply with armed auto-revert)
+// arrives in later milestones and will hang off this same Server.
+package web
+
+import (
+	"log/slog"
+	"net"
+	"net/http"
+	"net/netip"
+	"sync"
+
+	"github.com/floreabogdan/nftably/internal/nft"
+	"github.com/floreabogdan/nftably/internal/store"
+)
+
+// Server is nftably's HTTP handler: it holds the store, the nft reader and the
+// iptables tool paths, and serves every route.
+type Server struct {
+	store *store.Store
+	nft   *nft.Client
+	log   *slog.Logger
+
+	// listenAddr is where nftably is bound, for the wide-open warning.
+	listenAddr string
+
+	// iptables tool paths for the coexistence probe and the import preview.
+	iptablesSave       string
+	ip6tablesSave      string
+	iptablesBin        string
+	iptablesTranslate  string
+	ip6tablesTranslate string
+
+	// login throttles failed logins per client IP.
+	login *loginLimiter
+
+	// accessMu guards accessList, the parsed access whitelist cached from
+	// settings so the per-request gate never hits the database.
+	accessMu   sync.RWMutex
+	accessList []netip.Prefix
+
+	mux *http.ServeMux
+}
+
+// Config is the dependency set and options New needs to build a Server.
+type Config struct {
+	Store              *store.Store
+	Nft                *nft.Client
+	Log                *slog.Logger
+	ListenAddr         string
+	IptablesSave       string
+	Ip6tablesSave      string
+	IptablesBin        string
+	IptablesTranslate  string
+	Ip6tablesTranslate string
+}
+
+// New builds a Server from cfg and wires up the routes.
+func New(cfg Config) *Server {
+	log := cfg.Log
+	if log == nil {
+		log = slog.Default()
+	}
+	s := &Server{
+		store:              cfg.Store,
+		nft:                cfg.Nft,
+		log:                log,
+		listenAddr:         cfg.ListenAddr,
+		iptablesSave:       cfg.IptablesSave,
+		ip6tablesSave:      cfg.Ip6tablesSave,
+		iptablesBin:        cfg.IptablesBin,
+		iptablesTranslate:  cfg.IptablesTranslate,
+		ip6tablesTranslate: cfg.Ip6tablesTranslate,
+		login:              newLoginLimiter(),
+		mux:                http.NewServeMux(),
+	}
+	s.routes()
+	s.reloadAccess()
+	return s
+}
+
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !s.accessAllowed(r) {
+		// A blocked client gets no HTTP response at all: the connection is
+		// closed, so a scanner cannot even tell there is a service listening.
+		// Falls back to a bare 403 when the connection cannot be hijacked.
+		if hj, ok := w.(http.Hijacker); ok {
+			if conn, _, err := hj.Hijack(); err == nil {
+				_ = conn.Close()
+				return
+			}
+		}
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	setSecurityHeaders(w)
+	s.mux.ServeHTTP(w, r)
+}
+
+func (s *Server) routes() {
+	// Public
+	s.mux.HandleFunc("GET /login", s.handleLoginForm)
+	s.mux.HandleFunc("POST /login", s.handleLoginSubmit)
+	s.mux.HandleFunc("GET /healthz", s.handleHealthz)
+	s.mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandler()))
+
+	// Authenticated pages
+	s.mux.Handle("GET /{$}", s.requireAuth(s.handleDashboard))
+	s.mux.Handle("GET /ruleset", s.requireAuth(s.handleRuleset))
+	s.mux.Handle("GET /ruleset/raw", s.requireAuth(s.handleRawRuleset))
+	s.mux.Handle("GET /import", s.requireAuth(s.handleImport))
+	s.mux.Handle("GET /timeline", s.requireAuth(s.handleTimeline))
+
+	s.mux.Handle("GET /settings", s.requireAuth(s.handleSettingsPage))
+	s.mux.Handle("POST /settings/identity", s.requireAuth(s.handleSettingsIdentity))
+	s.mux.Handle("POST /settings/access", s.requireAuth(s.handleSettingsAccess))
+
+	s.mux.Handle("GET /profile", s.requireAuth(s.handleProfilePage))
+	s.mux.Handle("POST /profile/identity", s.requireAuth(s.handleProfileIdentity))
+	s.mux.Handle("POST /profile/password", s.requireAuth(s.handleProfilePassword))
+	s.mux.Handle("POST /logout", s.requireAuth(s.handleLogout))
+
+	// Authenticated JSON API — the topbar's nft-status dot.
+	s.mux.Handle("GET /api/status", s.requireAuth(s.apiStatus))
+}
+
+// reloadAccess refreshes the cached access whitelist from settings. Called at
+// startup and whenever the whitelist is edited.
+func (s *Server) reloadAccess() {
+	var list []netip.Prefix
+	if settings, ok, err := s.store.GetSettings(); err == nil && ok {
+		list, _ = store.ParseAccessWhitelist(settings.AccessWhitelist)
+	}
+	s.accessMu.Lock()
+	s.accessList = list
+	s.accessMu.Unlock()
+}
+
+func (s *Server) accessAllowed(r *http.Request) bool {
+	ip := clientAddr(r)
+	s.accessMu.RLock()
+	defer s.accessMu.RUnlock()
+	return store.AccessAllowed(s.accessList, ip)
+}
+
+// WideOpen reports whether nftably is reachable from any IP with no access
+// restriction — the fresh-install default, worth warning about once at startup.
+func (s *Server) WideOpen() bool {
+	if host, _, err := net.SplitHostPort(s.listenAddr); err == nil {
+		if ip, err := netip.ParseAddr(host); err == nil && ip.IsLoopback() {
+			return false // loopback-only: nothing off-box can reach it
+		}
+	}
+	s.accessMu.RLock()
+	defer s.accessMu.RUnlock()
+	return !store.AccessRestricted(s.accessList)
+}
+
+// clientAddr is the request's real TCP peer address — never a spoofable
+// X-Forwarded-For header, since nftably is reached directly or over an SSH
+// tunnel, not behind a proxy.
+func clientAddr(r *http.Request) netip.Addr {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return netip.Addr{}
+	}
+	return addr.Unmap()
+}
+
+// setSecurityHeaders hardens every response. nftably serves only its own
+// embedded assets and is never framed, so the policy can be tight. 'unsafe-inline'
+// is allowed for scripts/styles because the templates carry inline handlers and
+// style attributes; html/template's contextual escaping is the primary XSS
+// defense, with this as depth.
+func setSecurityHeaders(w http.ResponseWriter) {
+	h := w.Header()
+	h.Set("X-Frame-Options", "DENY")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Referrer-Policy", "same-origin")
+	h.Set("Content-Security-Policy",
+		"default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "+
+			"frame-ancestors 'none'; img-src 'self' data:; "+
+			"style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
+}
+
+func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte("ok\n"))
+}

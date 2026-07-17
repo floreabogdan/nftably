@@ -1,0 +1,111 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Overview</span>
+	<div class="breadcrumb"><span class="current">Dashboard</span></div>
+</div>
+
+<section class="hero">
+	<div class="hero-main">
+		<h1 class="hero-title mono">{{if .RouterLabel}}{{.RouterLabel}}{{else}}nftably{{end}}</h1>
+		<p class="hero-sub">
+			{{if .Backend.NftAvailable}}{{.Backend.NftVersion}}{{else}}nft not installed{{end}}
+			{{if .Backend.Ruleset}} &middot; {{len .Backend.Ruleset.Tables}} tables &middot; {{.Backend.Ruleset.TotalRules}} rules{{end}}
+		</p>
+	</div>
+	<div class="hero-side">
+		{{if and .Backend.NftAvailable (eq .Backend.RulesetErr "")}}
+		<div class="hero-status ok"><span class="dot"></span><span>nft ready</span></div>
+		{{else}}
+		<div class="hero-status bad"><span class="dot"></span><span>{{if .Backend.NftAvailable}}cannot read ruleset{{else}}nft not installed{{end}}</span></div>
+		{{end}}
+	</div>
+</section>
+
+{{if .WideOpen}}
+<div class="card card-warning">
+	<div class="card-body">
+		{{template "icon-alert"}} <strong>nftably is reachable from any IP and has no TLS.</strong>
+		Anyone who can reach this port sees the login in the clear. Narrow it under
+		<a href="/settings">Settings → Access control</a>, or bind loopback and reach it over an SSH tunnel.
+	</div>
+</div>
+{{end}}
+
+{{if not .Backend.NftAvailable}}
+<div class="card card-danger">
+	<div class="card-body">
+		<strong>nft is not installed on this host.</strong> nftably has nothing to manage yet.
+		Install it with <span class="mono">apt install nftables</span>, then reload this page.
+	</div>
+</div>
+{{else if .Backend.RulesetErr}}
+<div class="card card-danger">
+	<div class="card-body">
+		<strong>Could not read the ruleset.</strong> nftably needs <span class="mono">CAP_NET_ADMIN</span> —
+		normally it runs as root. The error was:
+		<div class="code-block mono">{{.Backend.RulesetErr}}</div>
+	</div>
+</div>
+{{else}}
+<div class="stat-grid">
+	<div class="stat tint-primary">
+		<div class="stat-label">Tables</div>
+		<div class="stat-main"><span class="stat-icon">{{template "icon-list"}}</span><span class="stat-value">{{len .Backend.Ruleset.Tables}}</span></div>
+		<div class="stat-rule"></div>
+		<span class="stat-note">{{range .Backend.Ruleset.Families}}{{.}} {{else}}—{{end}}</span>
+	</div>
+	<div class="stat tint-secondary">
+		<div class="stat-label">Chains</div>
+		<div class="stat-main"><span class="stat-icon">{{template "icon-list"}}</span><span class="stat-value">{{.Backend.Ruleset.TotalChains}}</span></div>
+		<div class="stat-rule"></div>
+		<span class="stat-note">base &amp; regular chains</span>
+	</div>
+	<div class="stat tint-success">
+		<div class="stat-label">Rules</div>
+		<div class="stat-main"><span class="stat-icon">{{template "icon-shield"}}</span><span class="stat-value">{{.Backend.Ruleset.TotalRules}}</span></div>
+		<div class="stat-rule"></div>
+		<a class="stat-link" href="/ruleset"><span class="arr" aria-hidden="true">&#8599;</span>View live ruleset</a>
+	</div>
+	<div class="stat {{if .Iptables.HasRules}}tint-warning{{else}}tint-primary{{end}}">
+		<div class="stat-label">iptables rules</div>
+		<div class="stat-main"><span class="stat-icon">{{template "icon-import"}}</span><span class="stat-value">{{addRules .Iptables.V4Rules .Iptables.V6Rules}}</span></div>
+		<div class="stat-rule"></div>
+		{{if .Iptables.HasRules}}<a class="stat-link" href="/import"><span class="arr" aria-hidden="true">&#8599;</span>Import them</a>{{else}}<span class="stat-note">pure nftables</span>{{end}}
+	</div>
+</div>
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Base chains — where traffic enters</span></div>
+	<div class="table-scroll">
+	<table>
+		<thead><tr><th>Table</th><th>Chain</th><th>Hook</th><th class="num">Priority</th><th>Policy</th><th class="num">Rules</th></tr></thead>
+		<tbody data-search-target>
+			{{range .Backend.Ruleset.Tables}}{{$t := .}}{{range .Chains}}{{if .IsBase}}
+			<tr>
+				<td class="mono">{{$t.Family}} {{$t.Name}}</td>
+				<td class="mono">{{.Name}}</td>
+				<td class="mono">{{.Hook}}</td>
+				<td class="num mono">{{.Prio}}</td>
+				<td>{{policyBadge .Policy}}</td>
+				<td class="num mono">{{len .Rules}}</td>
+			</tr>
+			{{end}}{{end}}{{else}}
+			<tr><td colspan="6"><div class="empty">No tables yet — netfilter is empty. A clean slate for nftably to build on.</div></td></tr>
+			{{end}}
+		</tbody>
+	</table>
+	</div>
+</div>
+{{end}}
+
+{{if .Iptables.HasRules}}
+<div class="card card-warning">
+	<div class="card-body">
+		{{template "icon-info"}} This host has <strong>{{.Iptables.V4Rules}} IPv4</strong> and
+		<strong>{{.Iptables.V6Rules}} IPv6</strong> iptables rules{{if .Iptables.Mode}} (the <span class="mono">{{.Iptables.Mode}}</span> backend){{end}}.
+		They live in the same kernel netfilter as nftables. <a href="/import">Preview the import</a> so nftably can
+		take ownership and nothing ends up double-managed.
+	</div>
+</div>
+{{end}}
+{{template "shell-close" .}}

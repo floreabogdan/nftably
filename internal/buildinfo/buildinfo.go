@@ -1,0 +1,7 @@
+// Package buildinfo holds nftably's version string.
+package buildinfo
+
+// Version is the build version. The release build overrides it with the git
+// tag via -ldflags "-X github.com/floreabogdan/nftably/internal/buildinfo.Version=...".
+// A source build leaves it at this default.
+var Version = "0.1.0-dev"

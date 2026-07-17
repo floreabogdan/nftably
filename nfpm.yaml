@@ -1,0 +1,56 @@
+# nfpm packaging for nftably — builds .deb / .rpm / .apk from a pre-built binary.
+# https://nfpm.goreleaser.com  —  run via deploy/build-packages.sh (locally or CI).
+#
+# Expects, in ./dist: the target binary as `nftably` and the systemd unit as
+# `nftably.service`. ARCH and VERSION come from the environment.
+name: nftably
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+maintainer: "Bogdan Florea <ixsplit@gmail.com>"
+description: |
+  Web UI for nftables that runs on your router.
+  nftably detects the host firewall backend and shows the live netfilter ruleset
+  (IPv4 and IPv6 together, via the inet family). It reads iptables rules for a
+  one-time import. This release is read-only; managing rules, zones and NAT with
+  an armed auto-revert arrives in later milestones. It listens on every interface
+  and has no TLS, so set the IP allow-list (Settings, Access control) as soon as
+  you log in, or bind it to loopback and reach it over an SSH tunnel.
+vendor: nftably
+homepage: https://github.com/floreabogdan/nftably
+license: 0BSD
+section: net
+priority: optional
+
+contents:
+  - src: ./dist/nftably
+    dst: /usr/bin/nftably
+    file_info:
+      mode: 0755
+  - src: ./dist/nftably.service
+    dst: /lib/systemd/system/nftably.service
+    file_info:
+      mode: 0644
+  - src: ./LICENSE
+    dst: /usr/share/doc/nftably/copyright
+    file_info:
+      mode: 0644
+  - src: ./README.md
+    dst: /usr/share/doc/nftably/README.md
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: ./deploy/postinstall.sh
+  preremove: ./deploy/preremove.sh
+  postremove: ./deploy/postremove.sh
+
+# nftably reads and writes netfilter through the nft binary, so nftables is a
+# hard dependency (unlike birdy's optional bird2).
+overrides:
+  deb:
+    depends:
+      - nftables
+  rpm:
+    depends:
+      - nftables

@@ -1,0 +1,12 @@
+# Build output
+/nftably
+/nftably.exe
+/nftably-linux-amd64
+/dist/
+
+# Runtime state — an nftably database holds local login hashes and the router's
+# firewall model. It must never be committed.
+*.db
+*.db-shm
+*.db-wal
+/snapshots/

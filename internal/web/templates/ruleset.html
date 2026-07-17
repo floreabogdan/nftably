@@ -1,0 +1,56 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Observe</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Live ruleset</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>Live ruleset</h1>
+		<div class="page-sub">Read straight from <span class="mono">nft list ruleset</span> on every load — this is what the kernel is enforcing right now, not a saved copy.</div>
+	</div>
+	<div class="page-header-actions">
+		<a class="btn btn-sm" href="/ruleset/raw">{{template "icon-copy"}}Raw text</a>
+	</div>
+</div>
+
+{{if not .NftAvailable}}
+<div class="card card-danger"><div class="card-body"><strong>nft is not installed on this host.</strong> Install nftables to view the ruleset.</div></div>
+{{else if .Err}}
+<div class="card card-danger"><div class="card-body">
+	<strong>Could not read the ruleset.</strong> nftably needs <span class="mono">CAP_NET_ADMIN</span> (run as root).
+	<div class="code-block mono">{{.Err}}</div>
+</div></div>
+{{else if .Ruleset.IsEmpty}}
+<div class="card"><div class="card-body"><div class="empty">netfilter is empty — no tables are loaded. A clean slate.</div></div></div>
+{{else}}
+	{{range .Ruleset.Tables}}{{$t := .}}
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">{{template "icon-list"}}table <span class="mono">{{.Family}} {{.Name}}</span></span>
+			<span class="text-muted">{{len .Chains}} chains</span>
+		</div>
+		{{range .Chains}}
+		<div class="chain-block">
+			<div class="section-head">
+				<span class="section-title mono">chain {{.Name}}</span>
+				{{if .IsBase}}
+				<span class="text-muted mono">type {{.Type}} hook {{.Hook}} priority {{.Prio}}</span>
+				{{policyBadge .Policy}}
+				{{else}}
+				<span class="badge">regular</span>
+				{{end}}
+			</div>
+			{{if .Rules}}
+			<div class="code-block code-numbered mono" data-search-target>
+				{{range .Rules}}<div class="rule-line">{{if .Text}}{{.Text}}{{else}}<span class="text-muted">handle {{.Handle}} (expression not rendered)</span>{{end}}</div>
+				{{end}}
+			</div>
+			{{else}}
+			<div class="chain-empty">no rules</div>
+			{{end}}
+		</div>
+		{{end}}
+	</div>
+	{{end}}
+{{end}}
+{{template "shell-close" .}}

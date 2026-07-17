@@ -1,0 +1,36 @@
+[Unit]
+Description=nftably - nftables web manager
+Documentation=https://github.com/floreabogdan/nftably
+After=network.target nftables.service
+Wants=nftables.service
+
+[Service]
+Type=simple
+User=nftably
+Group=nftably
+
+# Reading the ruleset (and, from M3 on, applying it) goes through netfilter,
+# which needs CAP_NET_ADMIN. nftably runs as its own unprivileged account and is
+# granted only that one capability — not full root — so a compromise of the web
+# UI cannot, say, load a kernel module or change the clock.
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+
+ExecStart=/usr/bin/nftably server --db /var/lib/nftably/nftably.db
+Restart=on-failure
+RestartSec=5
+
+# Hardening. nftably keeps its state under /var/lib/nftably and needs nothing
+# else writable. ProtectSystem=strict makes the whole filesystem read-only for
+# this unit, so the state dir has to be named explicitly.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/nftably
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

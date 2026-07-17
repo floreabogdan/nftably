@@ -1,0 +1,50 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Account</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Profile</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>Profile</h1>
+		<div class="page-sub">Your login account.</div>
+	</div>
+</div>
+
+{{if .Saved}}<div class="card card-success"><div class="card-body">Saved.</div></div>{{end}}
+{{if .Error}}<div class="card card-danger"><div class="card-body">{{.Error}}</div></div>{{end}}
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-settings"}}Username</span></div>
+	<div class="card-body">
+		<form method="post" action="/profile/identity">
+			<div class="field">
+				<label for="username">Username</label>
+				<input type="text" id="username" name="username" value="{{.Username}}" autocomplete="username" required>
+			</div>
+			<div class="form-actions"><button type="submit" class="btn btn-primary">Save username</button></div>
+		</form>
+	</div>
+</div>
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Password</span></div>
+	<div class="card-body">
+		<form method="post" action="/profile/password">
+			<div class="field">
+				<label for="current_password">Current password</label>
+				<input type="password" id="current_password" name="current_password" autocomplete="current-password" required>
+			</div>
+			<div class="field">
+				<label for="new_password">New password</label>
+				<input type="password" id="new_password" name="new_password" autocomplete="new-password" required>
+				<div class="field-hint text-muted">At least 8 characters.</div>
+			</div>
+			<div class="field">
+				<label for="confirm_password">Confirm new password</label>
+				<input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required>
+			</div>
+			<div class="form-actions"><button type="submit" class="btn btn-primary">Change password</button></div>
+		</form>
+	</div>
+</div>
+{{template "shell-close" .}}
