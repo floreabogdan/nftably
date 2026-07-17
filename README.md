@@ -10,10 +10,10 @@ It's a single Go binary backed by SQLite. No agent, no cloud, no external
 dependencies at runtime beyond `nft` itself. Install the package, run
 `nftably init`, and go.
 
-> **Status: M2 (preview-only).** This release detects the backend, shows the
-> live ruleset, and models your rules — rendering them to nftables config and
-> diffing that against the kernel. It never writes to netfilter yet — see the
-> roadmap below.
+> **Status: M3.** nftably now applies: the rendered config loads into the
+> kernel as one atomic transaction with an armed auto-revert — unless you
+> confirm within the window, the previous ruleset is restored, even if the
+> apply cut off your own connection, and even across an nftably restart.
 
 ---
 
@@ -26,20 +26,22 @@ on a remote router **safe to make**:
 
 - **One model for v4 and v6.** netfilter's `inet` family carries both in a single
   table, so a rule is written once and covers both protocols.
-- **Lockout safety (coming in M3).** Every apply is an atomic `nft -f`
-  transaction with an armed auto-revert: if you don't confirm within N seconds,
-  the previous ruleset is restored — even if your SSH session drops.
-- **Opinionated guardrails.** A lint layer that refuses the classic footguns:
-  dropping your own management connection, dropping `established,related`, or
-  black-holing the ICMPv6 (ND/RA/PMTUD) that IPv6 needs to function.
+- **Lockout safety.** Every apply is an atomic `nft -f` transaction with an
+  armed auto-revert: if you don't confirm within the window, the previous
+  ruleset is restored — even if your SSH session drops, and even if nftably
+  itself is restarted mid-window (the revert snapshot is persisted).
+- **Opinionated guardrails.** The rendered config always starts with the
+  baseline that makes a drop policy survivable — loopback, `established,related`,
+  and the ICMPv6 (ND/RA/PMTUD) IPv6 needs — and a lint pass warns before an
+  apply that would leave no way in for new SSH or UI connections.
 
 ## Roadmap
 
 | Milestone | What it adds | State |
 |-----------|--------------|-------|
 | **M1** | Detect backend, read-only ruleset viewer, iptables import preview | ✅ |
-| **M2** | Rule model → render → diff → preview (no apply) | ✅ this release |
-| **M3** | Apply + commit-confirmed auto-revert + lint guardrails | planned |
+| **M2** | Rule model → render → diff → preview (no apply) | ✅ |
+| **M3** | Apply + commit-confirmed auto-revert + lint guardrails | ✅ this release |
 | **M4** | Zones / forward filtering / NAT / port-forwards | planned |
 | **M5** | Rule library ("pick rules") + one-click hardening | planned |
 

@@ -69,4 +69,28 @@ CREATE TABLE IF NOT EXISTS firewall (
 	created_at   TEXT NOT NULL,
 	updated_at   TEXT NOT NULL
 );
+
+-- M3: every apply is recorded here with the exact text loaded into the kernel.
+-- status: pending (armed, waiting for confirm), confirmed, reverted (the timer
+-- fired or the operator rolled back), or failed (nft -f rejected it).
+CREATE TABLE IF NOT EXISTS config_versions (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	ts         TEXT NOT NULL,
+	actor      TEXT NOT NULL DEFAULT '',
+	config     TEXT NOT NULL,
+	status     TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+
+-- The armed apply, persisted so a crash during the confirm window still ends
+-- in a revert: server startup finds this row and restores prev_table.
+CREATE TABLE IF NOT EXISTS pending_apply (
+	id          INTEGER PRIMARY KEY CHECK (id = 1),
+	version_id  INTEGER NOT NULL REFERENCES config_versions(id),
+	prev_table  TEXT NOT NULL,      -- pre-apply "nft list table inet nftably" text
+	prev_exists INTEGER NOT NULL,   -- 0: the table was absent before the apply
+	deadline    TEXT NOT NULL,
+	created_at  TEXT NOT NULL
+);
 `

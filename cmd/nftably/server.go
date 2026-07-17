@@ -83,6 +83,11 @@ Fix it with:
 		Ip6tablesTranslate: *ip6tablesTranslate,
 	})
 
+	// A crash or restart during an apply's confirm window must end in a revert:
+	// the operator never confirmed, and restarting the service is not a way to
+	// skip the confirm step.
+	srv.RecoverPendingApply()
+
 	// Said once, at startup: nftably binds every interface by default, so an
 	// allow-all access list means anyone who finds the port reaches the login —
 	// and without TLS, the login crosses the network in the clear.

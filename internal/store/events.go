@@ -15,6 +15,8 @@ const (
 	EventSettings     = "settings_change"
 	EventRulesetError = "ruleset_error" // reading the live ruleset failed
 	EventModelChange  = "model_change"  // an operator created/edited/deleted a rule
+	EventConfigApply  = "config_apply"  // a rendered config was loaded into the kernel
+	EventConfigRevert = "config_revert" // an applied config was rolled back (timer or operator)
 )
 
 // Event is one entry on the timeline, optionally attributed to an operator.

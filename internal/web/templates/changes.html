@@ -6,13 +6,35 @@
 <div class="page-header">
 	<div>
 		<h1>Changes</h1>
-		<div class="page-sub">What the <a href="/rules">rule model</a> renders to, and how it differs from the live <span class="mono">table inet nftably</span>. Preview only — applying (with auto-revert) arrives in M3.</div>
+		<div class="page-sub">What the <a href="/rules">rule model</a> renders to, how it differs from the live <span class="mono">table inet nftably</span>, and the apply pipeline with its armed auto-revert.</div>
 	</div>
 </div>
 
+{{if .ApplyErr}}
+<div class="card card-danger"><div class="card-body">
+	<strong>Apply failed.</strong> The kernel ruleset was not changed.
+	<div class="code-block mono">{{.ApplyErr}}</div>
+</div></div>
+{{end}}
+
+{{if .Pending}}
+<div class="card card-warning" id="pending-panel" data-deadline="{{.Pending.DeadlineUnix}}">
+	<div class="card-header"><span class="card-title">{{template "icon-alert"}}Applied — waiting for your confirmation</span></div>
+	<div class="card-body">
+		<p>Config <strong>#{{.Pending.VersionID}}</strong> is live in the kernel right now. If you can still read this page, the new rules did not cut you off — confirm to keep them. Otherwise nftably restores the previous ruleset in
+		<strong class="mono" id="apply-countdown">{{.Pending.SecondsLeft}}s</strong>.</p>
+		<div class="form-actions">
+			<form method="post" action="/apply/confirm"><button type="submit" class="btn btn-primary">Confirm — keep this config</button></form>
+			<form method="post" action="/apply/rollback"><button type="submit" class="btn btn-danger">Roll back now</button></form>
+		</div>
+	</div>
+</div>
+<script src="/static/apply.js" defer></script>
+{{end}}
+
 {{if .LiveErr}}
 <div class="card card-danger"><div class="card-body">
-	<strong>Could not read the live table</strong> — the diff below has nothing to compare against.
+	<strong>Could not read the live table</strong> — the diff below has nothing to compare against, and applying is disabled.
 	<div class="code-block mono">{{.LiveErr}}</div>
 </div></div>
 {{end}}
@@ -40,6 +62,58 @@
 	<div class="card-body"><span class="badge badge-success"><span class="dot"></span>in sync</span> <span class="text-muted">The live table matches the model exactly.</span></div>
 	{{end}}
 </div>
+
+{{if not .Pending}}
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Apply</span></div>
+	<div class="card-body">
+		{{range .LintWarns}}<div class="lint-warn">{{template "icon-alert"}} {{.}}</div>{{end}}
+		{{if .CanApply}}
+		<p class="text-muted">Applying loads the config above as <em>one atomic transaction</em>, then arms an auto-revert: unless you confirm within the window, the previous ruleset is restored — even if this apply cuts off your own connection, and even if nftably is restarted meanwhile.</p>
+		<form method="post" action="/apply" data-confirm="Load this config into the kernel? Auto-revert stays armed until you confirm.">
+			<div class="field">
+				<label for="timeout">Confirm window</label>
+				<select id="timeout" name="timeout">
+					<option value="30">30 seconds</option>
+					<option value="60" selected>60 seconds</option>
+					<option value="120">2 minutes</option>
+					<option value="300">5 minutes</option>
+				</select>
+			</div>
+			<div class="form-actions"><button type="submit" class="btn btn-primary">Apply with auto-revert</button></div>
+		</form>
+		{{else if not .LiveErr}}
+		<p class="text-muted">Applying needs a readable <span class="mono">nft</span> — install nftables and run nftably with <span class="mono">CAP_NET_ADMIN</span>.</p>
+		{{end}}
+	</div>
+</div>
+{{end}}
+
+{{if .History}}
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-clock"}}Recent applies</span></div>
+	<div class="table-scroll">
+		<table>
+			<thead><tr><th>#</th><th>When</th><th>By</th><th>Outcome</th></tr></thead>
+			<tbody>
+				{{range .History}}
+				<tr>
+					<td class="mono">{{.ID}}</td>
+					<td>{{.Ts.Format "2006-01-02 15:04:05"}}</td>
+					<td>{{if .Actor}}{{.Actor}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+					<td>
+						{{if eq .Status "confirmed"}}<span class="badge badge-success">confirmed</span>
+						{{else if eq .Status "pending"}}<span class="badge badge-warning">pending</span>
+						{{else if eq .Status "reverted"}}<span class="badge badge-secondary">reverted</span>
+						{{else}}<span class="badge badge-danger">{{.Status}}</span>{{end}}
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	</div>
+</div>
+{{end}}
 
 <div class="card">
 	<div class="card-header">

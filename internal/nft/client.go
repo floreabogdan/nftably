@@ -78,6 +78,22 @@ func (c *Client) Table(ctx context.Context, family, name string) (text string, e
 	return out, true, nil
 }
 
+// CheckFile validates an nft script against the current kernel state without
+// committing anything (`nft -c -f`). A nil error means the whole file would
+// apply cleanly as one transaction.
+func (c *Client) CheckFile(ctx context.Context, path string) error {
+	_, err := c.run(ctx, "-c", "-f", path)
+	return err
+}
+
+// ApplyFile loads an nft script (`nft -f`). netfilter applies the whole file as
+// one atomic transaction: it either fully commits or leaves the ruleset
+// untouched, which is what makes the apply/revert pipeline safe.
+func (c *Client) ApplyFile(ctx context.Context, path string) error {
+	_, err := c.run(ctx, "-f", path)
+	return err
+}
+
 // Ping is a cheap liveness/permission probe — `nft list tables` touches
 // netfilter without serialising the whole ruleset, so the status-dot poll can
 // run every few seconds without cost. A nil error means nft is present and

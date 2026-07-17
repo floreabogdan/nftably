@@ -10,6 +10,8 @@ package render
 import (
 	"fmt"
 	"net/netip"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/floreabogdan/nftably/internal/store"
@@ -44,7 +46,7 @@ func Config(fw store.Firewall, rules []store.Rule) string {
 	b.WriteString("\t\tct state invalid drop comment \"nftably:baseline invalid\"\n")
 	b.WriteString("\t\tct state established,related accept comment \"nftably:baseline conntrack\"\n")
 	b.WriteString("\t\ticmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, echo-request, echo-reply, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept comment \"nftably:baseline icmpv6\"\n")
-	b.WriteString("\t\ticmp type { destination-unreachable, echo-request, echo-reply, time-exceeded, parameter-problem } accept comment \"nftably:baseline icmp\"\n")
+	b.WriteString("\t\ticmp type { echo-reply, destination-unreachable, echo-request, time-exceeded, parameter-problem } accept comment \"nftably:baseline icmp\"\n")
 
 	for _, r := range rules {
 		if !r.Enabled {
@@ -66,8 +68,18 @@ func Config(fw store.Firewall, rules []store.Rule) string {
 // A rule whose sources mix address families becomes two lines, because in the
 // inet family `ip saddr` matches only IPv4 packets and `ip6 saddr` only IPv6 —
 // a single line could not match both.
+//
+// Set elements are emitted in nft's own canonical order (numeric, ascending):
+// the kernel stores sets unordered and `nft list` prints them sorted, so
+// rendering any other order would make every post-apply diff noisy.
 func RuleLines(r store.Rule) []string {
 	prefixes, _ := store.ParseSources(r.SAddrs)
+	sort.Slice(prefixes, func(i, j int) bool {
+		if c := prefixes[i].Addr().Compare(prefixes[j].Addr()); c != 0 {
+			return c < 0
+		}
+		return prefixes[i].Bits() < prefixes[j].Bits()
+	})
 	var v4, v6 []string
 	for _, p := range prefixes {
 		if p.Addr().Is4() {
@@ -111,6 +123,7 @@ func ruleLine(r store.Rule, saddrKey string, saddrs []string) string {
 	}
 
 	ports, _ := store.ParsePorts(r.DPorts)
+	sort.Slice(ports, func(i, j int) bool { return portLow(ports[i]) < portLow(ports[j]) })
 	switch {
 	case (r.Proto == "tcp" || r.Proto == "udp") && len(ports) > 0:
 		parts = append(parts, r.Proto+" dport "+setExpr(ports))
@@ -132,4 +145,12 @@ func setExpr(vals []string) string {
 		return vals[0]
 	}
 	return "{ " + strings.Join(vals, ", ") + " }"
+}
+
+// portLow is a normalized port token's sort key: the low end of a range, the
+// port itself otherwise.
+func portLow(tok string) int {
+	lo, _, _ := strings.Cut(tok, "-")
+	n, _ := strconv.Atoi(lo)
+	return n
 }

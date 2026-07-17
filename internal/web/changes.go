@@ -2,8 +2,10 @@ package web
 
 import (
 	"net/http"
+	"time"
 
 	nftconf "github.com/floreabogdan/nftably/internal/render"
+	"github.com/floreabogdan/nftably/internal/store"
 )
 
 type changesVM struct {
@@ -20,26 +22,61 @@ type changesVM struct {
 	Added       int
 	Removed     int
 	RuleCount   int // enabled rules in the candidate
+
+	// The M3 apply state.
+	CanApply  bool     // nft reachable and no pending apply
+	LintWarns []string // footgun warnings shown next to the apply button
+	ApplyErr  string   // why the last apply attempt failed, if it did
+	// Pending is the armed apply awaiting confirmation; nil when none.
+	Pending *pendingVM
+	History []store.ConfigVersion
 }
 
-// handleChanges renders the candidate config from the model and diffs it
-// against the live managed table. M2 stops here: the page shows exactly what
-// M3's apply would load, and nothing on it can write to netfilter.
+type pendingVM struct {
+	VersionID    int64
+	Deadline     time.Time
+	DeadlineUnix int64
+	SecondsLeft  int
+}
+
+// handleChanges renders the candidate config, diffs it against the live
+// managed table, and carries the apply pipeline's state: the armed pending
+// apply if one exists, lint warnings, and recent version history.
 func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
+	vm, ok := s.buildChangesVM(w, r)
+	if !ok {
+		return
+	}
+	render(w, s.log, "changes.html", vm)
+}
+
+// renderChangesError re-renders the changes page with an apply-failure banner —
+// apply errors carry nft's stderr, which is too much for a redirect URL.
+func (s *Server) renderChangesError(w http.ResponseWriter, r *http.Request, msg string) {
+	vm, ok := s.buildChangesVM(w, r)
+	if !ok {
+		return
+	}
+	vm.ApplyErr = msg
+	render(w, s.log, "changes.html", vm)
+}
+
+func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changesVM, bool) {
 	rules, err := s.store.ListRules()
 	if err != nil {
 		s.serverError(w, "list rules", err)
-		return
+		return changesVM{}, false
 	}
 	fw, err := s.store.GetFirewall()
 	if err != nil {
 		s.serverError(w, "get firewall", err)
-		return
+		return changesVM{}, false
 	}
 
 	vm := changesVM{
 		nav:       s.navFor(r, "changes"),
 		Candidate: nftconf.Config(fw, rules),
+		LintWarns: nftconf.Lint(fw, rules, s.listenAddr),
 	}
 	for _, rule := range rules {
 		if rule.Enabled {
@@ -47,7 +84,7 @@ func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	live, exists, err := s.nft.Table(r.Context(), "inet", nftconf.TableName)
+	live, exists, err := s.applier.Table(r.Context(), "inet", nftconf.TableName)
 	if err != nil {
 		vm.LiveErr = err.Error()
 	} else {
@@ -56,5 +93,22 @@ func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
 		vm.Added, vm.Removed = nftconf.Stat(vm.Hunks)
 	}
 
-	render(w, s.log, "changes.html", vm)
+	if p, pending, err := s.store.GetPendingApply(); err != nil {
+		s.serverError(w, "get pending apply", err)
+		return changesVM{}, false
+	} else if pending {
+		vm.Pending = &pendingVM{
+			VersionID:    p.VersionID,
+			Deadline:     p.Deadline,
+			DeadlineUnix: p.Deadline.Unix(),
+			SecondsLeft:  max(int(time.Until(p.Deadline).Seconds()), 0),
+		}
+	}
+	vm.CanApply = vm.LiveErr == "" && vm.Pending == nil && s.applier.Available()
+
+	if vm.History, err = s.store.ListConfigVersions(10); err != nil {
+		s.serverError(w, "list config versions", err)
+		return changesVM{}, false
+	}
+	return vm, true
 }

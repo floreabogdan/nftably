@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/floreabogdan/nftably/internal/nft"
 	"github.com/floreabogdan/nftably/internal/store"
@@ -43,6 +44,15 @@ type Server struct {
 	// login throttles failed logins per client IP.
 	login *loginLimiter
 
+	// applier is how the apply pipeline talks to nft — the concrete client in
+	// production, a fake in tests. applyMu serialises everything that touches
+	// the kernel table and the pending-apply record: two applies at once could
+	// both pass the no-pending check and leave two "previous" snapshots.
+	// pendingTimer is the armed auto-revert; guarded by applyMu.
+	applier      applier
+	applyMu      sync.Mutex
+	pendingTimer *time.Timer
+
 	// accessMu guards accessList, the parsed access whitelist cached from
 	// settings so the per-request gate never hits the database.
 	accessMu   sync.RWMutex
@@ -62,6 +72,9 @@ type Config struct {
 	IptablesBin        string
 	IptablesTranslate  string
 	Ip6tablesTranslate string
+	// Applier overrides how the apply pipeline reaches nft; nil uses Nft.
+	// Exists so tests can drive apply/confirm/revert against a fake.
+	Applier applier
 }
 
 // New builds a Server from cfg and wires up the routes.
@@ -82,6 +95,11 @@ func New(cfg Config) *Server {
 		ip6tablesTranslate: cfg.Ip6tablesTranslate,
 		login:              newLoginLimiter(),
 		mux:                http.NewServeMux(),
+	}
+	if cfg.Applier != nil {
+		s.applier = cfg.Applier
+	} else {
+		s.applier = cfg.Nft
 	}
 	s.routes()
 	s.reloadAccess()
@@ -162,6 +180,11 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /rules/{id}/toggle", s.requireAuth(s.handleRuleToggle))
 	s.mux.Handle("POST /rules/{id}/move", s.requireAuth(s.handleRuleMove))
 	s.mux.Handle("GET /changes", s.requireAuth(s.handleChanges))
+
+	// The M3 apply pipeline: load into the kernel with an armed auto-revert.
+	s.mux.Handle("POST /apply", s.requireAuth(s.handleApply))
+	s.mux.Handle("POST /apply/confirm", s.requireAuth(s.handleApplyConfirm))
+	s.mux.Handle("POST /apply/rollback", s.requireAuth(s.handleApplyRollback))
 
 	s.mux.Handle("GET /settings", s.requireAuth(s.handleSettingsPage))
 	s.mux.Handle("POST /settings/identity", s.requireAuth(s.handleSettingsIdentity))
