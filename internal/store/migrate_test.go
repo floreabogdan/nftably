@@ -87,49 +87,33 @@ func TestMigrateFromV1(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// The old flat firewall/fw_rules model is retired; migration only has to bring
+	// a legacy-shaped database up to the current schema cleanly, with the object
+	// model seeded. (The abandoned old tables are left in place, untouched.)
 	s, err := Open(path)
 	if err != nil {
 		t.Fatalf("open v1 db: %v", err)
 	}
-	defer s.Close()
-
-	fw, err := s.GetFirewall()
-	if err != nil {
+	var version int
+	if err := s.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if fw.InputPolicy != "accept" || fw.ForwardPolicy != "drop" || fw.WANIface != "" || fw.Masquerade {
-		t.Fatalf("migrated firewall: %+v", fw)
+	if version != schemaVersion {
+		t.Fatalf("user_version after migration = %d, want %d", version, schemaVersion)
 	}
-	rules, err := s.ListRules()
-	if err != nil {
-		t.Fatal(err)
+	if tables, err := s.ListTables(); err != nil || len(tables) == 0 {
+		t.Fatalf("object model not seeded after migrating a legacy db: %d tables, err=%v", len(tables), err)
 	}
-	if len(rules) != 1 || rules[0].Name != "ssh" || rules[0].Chain != "input" {
-		t.Fatalf("migrated rules: %+v", rules)
-	}
-
-	// The new capabilities work on the migrated file.
-	fw.WANIface = "eth0"
-	fw.Masquerade = true
-	if err := s.SaveFirewall(fw); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.CreatePortForward(PortForward{Proto: "tcp", DPort: "80", Dest: "10.0.0.2", Enabled: true}); err != nil {
+	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
 
 	// Re-opening must be a no-op (migrations are safe to re-run).
-	if err := s.Close(); err != nil {
-		t.Fatal(err)
-	}
 	s2, err := Open(path)
 	if err != nil {
 		t.Fatalf("reopen migrated db: %v", err)
 	}
 	defer s2.Close()
-	if fw, err = s2.GetFirewall(); err != nil || fw.WANIface != "eth0" {
-		t.Fatalf("second open: %+v %v", fw, err)
-	}
 }
 
 // TestMigrateAdoptsV3Lists builds a database from the fixed-two-lists era —

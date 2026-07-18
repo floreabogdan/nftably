@@ -83,24 +83,6 @@ func TestSeededListsAndCRUD(t *testing.T) {
 	}
 }
 
-func TestListDeleteRefusedWhileRulesUseIt(t *testing.T) {
-	s := testStore(t)
-	id, err := s.CreateList(IPList{Name: "office"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.CreateRule(Rule{Name: "ssh from office", Action: "accept", Proto: "tcp", DPorts: "22", SrcListID: id, Enabled: true}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.DeleteList(id); err == nil {
-		t.Fatal("list deleted while a rule uses it")
-	}
-	rules, err := s.RulesUsingList(id)
-	if err != nil || len(rules) != 1 || rules[0].Name != "ssh from office" {
-		t.Fatalf("rules using list: %+v err=%v", rules, err)
-	}
-}
-
 func TestListEntriesCRUDAndOverlap(t *testing.T) {
 	s := testStore(t)
 	block, err := s.GetListByName("blacklist")

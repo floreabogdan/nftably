@@ -51,53 +51,10 @@ CREATE TABLE IF NOT EXISTS events (
 -- The timeline paginates by id (a monotonic proxy for time), so events(id) —
 -- the primary key — is the only index it needs; no separate ts index.
 
--- The M2 rule model: an ordered list of filter rules on the managed chains
--- (input since M2, forward since M4). What nftably renders (and, from M3,
--- applies) is exactly this list plus the baseline rules the render layer
--- always emits. position is the render order; gaps are fine, uniqueness is
--- maintained by the move/create paths.
-CREATE TABLE IF NOT EXISTS fw_rules (
-	id         INTEGER PRIMARY KEY AUTOINCREMENT,
-	position   INTEGER NOT NULL,
-	name       TEXT NOT NULL DEFAULT '',
-	chain      TEXT NOT NULL DEFAULT 'input',    -- input | forward
-	action     TEXT NOT NULL DEFAULT 'accept',   -- accept | drop | reject
-	proto      TEXT NOT NULL DEFAULT 'any',      -- any | tcp | udp
-	dports     TEXT NOT NULL DEFAULT '',         -- "22, 80, 8000-8100" (tcp/udp only)
-	saddrs     TEXT NOT NULL DEFAULT '',         -- source IPs/CIDRs; empty = any
-	iif        TEXT NOT NULL DEFAULT '',         -- ingress interface; empty = any
-	enabled    INTEGER NOT NULL DEFAULT 1,
-	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL
-);
-
--- Single-row chain-wide configuration for the managed chains. The M4 routing
--- fields: forwarding (forward chain, NAT, port-forwards) stays entirely off
--- until wan_iface names the upstream interface.
-CREATE TABLE IF NOT EXISTS firewall (
-	id             INTEGER PRIMARY KEY CHECK (id = 1),
-	input_policy   TEXT NOT NULL DEFAULT 'drop',   -- drop | accept
-	forward_policy TEXT NOT NULL DEFAULT 'drop',   -- drop | accept
-	wan_iface      TEXT NOT NULL DEFAULT '',       -- upstream interface; empty = forwarding off
-	masquerade     INTEGER NOT NULL DEFAULT 0,     -- NAT LAN sources out wan_iface
-	created_at     TEXT NOT NULL,
-	updated_at     TEXT NOT NULL
-);
-
--- M4 port-forwards: DNAT rules on the WAN interface. dport is one external
--- port or one a-b range; dest_port empty means "same port(s) as dport".
-CREATE TABLE IF NOT EXISTS port_forwards (
-	id         INTEGER PRIMARY KEY AUTOINCREMENT,
-	position   INTEGER NOT NULL,
-	name       TEXT NOT NULL DEFAULT '',
-	proto      TEXT NOT NULL DEFAULT 'tcp',   -- tcp | udp
-	dport      TEXT NOT NULL,                 -- external port or range
-	dest       TEXT NOT NULL,                 -- internal IP (v4 or v6)
-	dest_port  TEXT NOT NULL DEFAULT '',      -- internal port; empty = preserve
-	enabled    INTEGER NOT NULL DEFAULT 1,
-	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL
-);
+-- Note: the pre-redesign flat model (fw_rules, firewall, port_forwards tables)
+-- has been retired — the general object model below replaced it. Databases
+-- created before the redesign keep those tables, dormant and unread; new
+-- databases never create them.
 
 -- M3: every apply is recorded here with the exact text loaded into the kernel.
 -- status: pending (armed, waiting for confirm), confirmed, reverted (the timer

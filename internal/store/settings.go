@@ -68,7 +68,7 @@ func (s *Store) SaveGeoIPDB(path string) error {
 	if err != nil {
 		return fmt.Errorf("store: save geoip db: %w", err)
 	}
-	return affectedOne(res)
+	return notFoundIfZero(res)
 }
 
 // SaveGeoIP updates the GeoIP database path and the auto-update opt-in together.
@@ -78,7 +78,7 @@ func (s *Store) SaveGeoIP(path string, autoUpdate bool) error {
 	if err != nil {
 		return fmt.Errorf("store: save geoip: %w", err)
 	}
-	return affectedOne(res)
+	return notFoundIfZero(res)
 }
 
 // SaveAccessWhitelist updates only the access whitelist.
@@ -87,5 +87,5 @@ func (s *Store) SaveAccessWhitelist(text string) error {
 	if err != nil {
 		return fmt.Errorf("store: save access whitelist: %w", err)
 	}
-	return affectedOne(res)
+	return notFoundIfZero(res)
 }

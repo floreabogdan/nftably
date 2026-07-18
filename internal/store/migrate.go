@@ -33,18 +33,11 @@ func migrate(db *sql.DB) error {
 	// version < 1: nothing to migrate — the base schema was the whole story
 	// for M1.
 
-	// version < 2 (M4): forwarding fields on firewall, the chain column on
-	// fw_rules. A fresh database created these via schema.go already, so each
-	// column is added only if missing.
-	// version < 3 (M6): the optional GeoIP database path on settings.
-	// version < 4: named lists — entries move under ip_lists, rules can use
-	// a list as their source.
+	// Column additions for databases created before a column existed. A fresh
+	// database already has each via schema.go, so addColumnIfMissing is a no-op
+	// there. (The pre-redesign firewall/fw_rules column adds were dropped along
+	// with the flat model — those tables are no longer read.)
 	adds := []struct{ table, column, ddl string }{
-		{"firewall", "forward_policy", `TEXT NOT NULL DEFAULT 'drop'`},
-		{"firewall", "wan_iface", `TEXT NOT NULL DEFAULT ''`},
-		{"firewall", "masquerade", `INTEGER NOT NULL DEFAULT 0`},
-		{"fw_rules", "chain", `TEXT NOT NULL DEFAULT 'input'`},
-		{"fw_rules", "src_list_id", `INTEGER NOT NULL DEFAULT 0`},
 		{"settings", "geoip_db", `TEXT NOT NULL DEFAULT ''`},
 		{"list_entries", "list_id", `INTEGER NOT NULL DEFAULT 0`},
 		// version < 5 (the do-over): the general object model replaces the

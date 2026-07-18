@@ -5,11 +5,15 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
+
+// ErrNotFound is returned by Get/Update/Delete when the row does not exist.
+var ErrNotFound = errors.New("not found")
 
 // maxOpenConns bounds the connection pool. SQLite is single-writer, so a large
 // pool buys nothing on the write side; WAL still lets these connections read
@@ -70,15 +74,59 @@ func now() string {
 	return time.Now().UTC().Format(time.RFC3339Nano)
 }
 
-// affectedOne turns a zero-row UPDATE into an error, so a save against a missing
-// row is a failure rather than a silent no-op.
-func affectedOne(res sql.Result) error {
+// notFoundIfZero turns a zero-row UPDATE/DELETE into ErrNotFound, so a save
+// against a missing row is a distinguishable failure rather than a silent no-op.
+func notFoundIfZero(res sql.Result) error {
 	n, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("store: rows affected: %w", err)
+		return err
 	}
 	if n == 0 {
-		return fmt.Errorf("store: no row updated")
+		return ErrNotFound
 	}
 	return nil
+}
+
+// moveInOrder swaps a row's position with its neighbour in an ordered table, to
+// move it up (dir<0) or down. table must be a compile-time constant, never user
+// input (it is interpolated into the SQL).
+func (s *Store) moveInOrder(table string, id int64, dir int) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var pos int
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT position FROM %s WHERE id = ?`, table), id).Scan(&pos); err != nil {
+		if err == sql.ErrNoRows {
+			return ErrNotFound
+		}
+		return fmt.Errorf("store: move %s: %w", table, err)
+	}
+
+	cmp, ord := ">", "ASC"
+	if dir < 0 {
+		cmp, ord = "<", "DESC"
+	}
+	var nid int64
+	var npos int
+	err = tx.QueryRow(fmt.Sprintf(
+		`SELECT id, position FROM %s WHERE position %s ? ORDER BY position %s, id LIMIT 1`, table, cmp, ord),
+		pos).Scan(&nid, &npos)
+	if err == sql.ErrNoRows {
+		return nil // already at the end it is moving towards
+	}
+	if err != nil {
+		return fmt.Errorf("store: move %s: %w", table, err)
+	}
+
+	ts := now()
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s SET position = ?, updated_at = ? WHERE id = ?`, table), npos, ts, id); err != nil {
+		return fmt.Errorf("store: move %s: %w", table, err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s SET position = ?, updated_at = ? WHERE id = ?`, table), pos, ts, nid); err != nil {
+		return fmt.Errorf("store: move %s: %w", table, err)
+	}
+	return tx.Commit()
 }

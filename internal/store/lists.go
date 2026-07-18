@@ -209,13 +209,6 @@ func (s *Store) DeleteList(id int64) error {
 	} else if len(refs) > 0 {
 		return fmt.Errorf("%d firewall rule(s) reference @%s — delete or repoint them first", len(refs), l.Name)
 	}
-	var n int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM fw_rules WHERE src_list_id = ?`, id).Scan(&n); err != nil {
-		return fmt.Errorf("store: delete list: %w", err)
-	}
-	if n > 0 {
-		return fmt.Errorf("%d rule(s) use this list as their source — delete or repoint them first", n)
-	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -319,21 +312,6 @@ func (s *Store) SetReferenceCounts() (map[string]int, error) {
 	out := make(map[string]int, len(refs))
 	for name, uses := range refs {
 		out[name] = len(uses)
-	}
-	return out, nil
-}
-
-// RulesUsingList returns the rules whose source is this list.
-func (s *Store) RulesUsingList(id int64) ([]Rule, error) {
-	rules, err := s.ListRules()
-	if err != nil {
-		return nil, err
-	}
-	var out []Rule
-	for _, r := range rules {
-		if r.SrcListID == id {
-			out = append(out, r)
-		}
 	}
 	return out, nil
 }
