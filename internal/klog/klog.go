@@ -74,9 +74,9 @@ func parseNetfilterLine(line string, boot time.Time) (Entry, bool) {
 	// prefix is whatever precedes it. Prefer the space-delimited " IN=" so a
 	// prefix that itself contains "IN=" (e.g. "WIN= ") isn't split mid-word; fall
 	// back to a leading "IN=" for a prefix with no trailing space.
-	in := -1
-	if i := strings.Index(line, " IN="); i >= 0 {
-		in = i + 1
+	in := strings.Index(line, " IN=")
+	if in >= 0 {
+		in++ // step past the leading space onto "IN="
 	} else if strings.HasPrefix(line, "IN=") {
 		in = 0
 	} else {

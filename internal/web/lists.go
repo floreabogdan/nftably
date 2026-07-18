@@ -82,9 +82,10 @@ func (s *Server) handleListCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, fmt.Sprintf("created list %q (%s)", l.Name, roleLabel(l.Role)))
 	// A sourced list is empty until its first refresh — do it now so the operator
-	// lands on a populated page (or a clear error).
+	// lands on a populated page. Best-effort: the outcome (an error or a count) is
+	// recorded on the list and shown on its page.
 	if l.Source == store.SourceGeoIP || l.Source == store.SourceURL {
-		s.doRefresh(r.Context(), id)
+		_, _ = s.doRefresh(r.Context(), id)
 	}
 	http.Redirect(w, r, "/lists/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
 }

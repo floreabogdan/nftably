@@ -208,7 +208,6 @@ type eval struct {
 	table     nftconf.TableTree
 	pkt       Packet
 	uncertain bool
-	depth     int
 }
 
 // walk evaluates a chain's rules in order, appending a RuleTrace for each, and
