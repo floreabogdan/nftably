@@ -130,6 +130,7 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.pendingTimer = time.AfterFunc(timeout, func() { s.autoRevert(versionID) })
+	s.pendingAppliedTables = current // the exact owned set the kernel now runs
 	_ = s.store.InsertAudit(actor, store.EventConfigApply,
 		fmt.Sprintf("applied config #%d (auto-revert in %s unless confirmed)", versionID, timeout))
 	s.log.Info("config applied", "version", versionID, "confirmWithin", timeout)
@@ -160,11 +161,19 @@ func (s *Server) handleApplyConfirm(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, "confirm version", err)
 		return
 	}
-	// The apply is now the kernel's truth: record its owned-table set as the
-	// ledger the next apply diffs against for removals.
-	if m, err := s.loadModel(); err == nil {
-		_ = s.store.SetAppliedTables(modelTableRefs(m))
+	// The apply is now the kernel's truth: record the owned-table set that was
+	// actually applied as the ledger the next apply diffs against for removals.
+	// Use the set captured at apply time, not the live model — the model may have
+	// been edited during the pending window, and recording that would orphan the
+	// running table from future removal diffs.
+	applied := s.pendingAppliedTables
+	if applied == nil { // defensive: fall back to the live model
+		if m, err := s.loadModel(); err == nil {
+			applied = modelTableRefs(m)
+		}
 	}
+	_ = s.store.SetAppliedTables(applied)
+	s.pendingAppliedTables = nil
 	_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventConfigApply,
 		fmt.Sprintf("confirmed config #%d", p.VersionID))
 	http.Redirect(w, r, "/changes", http.StatusSeeOther)
@@ -250,6 +259,7 @@ func (s *Server) revert(p store.PendingApply, actor, reason string) error {
 	if err := s.store.ClearPendingApply(); err != nil {
 		return err
 	}
+	s.pendingAppliedTables = nil // the applied set is no longer the kernel's truth
 	if err := s.store.SetConfigVersionStatus(p.VersionID, store.VersionReverted); err != nil {
 		return err
 	}

@@ -99,6 +99,18 @@ func (s *Server) handlePresetApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "applied the "+p.Name+" preset")
+	// The preset gates SSH/UI behind @mgmt and seeds it with the operator's
+	// address — but that can't be detected over an SSH tunnel (loopback is not a
+	// listable address). If @mgmt came out empty, warn before they apply into a
+	// drop policy that admits no new management traffic.
+	if l, err := s.store.GetListByName("mgmt"); err == nil {
+		if entries, _ := s.store.ListEntries(l.ID); len(entries) == 0 {
+			http.Redirect(w, r, "/firewall?preset="+p.Key+"&err="+urlEscape(
+				"The preset couldn't detect your address (an SSH tunnel hides it), so the management set @mgmt is empty. Add your admin network under Named sets before you apply — otherwise new SSH/UI connections would be dropped."),
+				http.StatusSeeOther)
+			return
+		}
+	}
 	http.Redirect(w, r, "/firewall?preset="+p.Key, http.StatusSeeOther)
 }
 

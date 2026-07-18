@@ -56,6 +56,12 @@ type Server struct {
 	applier      applier
 	applyMu      sync.Mutex
 	pendingTimer *time.Timer
+	// pendingAppliedTables is the owned-table set of the config an armed apply
+	// actually loaded — recorded as the ledger on confirm, so a model edit made
+	// during the pending window can't drift the ledger. Guarded by applyMu; only
+	// ever read in the same process that set it (a restart reverts rather than
+	// confirms). Nil when no apply is pending.
+	pendingAppliedTables []store.TableRef
 
 	// geo caches the optional MaxMind reader for the connections view.
 	geo geoDB

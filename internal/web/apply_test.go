@@ -176,6 +176,32 @@ func TestApplyConfirmKeepsConfig(t *testing.T) {
 	}
 }
 
+// A model edit made during the pending window must not drift the applied-tables
+// ledger: confirm records the set that was actually applied, not the live model.
+func TestConfirmLedgerIgnoresPendingModelEdit(t *testing.T) {
+	srv, _, cookie := newApplyTestServer(t)
+	_ = seededInputChain(t, srv) // ensures the inet/filter table exists
+
+	if rec := postForm(srv, "/apply", url.Values{"timeout": {"60"}}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("apply: %d", rec.Code)
+	}
+	// Edit the model while the apply is pending: delete every owned table.
+	tables, _ := srv.store.ListTables()
+	for _, tbl := range tables {
+		if err := srv.store.DeleteTable(tbl.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if rec := postForm(srv, "/apply/confirm", url.Values{}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("confirm: %d", rec.Code)
+	}
+	// The ledger must record what was applied (inet/filter), so a later apply can
+	// still diff it for removal — not the now-empty edited model.
+	if refs, _ := srv.store.GetAppliedTables(); len(refs) != 1 || refs[0].Name != "filter" {
+		t.Fatalf("ledger should reflect the applied set (inet/filter), got %+v", refs)
+	}
+}
+
 func TestApplyRollbackRestoresPrevious(t *testing.T) {
 	srv, fake, cookie := newApplyTestServer(t)
 	prev := "table inet filter {\n\tchain input {\n\t\ttype filter hook input priority filter; policy drop;\n\t}\n}\n"

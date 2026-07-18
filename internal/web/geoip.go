@@ -26,6 +26,23 @@ const (
 	geoipStaleAge = 30 * 24 * time.Hour
 )
 
+// geoipHTTPClient downloads the country database, refusing any redirect that
+// downgrades away from HTTPS — so an on-path or DNS attacker can't turn the
+// hard-coded https://download.db-ip.com URL into a plaintext fetch of arbitrary
+// bytes (the file must still validate as an mmdb, but the TLS guarantee should
+// not be silently discardable).
+var geoipHTTPClient = &http.Client{
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if req.URL.Scheme != "https" {
+			return fmt.Errorf("refusing a redirect to non-HTTPS %s", req.URL.Redacted())
+		}
+		if len(via) >= 5 {
+			return fmt.Errorf("too many redirects")
+		}
+		return nil
+	},
+}
+
 // managedGeoIPPath is where a downloaded database lives, or "" when nftably has
 // no writable data directory.
 func (s *Server) managedGeoIPPath() string {
@@ -72,7 +89,7 @@ func (s *Server) fetchGeoIP(ctx context.Context, url, dst string) error {
 		return err
 	}
 	req.Header.Set("User-Agent", "nftably/"+buildinfo.Version)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := geoipHTTPClient.Do(req)
 	if err != nil {
 		return err
 	}
