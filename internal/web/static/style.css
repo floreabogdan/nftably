@@ -1083,3 +1083,5 @@ details[open] .collapse-hint::before { content: "hide"; }
 .preset-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 0.82rem; line-height: 1.4; }
 .preset-sets li { color: var(--text-muted); }
 .preset-sets .mono { color: var(--primary-deep); }
+
+.setup-cta-actions { display: flex; gap: 8px; flex-shrink: 0; }

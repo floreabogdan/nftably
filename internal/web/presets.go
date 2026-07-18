@@ -37,12 +37,14 @@ func (s *Server) presets() []presetDef {
 			Sets: []presetSet{
 				{"mgmt", "Your management networks. SSH and the nftably UI are accepted only from here — seeded with the address you're connecting from so you don't lock yourself out."},
 				{"peers", "Your BGP peers. TCP 179 (BGP) and BFD are accepted only from these addresses. Add each peer's IPv4 and IPv6."},
+				{"blacklist", "Addresses dropped before anything else (even established sessions). The Connections page's Block button appends here, so a block takes effect the moment you apply."},
 			},
 			Adds: []string{
-				"An inet filter table with input (drop), forward (accept, invalid dropped) and output (accept) chains.",
-				"Loopback, established/related and connection-invalid handling — the survivable base for a drop policy.",
+				"An inet filter table with input (drop), forward (accept, invalid dropped) and output (accept, cleaned up) chains.",
+				"Loopback, established/related, connection-invalid handling, and an early @blacklist drop — the survivable base for a drop policy.",
 				"The ICMP/ICMPv6 a router must answer (echo, unreachable, time-exceeded, and IPv6 neighbour discovery / PMTU — block these and IPv6 breaks).",
 				"SSH (22) and the nftably UI accepted only from @mgmt; BGP (179) and BFD (3784/3785/4784) only from @peers — everything else to the box is dropped.",
+				"Output hygiene: the router still originates whatever it needs (BGP, ND, DNS…), but LAN-only chatter (mDNS, LLMNR, NetBIOS, SMB, SSDP, DHCP) is stopped from ever leaking to peers.",
 				"A rate-limited log of denied inbound, so scans are visible without flooding the log.",
 			},
 			build: (*Server).buildBGPPreset,
@@ -155,21 +157,51 @@ func (s *Server) addRule(chainID int64, comment string, matches []store.RuleMatc
 }
 
 // baseInputRules writes the survivable base every input chain needs: loopback,
-// invalid, established/related, and the essential ICMP/ICMPv6.
+// invalid, an early @blacklist drop (so the Connections "block" button cuts even
+// established sessions), established/related, and the essential ICMP/ICMPv6.
 func (s *Server) baseInputRules(input int64) error {
 	steps := []struct {
-		comment  string
-		matches  []store.RuleMatch
-		stmts    []store.RuleStatement
+		comment string
+		matches []store.RuleMatch
+		stmts   []store.RuleStatement
 	}{
 		{"loopback", []store.RuleMatch{mt("meta.iifname", "lo")}, []store.RuleStatement{stmt("accept")}},
 		{"drop invalid", []store.RuleMatch{mt("ct.state", "invalid")}, []store.RuleStatement{stmt("drop")}},
+		{"drop blacklisted (IPv4)", []store.RuleMatch{mt("ip.saddr", "@blacklist4")}, []store.RuleStatement{stmt("drop")}},
+		{"drop blacklisted (IPv6)", []store.RuleMatch{mt("ip6.saddr", "@blacklist6")}, []store.RuleStatement{stmt("drop")}},
 		{"established/related", []store.RuleMatch{mt("ct.state", "established, related")}, []store.RuleStatement{stmt("accept")}},
 		{"ICMPv6 — required for IPv6 to work", []store.RuleMatch{mt("icmpv6.type", "echo-request, echo-reply, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, destination-unreachable, packet-too-big, time-exceeded, parameter-problem")}, []store.RuleStatement{stmt("accept")}},
 		{"ICMPv4", []store.RuleMatch{mt("icmp.type", "echo-request, echo-reply, destination-unreachable, time-exceeded, parameter-problem")}, []store.RuleStatement{stmt("accept")}},
 	}
 	for _, st := range steps {
 		if err := s.addRule(input, st.comment, st.matches, st.stmts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// outputHygieneRules keeps a router's own traffic clean: drop invalid, and stop
+// LAN-only discovery/chatter from ever leaking out to transit or peers. It does
+// NOT touch ND/ICMPv6 or routing protocols — the router legitimately originates
+// those (and needs ND to reach its IPv6 peers). The policy stays accept, so
+// everything the router needs to send still goes out.
+func (s *Server) outputHygieneRules(output int64) error {
+	steps := []struct {
+		comment string
+		matches []store.RuleMatch
+	}{
+		{"drop invalid outbound", []store.RuleMatch{mt("ct.state", "invalid")}},
+		{"don't leak mDNS to the internet", []store.RuleMatch{mt("udp.dport", "5353")}},
+		{"don't leak LLMNR", []store.RuleMatch{mt("udp.dport", "5355")}},
+		{"don't leak NetBIOS (UDP)", []store.RuleMatch{mt("udp.dport", "137, 138")}},
+		{"don't leak NetBIOS (TCP)", []store.RuleMatch{mt("tcp.dport", "139")}},
+		{"don't leak SMB", []store.RuleMatch{mt("tcp.dport", "445")}},
+		{"don't leak SSDP / UPnP", []store.RuleMatch{mt("udp.dport", "1900")}},
+		{"don't send DHCP to peers (disable if this router is a DHCP client)", []store.RuleMatch{mt("udp.dport", "67, 68")}},
+	}
+	for _, st := range steps {
+		if err := s.addRule(output, st.comment, st.matches, []store.RuleStatement{stmt("drop")}); err != nil {
 			return err
 		}
 	}
@@ -227,6 +259,9 @@ func (s *Server) buildSecureServerPreset(r *http.Request) error {
 		return err
 	}
 	s.seedMgmtWithClient(mgmt, r)
+	if _, err := s.ensureList("blacklist", "Addresses to drop outright, before anything else. The Connections page's Block button appends here."); err != nil {
+		return err
+	}
 
 	tableID, err := s.store.CreateTable(store.Table{Family: "inet", Name: "filter", Comment: "Basic secure server (nftably preset)"})
 	if err != nil {
@@ -263,6 +298,9 @@ func (s *Server) buildBGPPreset(r *http.Request) error {
 	if _, err := s.ensureList("peers", "Your BGP peers — BGP (TCP 179) and BFD are accepted only from these addresses. Add each peer's IPv4 and IPv6."); err != nil {
 		return err
 	}
+	if _, err := s.ensureList("blacklist", "Addresses to drop outright, before anything else. The Connections page's Block button appends here."); err != nil {
+		return err
+	}
 
 	tableID, err := s.store.CreateTable(store.Table{Family: "inet", Name: "filter", Comment: "BGP edge router (nftably preset)"})
 	if err != nil {
@@ -276,7 +314,8 @@ func (s *Server) buildBGPPreset(r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.store.CreateChain(store.Chain{TableID: tableID, Name: "output", Kind: "base", Hook: "output", ChainType: "filter", Priority: "filter", Policy: "accept"}); err != nil {
+	output, err := s.store.CreateChain(store.Chain{TableID: tableID, Name: "output", Kind: "base", Hook: "output", ChainType: "filter", Priority: "filter", Policy: "accept"})
+	if err != nil {
 		return err
 	}
 
@@ -306,5 +345,9 @@ func (s *Server) buildBGPPreset(r *http.Request) error {
 	}
 	// Transit hygiene: drop obviously-invalid forwarded traffic; the accept
 	// policy routes the rest.
-	return s.addRule(forward, "drop invalid transit", []store.RuleMatch{mt("ct.state", "invalid")}, []store.RuleStatement{stmt("drop")})
+	if err := s.addRule(forward, "drop invalid transit", []store.RuleMatch{mt("ct.state", "invalid")}, []store.RuleStatement{stmt("drop")}); err != nil {
+		return err
+	}
+	// Output hygiene: keep the router's own noise off the wire.
+	return s.outputHygieneRules(output)
 }

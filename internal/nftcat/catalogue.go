@@ -97,12 +97,16 @@ var matches = []Match{
 		Help: "Where the packet came from: a single IPv4 (10.0.0.5), a CIDR (10.0.0.0/8), a range, a comma list, or @set.", Example: "192.168.1.0/24"},
 	{Key: "ip.daddr", Label: "Destination address (IPv4)", Group: "IPv4", Expr: "ip daddr", Kind: KindText, Ops: []string{"==", "!="}, Families: []string{"inet", "ip"},
 		Help: "Where the packet is headed (IPv4). Same value forms as the source.", Example: "203.0.113.10"},
+	{Key: "ip.ttl", Label: "TTL (IPv4)", Group: "IPv4", Expr: "ip ttl", Kind: KindInt, Ops: []string{"==", "!=", "<", ">", "<=", ">="}, Families: []string{"inet", "ip"},
+		Help: "IPv4 time-to-live. For BGP GTSM, directly-connected peers send TTL 255 — accepting only ttl 255 rejects spoofed BGP from farther away.", Example: "255"},
 
 	// IPv6
 	{Key: "ip6.saddr", Label: "Source address (IPv6)", Group: "IPv6", Expr: "ip6 saddr", Kind: KindText, Ops: []string{"==", "!="}, Families: []string{"inet", "ip6"},
 		Help: "Where the packet came from, IPv6. A single address, a prefix (2001:db8::/32), a comma list, or @set.", Example: "2001:db8::/32"},
 	{Key: "ip6.daddr", Label: "Destination address (IPv6)", Group: "IPv6", Expr: "ip6 daddr", Kind: KindText, Ops: []string{"==", "!="}, Families: []string{"inet", "ip6"},
 		Help: "Where the packet is headed, IPv6.", Example: "2001:db8::1"},
+	{Key: "ip6.hoplimit", Label: "Hop limit (IPv6)", Group: "IPv6", Expr: "ip6 hoplimit", Kind: KindInt, Ops: []string{"==", "!=", "<", ">", "<=", ">="}, Families: []string{"inet", "ip6"},
+		Help: "IPv6 hop limit (the v6 equivalent of TTL). For BGP GTSM over IPv6, accept only hoplimit 255 from directly-connected peers.", Example: "255"},
 
 	// Ports
 	{Key: "tcp.dport", Label: "Destination port (TCP)", Group: "Ports", Expr: "tcp dport", Kind: KindPort, Ops: []string{"==", "!=", "<", ">", "<=", ">="}, NeedsL4: "tcp",
@@ -135,6 +139,8 @@ var matches = []Match{
 			{"invalid", "invalid", "Doesn't match any known connection — usually dropped."},
 			{"untracked", "untracked", "Deliberately exempted from connection tracking."},
 		}},
+	{Key: "ct.mark", Label: "Connection mark", Group: "Connection", Expr: "ct mark", Kind: KindInt, Ops: []string{"==", "!="},
+		Help: "A number attached to the whole connection by an earlier rule — match it to treat a flow's packets consistently.", Example: "0x1"},
 	{Key: "ct.status", Label: "Connection status", Group: "Connection", Expr: "ct status", Kind: KindFlags, Ops: []string{"==", "!="},
 		Help: "Extra flags conntrack sets on a connection. 'dnat' matches flows that were port-forwarded — handy to accept them in a forward chain.", Example: "dnat",
 		Options: []Option{

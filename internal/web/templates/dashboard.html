@@ -26,9 +26,12 @@
 	<div class="card-body setup-cta">
 		<div>
 			<strong>nftably isn't managing any tables yet.</strong>
-			<div class="text-muted">Head to the Firewall page to build your first table, chains and rules — every option is explained as you go. Nothing touches your live firewall until you review and apply it, and even then an armed auto-revert has your back.</div>
+			<div class="text-muted">Start from a <a href="/presets">preset</a> — a hardened BGP router or a basic secure server, scaffolded and explained — or open the Firewall page and build it yourself. Nothing touches your live firewall until you review and apply it, and even then an armed auto-revert has your back.</div>
 		</div>
-		<a class="btn btn-primary" href="/firewall">{{template "icon-shield"}}Open the firewall</a>
+		<div class="setup-cta-actions">
+			<a class="btn btn-primary" href="/presets">{{template "icon-spark"}}Use a preset</a>
+			<a class="btn" href="/firewall">{{template "icon-shield"}}Build it yourself</a>
+		</div>
 	</div>
 </div>
 {{end}}
