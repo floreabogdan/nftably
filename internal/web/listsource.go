@@ -6,15 +6,55 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/netip"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/floreabogdan/nftably/internal/buildinfo"
 	"github.com/floreabogdan/nftably/internal/store"
 	"github.com/oschwald/maxminddb-golang"
 )
+
+// feedHTTPClient fetches remote blocklist feeds while refusing to connect to a
+// non-public address. The check runs in the dialer's Control hook, after DNS
+// resolution and for every connection attempt, so a hostname that resolves to a
+// private IP — or an HTTP redirect to one — is blocked too. This turns the
+// operator-supplied feed URL from a blind-SSRF hole (cloud metadata, loopback
+// services, the LAN) into a public-fetch-only capability.
+var feedHTTPClient = &http.Client{
+	Timeout: 60 * time.Second,
+	Transport: &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: 10 * time.Second,
+			Control: func(_, address string, _ syscall.RawConn) error {
+				host, _, err := net.SplitHostPort(address)
+				if err != nil {
+					return err
+				}
+				ip, err := netip.ParseAddr(host)
+				if err != nil {
+					return fmt.Errorf("unresolved feed address %q", host)
+				}
+				if !isPublicAddr(ip) {
+					return fmt.Errorf("refusing to fetch a feed from the non-public address %s", ip)
+				}
+				return nil
+			},
+		}).DialContext,
+	},
+}
+
+// isPublicAddr reports whether an address is a routable public one — not
+// loopback, private, link-local, unique-local, multicast or unspecified.
+func isPublicAddr(ip netip.Addr) bool {
+	ip = ip.Unmap()
+	return !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() &&
+		!ip.IsLinkLocalMulticast() && !ip.IsMulticast() && !ip.IsUnspecified() &&
+		!ip.IsInterfaceLocalMulticast()
+}
 
 // This file populates sourced named sets: a GeoIP country's CIDRs, or a remote
 // feed of addresses. Both flow into store.ReplaceListEntries, which normalizes
@@ -134,7 +174,7 @@ func fetchFeed(ctx context.Context, url string) ([]string, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "nftably/"+buildinfo.Version)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := feedHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

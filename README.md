@@ -184,8 +184,11 @@ tables it owns (recorded in its model); tables it did not create are never modif
 Applying replaces exactly the owned tables in one transaction, and removes tables you
 delete from the model. GeoIP lookups (optional, Settings → GeoIP) run against a local
 `.mmdb` file — point at your own MaxMind database, or let nftably fetch the free DB-IP
-Lite one (CC-BY 4.0, no account). That opt-in download is the **only** thing that ever
-makes nftably reach the network, and only when you click it or enable the monthly refresh.
+Lite one (CC-BY 4.0, no account). nftably reaches the network in exactly two places,
+both opt-in and operator-triggered: that GeoIP download, and fetching a **feed-sourced
+named set** from a URL you configure. Feed fetches are restricted to public addresses
+(the dialer refuses loopback/private/link-local targets, after DNS and across redirects),
+so a feed URL can't be turned into a request against the box's own internal services.
 
 ## Development
 
