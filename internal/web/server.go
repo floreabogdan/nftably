@@ -230,6 +230,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /lists/{id}/entries", s.requireAuth(s.handleListEntryAdd))
 	s.mux.Handle("POST /lists/entries/{id}/delete", s.requireAuth(s.handleListEntryDelete))
 	s.mux.Handle("POST /lists/block", s.requireAuth(s.handleQuickBlock))
+	s.mux.Handle("POST /connections/block-country", s.requireAuth(s.handleBlockCountry))
 
 	// The advisor: scan the box's listeners and route each exposure through the
 	// simulator to report what the firewall actually does about it.

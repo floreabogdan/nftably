@@ -31,6 +31,7 @@ type topIP struct {
 	Addr    netip.Addr
 	Count   int
 	Country string
+	ISO     string // raw 2-letter code, for the "block country" action
 	Name    string
 	Blocked bool
 }
@@ -131,7 +132,7 @@ func (s *Server) handleConnections(w http.ResponseWriter, r *http.Request) {
 		iso, name := s.geo.lookup(st.GeoIPDB, addr)
 		vm.Top = append(vm.Top, topIP{
 			Addr: addr, Count: n,
-			Country: countryLabel(iso), Name: name,
+			Country: countryLabel(iso), ISO: iso, Name: name,
 			Blocked: isBlocked(addr),
 		})
 	}

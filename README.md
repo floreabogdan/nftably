@@ -65,6 +65,8 @@ make** and **easy to get right**:
   (GeoIP) or a **remote feed** (a threat-intel blocklist) and kept refreshed on a
   schedule — so you can `drop` an entire country or subscribe to a blocklist and
   let it maintain itself. Referenced sets render into the tables that use them.
+  On the Connections view, **one click blocks an entire country** — it builds the
+  GeoIP set and the early drop rules for you.
 - **Presets to start from.** One-click, best-practice starting points — a hardened
   **BGP edge router**, a **basic secure server** — that scaffold the tables, chains,
   rules and editable named sets for you, each explaining what it adds and why.

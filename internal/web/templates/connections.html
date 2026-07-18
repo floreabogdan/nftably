@@ -34,12 +34,18 @@
 					{{if $.GeoOn}}<td>{{if .Country}}{{.Country}}{{if .Name}} <span class="text-muted">{{.Name}}</span>{{end}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>{{end}}
 					<td class="mono">{{.Count}}</td>
 					<td class="row-actions">
+						{{if $.GeoOn}}{{if .ISO}}
+						<form method="post" action="/connections/block-country" data-confirm="Block the entire country {{.ISO}}? This builds a GeoIP set of its addresses and drops them early on the input chain — review before you apply.">
+							<input type="hidden" name="iso" value="{{.ISO}}">
+							<button type="submit" class="btn btn-sm" title="Block all of {{.ISO}}">{{template "icon-ban"}}Block {{.ISO}}</button>
+						</form>
+						{{end}}{{end}}
 						{{if .Blocked}}<span class="badge badge-danger">blocked</span>
 						{{else}}
 						<form method="post" action="/lists/block">
 							<input type="hidden" name="ip" value="{{.Addr}}">
 							<input type="hidden" name="back" value="/connections">
-							<button type="submit" class="btn btn-sm btn-danger">{{template "icon-ban"}}Block</button>
+							<button type="submit" class="btn btn-sm btn-danger">{{template "icon-ban"}}Block IP</button>
 						</form>
 						{{end}}
 					</td>

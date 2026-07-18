@@ -507,6 +507,24 @@ func (s *Store) GetChainRule(id int64) (ChainRule, error) {
 // CreateChainRule inserts a rule and its children in one transaction, at the
 // end of the chain's order, and returns the rule id.
 func (s *Store) CreateChainRule(r ChainRule) (int64, error) {
+	return s.createChainRule(r, false)
+}
+
+// CreateChainRuleAtStart inserts a rule at the very start of the chain (before
+// every existing rule) — used for an early drop, like a country block that must
+// run before the accepts.
+func (s *Store) CreateChainRuleAtStart(r ChainRule) (int64, error) {
+	return s.createChainRule(r, true)
+}
+
+func (s *Store) createChainRule(r ChainRule, atStart bool) (int64, error) {
+	// position is MAX+1 at the end, or MIN-1 at the start (gaps are fine; the
+	// render order is just ORDER BY position).
+	posExpr := `(SELECT COALESCE(MAX(position), 0) + 1 FROM nft_rules WHERE chain_id = ?)`
+	if atStart {
+		posExpr = `(SELECT COALESCE(MIN(position), 1) - 1 FROM nft_rules WHERE chain_id = ?)`
+	}
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		return 0, err
@@ -516,7 +534,7 @@ func (s *Store) CreateChainRule(r ChainRule) (int64, error) {
 	ts := now()
 	res, err := tx.Exec(`
 		INSERT INTO nft_rules (chain_id, position, comment, enabled, created_at, updated_at)
-		VALUES (?, (SELECT COALESCE(MAX(position), 0) + 1 FROM nft_rules WHERE chain_id = ?), ?, ?, ?, ?)`,
+		VALUES (?, `+posExpr+`, ?, ?, ?, ?)`,
 		r.ChainID, r.ChainID, r.Comment, r.Enabled, ts, ts)
 	if err != nil {
 		return 0, fmt.Errorf("store: create rule: %w", err)

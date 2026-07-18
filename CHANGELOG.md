@@ -37,6 +37,12 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **One-click "block this country"** on the Connections view. Next to a remote
+  address's country, a single click builds a GeoIP set of that country's CIDRs
+  (auto-refreshing, so it stays current) and adds early `ip saddr @blk_xx drop`
+  rules to the input chain — before the accepts, so it drops even established
+  connections — then drops you on Review & apply. Idempotent, and model-only
+  until you apply.
 - **Firewall log viewer** (`/logs`). Packets logged by a rule's **Log** action now
   show in-app — time, prefix, interfaces, source → destination, protocol/ports —
   read live from the kernel ring buffer (dmesg). Pairs with the per-rule counters:
