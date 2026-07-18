@@ -6,7 +6,7 @@
 <div class="page-header">
 	<div>
 		<h1>Rules</h1>
-		<div class="page-sub">The input-chain model nftably renders. Nothing here touches the kernel — preview it under <a href="/changes">Changes</a>; applying arrives in M3.</div>
+		<div class="page-sub">The rule model nftably renders — input rules filter traffic to this host, forward rules traffic routed through it. Nothing here touches the kernel until you apply under <a href="/changes">Changes</a>.</div>
 	</div>
 	<div class="page-header-actions">
 		<a class="btn btn-sm btn-primary" href="/rules/new">{{template "icon-plus"}}Add rule</a>
@@ -53,6 +53,7 @@
 					<td>{{if .Name}}{{.Name}}{{else}}<span class="text-muted">(unnamed)</span>{{end}}</td>
 					<td>
 						<div class="attr-chips">
+							{{if eq .Chain "forward"}}<span class="chip chip-warning mono">forward</span>{{end}}
 							{{if ne .Proto "any"}}<span class="chip chip-primary mono">{{.Proto}}{{if .DPorts}} dport {{.DPorts}}{{end}}</span>{{end}}
 							{{if .SAddrs}}<span class="chip mono">from {{.SAddrs}}</span>{{end}}
 							{{if .IIf}}<span class="chip mono">iif {{.IIf}}</span>{{end}}

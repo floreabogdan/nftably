@@ -72,11 +72,16 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 		s.serverError(w, "get firewall", err)
 		return changesVM{}, false
 	}
+	pfs, err := s.store.ListPortForwards()
+	if err != nil {
+		s.serverError(w, "list port forwards", err)
+		return changesVM{}, false
+	}
 
 	vm := changesVM{
 		nav:       s.navFor(r, "changes"),
-		Candidate: nftconf.Config(fw, rules),
-		LintWarns: nftconf.Lint(fw, rules, s.listenAddr),
+		Candidate: nftconf.Config(fw, rules, pfs),
+		LintWarns: nftconf.Lint(fw, rules, pfs, s.listenAddr),
 	}
 	for _, rule := range rules {
 		if rule.Enabled {

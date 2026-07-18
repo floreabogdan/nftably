@@ -50,10 +50,13 @@ func (s *Server) handleRuleNew(w http.ResponseWriter, r *http.Request) {
 	// The advisor links here with a prefilled starting point; absent params
 	// leave the defaults. Values go through the same Validate as a submit, so
 	// a crafted link can at worst prefill text the operator then reviews.
-	rule := store.Rule{Action: "accept", Proto: "tcp", Enabled: true}
+	rule := store.Rule{Chain: "input", Action: "accept", Proto: "tcp", Enabled: true}
 	q := r.URL.Query()
 	if v := q.Get("name"); v != "" {
 		rule.Name = v
+	}
+	if v := q.Get("chain"); v != "" {
+		rule.Chain = v
 	}
 	if v := q.Get("action"); v != "" {
 		rule.Action = v
@@ -93,6 +96,7 @@ func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
 	isNew := r.PathValue("id") == ""
 	rule := store.Rule{
 		Name:    strings.TrimSpace(r.FormValue("name")),
+		Chain:   r.FormValue("chain"),
 		Action:  r.FormValue("action"),
 		Proto:   r.FormValue("proto"),
 		DPorts:  strings.TrimSpace(r.FormValue("dports")),
@@ -186,8 +190,14 @@ func (s *Server) handleRulesPolicy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+	fw, err := s.store.GetFirewall()
+	if err != nil {
+		s.serverError(w, "get firewall", err)
+		return
+	}
 	policy := r.FormValue("input_policy")
-	if err := s.store.SaveFirewall(store.Firewall{InputPolicy: policy}); err != nil {
+	fw.InputPolicy = policy
+	if err := s.store.SaveFirewall(fw); err != nil {
 		http.Error(w, "input policy must be drop or accept", http.StatusBadRequest)
 		return
 	}

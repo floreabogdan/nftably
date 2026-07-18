@@ -1,9 +1,9 @@
 package store
 
-// schema is nftably's schema: the state nftably keeps about itself, plus (from
-// M2 on) the firewall rule model. Zones, NAT and config versions arrive in
-// later milestones as new tables, added here (all IF NOT EXISTS) and wired
-// through migrate().
+// schema is nftably's schema: the state nftably keeps about itself, plus the
+// firewall model — rules (M2), config versions and the pending apply (M3),
+// forwarding and port-forwards (M4). New tables are added here (all IF NOT
+// EXISTS); new columns on existing tables go through migrate().
 const schema = `
 CREATE TABLE IF NOT EXISTS settings (
 	id               INTEGER PRIMARY KEY CHECK (id = 1),
@@ -44,14 +44,16 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts DESC);
 
--- The M2 rule model: an ordered list of input-chain filter rules. What nftably
--- renders (and, from M3, applies) is exactly this list plus the baseline rules
--- the render layer always emits. position is the render order; gaps are fine,
--- uniqueness is maintained by the move/create paths.
+-- The M2 rule model: an ordered list of filter rules on the managed chains
+-- (input since M2, forward since M4). What nftably renders (and, from M3,
+-- applies) is exactly this list plus the baseline rules the render layer
+-- always emits. position is the render order; gaps are fine, uniqueness is
+-- maintained by the move/create paths.
 CREATE TABLE IF NOT EXISTS fw_rules (
 	id         INTEGER PRIMARY KEY AUTOINCREMENT,
 	position   INTEGER NOT NULL,
 	name       TEXT NOT NULL DEFAULT '',
+	chain      TEXT NOT NULL DEFAULT 'input',    -- input | forward
 	action     TEXT NOT NULL DEFAULT 'accept',   -- accept | drop | reject
 	proto      TEXT NOT NULL DEFAULT 'any',      -- any | tcp | udp
 	dports     TEXT NOT NULL DEFAULT '',         -- "22, 80, 8000-8100" (tcp/udp only)
@@ -62,12 +64,32 @@ CREATE TABLE IF NOT EXISTS fw_rules (
 	updated_at TEXT NOT NULL
 );
 
--- Single-row chain-wide configuration for the managed input chain.
+-- Single-row chain-wide configuration for the managed chains. The M4 routing
+-- fields: forwarding (forward chain, NAT, port-forwards) stays entirely off
+-- until wan_iface names the upstream interface.
 CREATE TABLE IF NOT EXISTS firewall (
-	id           INTEGER PRIMARY KEY CHECK (id = 1),
-	input_policy TEXT NOT NULL DEFAULT 'drop',   -- drop | accept
-	created_at   TEXT NOT NULL,
-	updated_at   TEXT NOT NULL
+	id             INTEGER PRIMARY KEY CHECK (id = 1),
+	input_policy   TEXT NOT NULL DEFAULT 'drop',   -- drop | accept
+	forward_policy TEXT NOT NULL DEFAULT 'drop',   -- drop | accept
+	wan_iface      TEXT NOT NULL DEFAULT '',       -- upstream interface; empty = forwarding off
+	masquerade     INTEGER NOT NULL DEFAULT 0,     -- NAT LAN sources out wan_iface
+	created_at     TEXT NOT NULL,
+	updated_at     TEXT NOT NULL
+);
+
+-- M4 port-forwards: DNAT rules on the WAN interface. dport is one external
+-- port or one a-b range; dest_port empty means "same port(s) as dport".
+CREATE TABLE IF NOT EXISTS port_forwards (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	position   INTEGER NOT NULL,
+	name       TEXT NOT NULL DEFAULT '',
+	proto      TEXT NOT NULL DEFAULT 'tcp',   -- tcp | udp
+	dport      TEXT NOT NULL,                 -- external port or range
+	dest       TEXT NOT NULL,                 -- internal IP (v4 or v6)
+	dest_port  TEXT NOT NULL DEFAULT '',      -- internal port; empty = preserve
+	enabled    INTEGER NOT NULL DEFAULT 1,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
 );
 
 -- M3: every apply is recorded here with the exact text loaded into the kernel.

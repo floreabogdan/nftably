@@ -21,24 +21,24 @@ import (
 // `table inet nftably`; tables it does not own are never touched.
 const TableName = "nftably"
 
-// Config renders the full managed table: chain declaration, the always-on
+// Config renders the full managed table: chain declarations, the always-on
 // baseline rules, then the operator's enabled rules in order.
 //
-// The baseline encodes the footgun protection this milestone can already give:
-// loopback and established/related always accepted (a policy-drop table that
-// drops the operator's own SSH return traffic would lock them out on apply, the
-// classic mistake M3's lint will refuse outright), and the ICMPv6 that IPv6
-// needs to function (ND, RA, PMTUD) always allowed.
-func Config(fw store.Firewall, rules []store.Rule) string {
-	policy := fw.InputPolicy
-	if policy != "accept" {
-		policy = "drop"
-	}
-
+// The input baseline encodes the footgun protection: loopback and
+// established/related always accepted (a policy-drop table that drops the
+// operator's own SSH return traffic would lock them out on apply), and the
+// ICMPv6 that IPv6 needs to function (ND, RA, PMTUD) always allowed.
+//
+// Forwarding — the forward chain, port-forward DNAT and masquerade — renders
+// only once fw.WANIface names the upstream interface. On a plain host nothing
+// changes: an unasked-for policy-drop forward chain would silently break
+// Docker/Incus/VM networking, so its absence is the feature.
+func Config(fw store.Firewall, rules []store.Rule, pfs []store.PortForward) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "table inet %s {\n", TableName)
+
 	b.WriteString("\tchain input {\n")
-	fmt.Fprintf(&b, "\t\ttype filter hook input priority filter; policy %s;\n", policy)
+	fmt.Fprintf(&b, "\t\ttype filter hook input priority filter; policy %s;\n", policyOrDrop(fw.InputPolicy))
 
 	// Baseline: order matters — invalid is dropped before established/related
 	// is accepted, and both come before any operator rule.
@@ -48,8 +48,76 @@ func Config(fw store.Firewall, rules []store.Rule) string {
 	b.WriteString("\t\ticmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, echo-request, echo-reply, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept comment \"nftably:baseline icmpv6\"\n")
 	b.WriteString("\t\ticmp type { echo-reply, destination-unreachable, echo-request, time-exceeded, parameter-problem } accept comment \"nftably:baseline icmp\"\n")
 
+	writeRules(&b, rules, "input")
+	b.WriteString("\t}\n")
+
+	if fw.WANIface != "" {
+		wan := fmt.Sprintf("%q", fw.WANIface)
+
+		// nft list separates chains with a blank line; matching it keeps the
+		// post-apply diff quiet.
+		b.WriteString("\n\tchain forward {\n")
+		fmt.Fprintf(&b, "\t\ttype filter hook forward priority filter; policy %s;\n", policyOrDrop(fw.ForwardPolicy))
+		// The forward baseline mirrors the input one, plus the two lines that
+		// make a drop policy usable on a router: DNAT'ed flows (port-forwards,
+		// whether ours or e.g. Docker's) pass, and inside→outside is open. The
+		// lan-wan accept comes AFTER operator rules so a drop rule above it
+		// can still cut a specific LAN host or port off from the internet.
+		b.WriteString("\t\tct state invalid drop comment \"nftably:baseline invalid\"\n")
+		b.WriteString("\t\tct state established,related accept comment \"nftably:baseline conntrack\"\n")
+		b.WriteString("\t\tct status dnat accept comment \"nftably:baseline port-forwards\"\n")
+		writeRules(&b, rules, "forward")
+		fmt.Fprintf(&b, "\t\tiifname != %s oifname %s accept comment \"nftably:baseline lan-wan\"\n", wan, wan)
+		b.WriteString("\t}\n")
+
+		var enabled []store.PortForward
+		for _, p := range pfs {
+			if p.Enabled {
+				enabled = append(enabled, p)
+			}
+		}
+		if len(enabled) > 0 {
+			b.WriteString("\n\tchain prerouting {\n")
+			b.WriteString("\t\ttype nat hook prerouting priority dstnat; policy accept;\n")
+			for _, p := range enabled {
+				b.WriteString("\t\t")
+				b.WriteString(PortForwardLine(fw.WANIface, p))
+				b.WriteString("\n")
+			}
+			b.WriteString("\t}\n")
+		}
+
+		if fw.Masquerade {
+			b.WriteString("\n\tchain postrouting {\n")
+			b.WriteString("\t\ttype nat hook postrouting priority srcnat; policy accept;\n")
+			fmt.Fprintf(&b, "\t\toifname %s masquerade comment \"nftably:baseline masquerade\"\n", wan)
+			b.WriteString("\t}\n")
+		}
+	}
+
+	b.WriteString("}\n")
+	return b.String()
+}
+
+func policyOrDrop(p string) string {
+	if p != "accept" {
+		p = "drop"
+	}
+	return p
+}
+
+// writeRules emits the enabled rules belonging to chain, in model order. Rows
+// written before M4 have an empty chain and belong to input.
+func writeRules(b *strings.Builder, rules []store.Rule, chain string) {
 	for _, r := range rules {
 		if !r.Enabled {
+			continue
+		}
+		rc := r.Chain
+		if rc == "" {
+			rc = "input"
+		}
+		if rc != chain {
 			continue
 		}
 		for _, line := range RuleLines(r) {
@@ -58,10 +126,29 @@ func Config(fw store.Firewall, rules []store.Rule) string {
 			b.WriteString("\n")
 		}
 	}
+}
 
-	b.WriteString("\t}\n")
-	b.WriteString("}\n")
-	return b.String()
+// PortForwardLine renders one port-forward to its DNAT rule (without
+// indentation). The address family suffix on dnat is what makes it legal in
+// the inet family — `dnat ip to` only ever sees IPv4 packets, `dnat ip6 to`
+// only IPv6 (nft adds the family dependency itself).
+func PortForwardLine(wanIface string, p store.PortForward) string {
+	dest := p.Dest
+	family := "ip"
+	if addr, err := netip.ParseAddr(p.Dest); err == nil && addr.Is6() {
+		family = "ip6"
+		if p.DestPort != "" {
+			dest = "[" + dest + "]"
+		}
+	}
+	if p.DestPort != "" {
+		dest += ":" + p.DestPort
+	}
+	line := fmt.Sprintf("iifname %q %s dport %s dnat %s to %s", wanIface, p.Proto, p.DPort, family, dest)
+	if p.Name != "" {
+		line += fmt.Sprintf(" comment %q", "nftably: "+p.Name)
+	}
+	return line
 }
 
 // RuleLines renders one model rule to nft rule syntax (without indentation).

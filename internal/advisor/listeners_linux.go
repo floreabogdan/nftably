@@ -45,6 +45,13 @@ func listeners() ([]Listener, string) {
 	return deduped, ""
 }
 
+// ipForwarding reports whether the kernel routes packets between interfaces —
+// the signal that this box is a router and the forward chain matters.
+func ipForwarding() bool {
+	raw, err := os.ReadFile("/proc/sys/net/ipv4/ip_forward")
+	return err == nil && strings.TrimSpace(string(raw)) == "1"
+}
+
 // socketProcesses maps socket inode → process name by walking /proc/*/fd.
 func socketProcesses() map[string]string {
 	byInode := map[string]string{}

@@ -627,6 +627,7 @@ td.num, th.num { text-align: right; }
 	white-space: nowrap;
 }
 .chip-primary { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); border-color: color-mix(in srgb, var(--primary) 40%, transparent); color: var(--primary-deep); }
+.chip-warning { background: color-mix(in srgb, var(--warning) 12%, var(--surface)); border-color: color-mix(in srgb, var(--warning) 40%, transparent); color: var(--warning-deep); }
 .chip-secondary { background: color-mix(in srgb, var(--secondary) 12%, var(--surface)); border-color: color-mix(in srgb, var(--secondary) 40%, transparent); color: var(--secondary-deep); }
 .chip-info { background: color-mix(in srgb, var(--info) 12%, var(--surface)); border-color: color-mix(in srgb, var(--info) 40%, transparent); color: var(--info-deep); }
 

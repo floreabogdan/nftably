@@ -8,7 +8,7 @@ import (
 	"github.com/floreabogdan/nftably/internal/advisor"
 )
 
-type suggestionsVM struct {
+type advisorVM struct {
 	nav
 	Scan advisor.Scan
 	// Current are the live suggestions; Dismissed the ones waved away (still
@@ -17,9 +17,9 @@ type suggestionsVM struct {
 	Dismissed []advisor.Suggestion
 }
 
-// handleSuggestions scans the host and derives advice, fresh on every load —
-// the Rescan button is just this page again.
-func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
+// handleAdvisor scans the host and derives advice, fresh on every load — the
+// Rescan button is just this page again.
+func (s *Server) handleAdvisor(w http.ResponseWriter, r *http.Request) {
 	rules, err := s.store.ListRules()
 	if err != nil {
 		s.serverError(w, "list rules", err)
@@ -37,7 +37,7 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	scan := advisor.Detect()
-	vm := suggestionsVM{nav: s.navFor(r, "suggestions"), Scan: scan}
+	vm := advisorVM{nav: s.navFor(r, "advisor"), Scan: scan}
 	for _, sug := range advisor.Suggest(scan, fw, rules, s.ownListenPort()) {
 		if dismissed[sug.Key] {
 			vm.Dismissed = append(vm.Dismissed, sug)
@@ -45,18 +45,18 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 			vm.Current = append(vm.Current, sug)
 		}
 	}
-	render(w, s.log, "suggestions.html", vm)
+	render(w, s.log, "advisor.html", vm)
 }
 
-func (s *Server) handleSuggestionDismiss(w http.ResponseWriter, r *http.Request) {
-	s.suggestionMark(w, r, s.store.DismissSuggestion)
+func (s *Server) handleAdvisorDismiss(w http.ResponseWriter, r *http.Request) {
+	s.advisorMark(w, r, s.store.DismissSuggestion)
 }
 
-func (s *Server) handleSuggestionRestore(w http.ResponseWriter, r *http.Request) {
-	s.suggestionMark(w, r, s.store.RestoreSuggestion)
+func (s *Server) handleAdvisorRestore(w http.ResponseWriter, r *http.Request) {
+	s.advisorMark(w, r, s.store.RestoreSuggestion)
 }
 
-func (s *Server) suggestionMark(w http.ResponseWriter, r *http.Request, op func(string) error) {
+func (s *Server) advisorMark(w http.ResponseWriter, r *http.Request, op func(string) error) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
@@ -70,7 +70,7 @@ func (s *Server) suggestionMark(w http.ResponseWriter, r *http.Request, op func(
 		s.serverError(w, "update suggestion", err)
 		return
 	}
-	http.Redirect(w, r, "/suggestions", http.StatusSeeOther)
+	http.Redirect(w, r, "/advisor", http.StatusSeeOther)
 }
 
 // ownListenPort is nftably's port for the advisor: its own listener should not

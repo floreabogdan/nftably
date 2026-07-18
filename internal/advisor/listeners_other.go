@@ -8,3 +8,5 @@ package advisor
 func listeners() ([]Listener, string) {
 	return nil, "Listening-socket detection needs Linux (/proc/net) — only installed software is shown here."
 }
+
+func ipForwarding() bool { return false }

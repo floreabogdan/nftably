@@ -1,15 +1,15 @@
 {{template "shell-open" .}}
 <div class="page-top">
 	<span class="page-eyebrow">Manage</span>
-	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Suggestions</span></div>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Advisor</span></div>
 </div>
 <div class="page-header">
 	<div>
-		<h1>Suggestions</h1>
+		<h1>Advisor</h1>
 		<div class="page-sub">nftably looks at what actually runs on this box — installed software, listening sockets — and suggests rules and best practices for it. Advice only: nothing here changes the firewall.</div>
 	</div>
 	<div class="page-header-actions">
-		<a class="btn btn-sm" href="/suggestions">{{template "icon-search"}}Rescan</a>
+		<a class="btn btn-sm" href="/advisor">{{template "icon-search"}}Rescan</a>
 	</div>
 </div>
 
@@ -22,9 +22,10 @@
 		<span class="card-title">{{template "icon-info"}}Detected on this box</span>
 	</div>
 	<div class="card-body">
-		{{if .Scan.Software}}
+		{{if or .Scan.Software .Scan.IPForward}}
 		<div class="attr-chips">
 			{{range .Scan.Software}}<span class="chip chip-primary" title="{{.Bin}}">{{.Name}}</span>{{end}}
+			{{if .Scan.IPForward}}<span class="chip" title="net.ipv4.ip_forward=1">routes traffic</span>{{end}}
 		</div>
 		{{else}}
 		<div class="text-muted">No well-known software detected.</div>
@@ -63,7 +64,7 @@
 			{{if .Prefill}}
 			<a class="btn btn-sm btn-primary" href="/rules/new?name={{.Prefill.Name}}&action={{.Prefill.Action}}&proto={{.Prefill.Proto}}&dports={{.Prefill.DPorts}}">{{template "icon-plus"}}Add this rule</a>
 			{{end}}
-			<form method="post" action="/suggestions/dismiss">
+			<form method="post" action="/advisor/dismiss">
 				<input type="hidden" name="key" value="{{.Key}}">
 				<button type="submit" class="btn btn-sm">Dismiss</button>
 			</form>
@@ -82,7 +83,7 @@
 	<div class="card-body">
 		<strong>{{.Title}}</strong>
 		<p class="text-muted">{{.Body}}</p>
-		<form method="post" action="/suggestions/restore">
+		<form method="post" action="/advisor/restore">
 			<input type="hidden" name="key" value="{{.Key}}">
 			<button type="submit" class="btn btn-sm">Restore</button>
 		</form>

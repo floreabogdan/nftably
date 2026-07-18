@@ -13,7 +13,7 @@ import (
 //
 // nftably's database is a single file the user can snapshot and restore, so
 // migrations must be forward-only and safe to re-run.
-const schemaVersion = 1
+const schemaVersion = 2
 
 func migrate(db *sql.DB) error {
 	var version int
@@ -30,11 +30,56 @@ func migrate(db *sql.DB) error {
 	}
 	defer tx.Rollback()
 
-	// version < 1: nothing to migrate yet — the base schema is the whole story
-	// for M1. Future milestones add their steps here.
+	// version < 1: nothing to migrate — the base schema was the whole story
+	// for M1.
+
+	// version < 2 (M4): forwarding fields on firewall, the chain column on
+	// fw_rules. A fresh database created these via schema.go already, so each
+	// column is added only if missing.
+	adds := []struct{ table, column, ddl string }{
+		{"firewall", "forward_policy", `TEXT NOT NULL DEFAULT 'drop'`},
+		{"firewall", "wan_iface", `TEXT NOT NULL DEFAULT ''`},
+		{"firewall", "masquerade", `INTEGER NOT NULL DEFAULT 0`},
+		{"fw_rules", "chain", `TEXT NOT NULL DEFAULT 'input'`},
+	}
+	for _, a := range adds {
+		if err := addColumnIfMissing(tx, a.table, a.column, a.ddl); err != nil {
+			return err
+		}
+	}
 
 	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {
 		return fmt.Errorf("set user_version: %w", err)
 	}
 	return tx.Commit()
+}
+
+// addColumnIfMissing is ALTER TABLE ADD COLUMN, tolerant of the column already
+// existing — which it does on databases created by a build that already had it
+// in the base schema.
+func addColumnIfMissing(tx *sql.Tx, table, column, ddl string) error {
+	rows, err := tx.Query(fmt.Sprintf(`PRAGMA table_info(%q)`, table))
+	if err != nil {
+		return fmt.Errorf("table_info %s: %w", table, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return fmt.Errorf("table_info %s: %w", table, err)
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`ALTER TABLE %q ADD COLUMN %q %s`, table, column, ddl)); err != nil {
+		return fmt.Errorf("add %s.%s: %w", table, column, err)
+	}
+	return nil
 }

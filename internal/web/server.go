@@ -181,15 +181,27 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /rules/{id}/move", s.requireAuth(s.handleRuleMove))
 	s.mux.Handle("GET /changes", s.requireAuth(s.handleChanges))
 
+	// M4 forwarding: router settings (WAN, forward policy, masquerade) and
+	// port-forward CRUD. Model-only, like /rules — /changes applies it.
+	s.mux.Handle("GET /forwarding", s.requireAuth(s.handleForwarding))
+	s.mux.Handle("POST /forwarding/settings", s.requireAuth(s.handleForwardingSettings))
+	s.mux.Handle("GET /forwarding/new", s.requireAuth(s.handleForwardNew))
+	s.mux.Handle("POST /forwarding/new", s.requireAuth(s.handleForwardSave))
+	s.mux.Handle("GET /forwarding/{id}/edit", s.requireAuth(s.handleForwardEdit))
+	s.mux.Handle("POST /forwarding/{id}/edit", s.requireAuth(s.handleForwardSave))
+	s.mux.Handle("POST /forwarding/{id}/delete", s.requireAuth(s.handleForwardDelete))
+	s.mux.Handle("POST /forwarding/{id}/toggle", s.requireAuth(s.handleForwardToggle))
+	s.mux.Handle("POST /forwarding/{id}/move", s.requireAuth(s.handleForwardMove))
+
 	// The M3 apply pipeline: load into the kernel with an armed auto-revert.
 	s.mux.Handle("POST /apply", s.requireAuth(s.handleApply))
 	s.mux.Handle("POST /apply/confirm", s.requireAuth(s.handleApplyConfirm))
 	s.mux.Handle("POST /apply/rollback", s.requireAuth(s.handleApplyRollback))
 
 	// The advisor: detect what runs on the box, suggest rules for it.
-	s.mux.Handle("GET /suggestions", s.requireAuth(s.handleSuggestions))
-	s.mux.Handle("POST /suggestions/dismiss", s.requireAuth(s.handleSuggestionDismiss))
-	s.mux.Handle("POST /suggestions/restore", s.requireAuth(s.handleSuggestionRestore))
+	s.mux.Handle("GET /advisor", s.requireAuth(s.handleAdvisor))
+	s.mux.Handle("POST /advisor/dismiss", s.requireAuth(s.handleAdvisorDismiss))
+	s.mux.Handle("POST /advisor/restore", s.requireAuth(s.handleAdvisorRestore))
 
 	s.mux.Handle("GET /settings", s.requireAuth(s.handleSettingsPage))
 	s.mux.Handle("POST /settings/identity", s.requireAuth(s.handleSettingsIdentity))

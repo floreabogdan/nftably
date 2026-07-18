@@ -25,6 +25,14 @@
 				<div class="field-hint text-muted">Shows up as the rule's comment in the rendered config.</div>
 			</div>
 			<div class="field">
+				<label for="chain">Chain</label>
+				<select id="chain" name="chain">
+					<option value="input" {{if ne .Rule.Chain "forward"}}selected{{end}}>input — traffic to this host</option>
+					<option value="forward" {{if eq .Rule.Chain "forward"}}selected{{end}}>forward — traffic routed through it</option>
+				</select>
+				<div class="field-hint text-muted">Forward rules only render once the WAN interface is named on the <a href="/forwarding">Forwarding</a> page.</div>
+			</div>
+			<div class="field">
 				<label for="action">Action</label>
 				<select id="action" name="action">
 					<option value="accept" {{if eq .Rule.Action "accept"}}selected{{end}}>accept</option>

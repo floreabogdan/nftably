@@ -8,16 +8,16 @@ import (
 	"testing"
 )
 
-func TestSuggestionsPageAndDismissFlow(t *testing.T) {
+func TestAdvisorPageAndDismissFlow(t *testing.T) {
 	srv, cookie := newTestServer(t)
 
 	get := func() string {
-		req := httptest.NewRequest(http.MethodGet, "/suggestions", nil)
+		req := httptest.NewRequest(http.MethodGet, "/advisor", nil)
 		req.AddCookie(cookie)
 		rec := httptest.NewRecorder()
 		srv.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("suggestions: %d", rec.Code)
+			t.Fatalf("advisor: %d", rec.Code)
 		}
 		return rec.Body.String()
 	}
@@ -34,7 +34,7 @@ func TestSuggestionsPageAndDismissFlow(t *testing.T) {
 		if !dismissed["policy-drop"] {
 			t.Fatal("dismissal not stored")
 		}
-		if rec := postForm(srv, "/suggestions/restore", url.Values{"key": {"policy-drop"}}, cookie); rec.Code != http.StatusSeeOther {
+		if rec := postForm(srv, "/advisor/restore", url.Values{"key": {"policy-drop"}}, cookie); rec.Code != http.StatusSeeOther {
 			t.Fatalf("restore: %d", rec.Code)
 		}
 		dismissed, _ = srv.store.DismissedSuggestions()
@@ -44,13 +44,13 @@ func TestSuggestionsPageAndDismissFlow(t *testing.T) {
 	})
 
 	// Dismiss via the handler.
-	if rec := postForm(srv, "/suggestions/dismiss", url.Values{"key": {"docker-note"}}, cookie); rec.Code != http.StatusSeeOther {
+	if rec := postForm(srv, "/advisor/dismiss", url.Values{"key": {"docker-note"}}, cookie); rec.Code != http.StatusSeeOther {
 		t.Fatalf("dismiss: %d", rec.Code)
 	}
 	if dismissed, _ := srv.store.DismissedSuggestions(); !dismissed["docker-note"] {
 		t.Fatal("dismiss handler did not store")
 	}
-	if rec := postForm(srv, "/suggestions/dismiss", url.Values{"key": {""}}, cookie); rec.Code != http.StatusBadRequest {
+	if rec := postForm(srv, "/advisor/dismiss", url.Values{"key": {""}}, cookie); rec.Code != http.StatusBadRequest {
 		t.Fatalf("empty key accepted: %d", rec.Code)
 	}
 }

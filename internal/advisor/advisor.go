@@ -34,6 +34,9 @@ type Listener struct {
 type Scan struct {
 	Software  []Software
 	Listeners []Listener
+	// IPForward reports whether the kernel routes between interfaces
+	// (net.ipv4.ip_forward=1) — the box acts as a router.
+	IPForward bool
 	// Note explains a detection limitation (e.g. listener scanning needs
 	// Linux); empty when the scan is complete.
 	Note string
@@ -74,6 +77,7 @@ func Detect() Scan {
 		}
 	}
 	s.Listeners, s.Note = listeners()
+	s.IPForward = ipForwarding()
 	sort.Slice(s.Listeners, func(i, j int) bool {
 		if s.Listeners[i].Port != s.Listeners[j].Port {
 			return s.Listeners[i].Port < s.Listeners[j].Port
@@ -195,19 +199,35 @@ func Suggest(scan Scan, fw store.Firewall, rules []store.Rule, listenPort int) [
 		}
 	}
 
+	// A routing box with forwarding unconfigured: the forward chain is where
+	// its real traffic flows, and nftably is not filtering it yet.
+	if scan.IPForward && fw.WANIface == "" {
+		out = append(out, Suggestion{
+			Key: "forwarding-unmanaged", Severity: "info",
+			Title: "This box routes traffic, but forwarding is not configured",
+			Body:  "The kernel forwards packets between interfaces (net.ipv4.ip_forward=1), and that routed traffic bypasses the input chain entirely. Name the WAN interface on the Forwarding page to filter it: replies and port-forwards keep working, LAN to WAN stays open, and unsolicited traffic from outside follows the forward policy.",
+		})
+	}
+
 	// Software-specific notes.
 	if has["docker"] {
+		body := "Published container ports (-p) are DNAT'd before this input chain runs, so input rules do not gate them — Docker inserts its own accept rules. Audit exposure with `docker ps` and prefer publishing on 127.0.0.1 where a container is not meant to be public."
+		if fw.WANIface != "" {
+			body += " Note: with forwarding on, nftably's forward chain also sees traffic between Docker networks — cross-network container traffic may need a forward accept rule."
+		} else {
+			body += " Container traffic can be filtered on the Forwarding page once a WAN interface is set."
+		}
 		out = append(out, Suggestion{
 			Key: "docker-note", Severity: "info",
 			Title: "Docker manages its own netfilter rules",
-			Body:  "Published container ports (-p) are DNAT'd before this input chain runs, so nftably's rules do not gate them — Docker inserts its own accept rules. Audit exposure with `docker ps` and prefer publishing on 127.0.0.1 where a container is not meant to be public. Forward-chain filtering lands in M4.",
+			Body:  body,
 		})
 	}
 	if has["incus"] {
 		out = append(out, Suggestion{
 			Key: "incus-note", Severity: "info",
 			Title: "Incus/LXD instance traffic bypasses the input chain",
-			Body:  "Bridged instances are forwarded, not delivered to this host, so the input chain does not filter them. Instance exposure is governed by the forward chain (arriving in M4) and Incus's own network ACLs.",
+			Body:  "Bridged instances are forwarded, not delivered to this host, so the input chain does not filter them. Filter instance exposure with forward-chain rules (Rules page, chain: forward) once forwarding is on, alongside Incus's own network ACLs.",
 		})
 	}
 	if has["bird"] && !ruleAccepts(rules, "tcp", 179) && drop {
@@ -256,7 +276,9 @@ func ruleAccepts(rules []store.Rule, proto string, port int) bool {
 
 func acceptRule(rules []store.Rule, proto string, port int) (store.Rule, bool) {
 	for _, r := range rules {
-		if !r.Enabled || r.Action != "accept" {
+		// Only input-chain rules make a host service reachable — a forward
+		// accept covers routed traffic, not this box's listeners.
+		if !r.Enabled || r.Action != "accept" || (r.Chain != "" && r.Chain != "input") {
 			continue
 		}
 		if r.Proto != "any" && r.Proto != proto {

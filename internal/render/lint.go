@@ -17,29 +17,63 @@ import (
 // The baseline rules already guarantee loopback, established/related and
 // essential ICMP — so the checks here are about what a drop policy does to NEW
 // connections the operator depends on.
-func Lint(fw store.Firewall, rules []store.Rule, listenAddr string) []string {
-	if fw.InputPolicy != "drop" && fw.InputPolicy != "" {
-		return nil // an accept policy cannot lock anyone out
+func Lint(fw store.Firewall, rules []store.Rule, pfs []store.PortForward, listenAddr string) []string {
+	var warns []string
+
+	if fw.InputPolicy == "drop" || fw.InputPolicy == "" {
+		if port := listenPort(listenAddr); port > 0 && !accepts(rules, port) {
+			warns = append(warns, fmt.Sprintf(
+				"No rule accepts new connections to nftably's own port (tcp %d). Your current session survives on established/related, but a reconnect would be dropped — the auto-revert would save you, and then you'd add this rule anyway.", port))
+		}
+		if !accepts(rules, 22) {
+			warns = append(warns,
+				"No rule accepts new SSH connections (tcp 22). Existing sessions survive, new ones will be dropped. Skip this warning only if you reach the box another way.")
+		}
 	}
 
-	var warns []string
-	if port := listenPort(listenAddr); port > 0 && !accepts(rules, port) {
-		warns = append(warns, fmt.Sprintf(
-			"No rule accepts new connections to nftably's own port (tcp %d). Your current session survives on established/related, but a reconnect would be dropped — the auto-revert would save you, and then you'd add this rule anyway.", port))
-	}
-	if !accepts(rules, 22) {
-		warns = append(warns,
-			"No rule accepts new SSH connections (tcp 22). Existing sessions survive, new ones will be dropped. Skip this warning only if you reach the box another way.")
+	// Forwarding configuration that will not render is a silent surprise, not
+	// a lockout — still worth a warning before the operator hunts for why a
+	// port-forward does nothing.
+	if fw.WANIface == "" {
+		if n := enabledForwards(pfs); n > 0 {
+			warns = append(warns, fmt.Sprintf(
+				"%d port-forward(s) are enabled but no WAN interface is set, so they are not in the rendered config. Name the WAN interface on the Forwarding page to activate them.", n))
+		}
+		if n := enabledChainRules(rules, "forward"); n > 0 {
+			warns = append(warns, fmt.Sprintf(
+				"%d forward-chain rule(s) are enabled but no WAN interface is set, so the forward chain is not rendered. Name the WAN interface on the Forwarding page to activate it.", n))
+		}
 	}
 	return warns
 }
 
-// accepts reports whether any enabled accept rule matches a new TCP connection
-// to port. Source or interface restrictions still count — the operator knows
-// their management network; what matters is that some path to the port exists.
+func enabledForwards(pfs []store.PortForward) int {
+	n := 0
+	for _, p := range pfs {
+		if p.Enabled {
+			n++
+		}
+	}
+	return n
+}
+
+func enabledChainRules(rules []store.Rule, chain string) int {
+	n := 0
+	for _, r := range rules {
+		if r.Enabled && r.Chain == chain {
+			n++
+		}
+	}
+	return n
+}
+
+// accepts reports whether any enabled input-chain accept rule matches a new
+// TCP connection to port. Source or interface restrictions still count — the
+// operator knows their management network; what matters is that some path to
+// the port exists.
 func accepts(rules []store.Rule, port int) bool {
 	for _, r := range rules {
-		if !r.Enabled || r.Action != "accept" {
+		if !r.Enabled || r.Action != "accept" || (r.Chain != "" && r.Chain != "input") {
 			continue
 		}
 		switch r.Proto {

@@ -10,10 +10,11 @@ It's a single Go binary backed by SQLite. No agent, no cloud, no external
 dependencies at runtime beyond `nft` itself. Install the package, run
 `nftably init`, and go.
 
-> **Status: M3.** nftably now applies: the rendered config loads into the
-> kernel as one atomic transaction with an armed auto-revert — unless you
-> confirm within the window, the previous ruleset is restored, even if the
-> apply cut off your own connection, and even across an nftably restart.
+> **Status: M4.** nftably now does routing: name the WAN interface and it
+> renders a forward chain, NAT (masquerade) and port-forwards alongside the
+> input rules — all applied through the same atomic transaction with the armed
+> auto-revert. On a plain host nothing changes: forwarding stays entirely out
+> of the config until the WAN interface is named.
 
 ---
 
@@ -34,6 +35,11 @@ on a remote router **safe to make**:
   baseline that makes a drop policy survivable — loopback, `established,related`,
   and the ICMPv6 (ND/RA/PMTUD) IPv6 needs — and a lint pass warns before an
   apply that would leave no way in for new SSH or UI connections.
+- **A router when you ask, a host when you don't.** Forwarding is off until the
+  WAN interface is named. Once it is, the forward chain gets its own survivable
+  baseline (replies, DNAT'ed flows and LAN→WAN pass; the policy decides the
+  rest), masquerade is one checkbox, and port-forwards are DNAT rules that work
+  under a drop policy without extra accepts.
 
 ## Roadmap
 
@@ -41,9 +47,9 @@ on a remote router **safe to make**:
 |-----------|--------------|-------|
 | **M1** | Detect backend, read-only ruleset viewer, iptables import preview | ✅ |
 | **M2** | Rule model → render → diff → preview (no apply) | ✅ |
-| **M3** | Apply + commit-confirmed auto-revert + lint guardrails | ✅ this release |
-| — | Suggestions: detect installed software & listeners, advise rules | ✅ this release |
-| **M4** | Zones / forward filtering / NAT / port-forwards | planned |
+| **M3** | Apply + commit-confirmed auto-revert + lint guardrails | ✅ |
+| — | Advisor: detect installed software & listeners, advise rules | ✅ |
+| **M4** | Forward filtering / NAT / port-forwards | ✅ this release |
 | **M5** | Rule library ("pick rules") + one-click hardening | planned |
 
 ## Quick start
@@ -108,9 +114,9 @@ cmd/nftably/       CLI: init · doctor · detect · server
 internal/nft/      shell out to nft (-j JSON for structure, -a text for rule wording);
                    backend detection; iptables coexistence probe + translate preview
 internal/store/    SQLite: settings, users, sessions, events, the rule model,
-                   config versions + the persisted pending apply (pure-Go driver)
-internal/render/   rule model → `table inet nftably` config text; apply/revert
-                   transactions; lockout lint; unified diff
+                   port-forwards, config versions + the persisted pending apply
+internal/render/   model → `table inet nftably` config text (input/forward/nat
+                   chains); apply/revert transactions; lockout lint; unified diff
 internal/advisor/  detect installed software + listening sockets, suggest rules
 internal/doctor/   preflight checks
 internal/web/      server-rendered UI (html/template), auth, access control
@@ -118,8 +124,7 @@ internal/web/      server-rendered UI (html/template), auth, access control
 
 The live ruleset is **always read fresh from `nft`** — never cached in the
 database. The database holds nftably's own state (login, settings, events) and
-the rule model; zones, NAT and config versions land in later milestones as new
-tables.
+the model: rules, forwarding settings, port-forwards, config versions.
 
 ## Development
 

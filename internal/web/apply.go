@@ -63,7 +63,12 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, "get firewall", err)
 		return
 	}
-	candidate := nftconf.Config(fw, rules)
+	pfs, err := s.store.ListPortForwards()
+	if err != nil {
+		s.serverError(w, "list port forwards", err)
+		return
+	}
+	candidate := nftconf.Config(fw, rules, pfs)
 
 	// Snapshot what the kernel runs now — this is what the revert restores.
 	prevTable, prevExists, err := s.applier.Table(r.Context(), "inet", nftconf.TableName)

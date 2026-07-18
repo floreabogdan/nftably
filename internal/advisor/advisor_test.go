@@ -96,6 +96,31 @@ func TestSuggestPolicyAndSoftwareNotes(t *testing.T) {
 	}
 }
 
+func TestSuggestForwarding(t *testing.T) {
+	// A routing box with forwarding unconfigured gets the pointer; naming the
+	// WAN interface retires it.
+	scan := Scan{IPForward: true}
+	fw := store.Firewall{InputPolicy: "drop"}
+	if _, ok := keys(Suggest(scan, fw, nil, 0))["forwarding-unmanaged"]; !ok {
+		t.Fatal("router without WAN should draw the forwarding suggestion")
+	}
+	fw.WANIface = "eth0"
+	if _, ok := keys(Suggest(scan, fw, nil, 0))["forwarding-unmanaged"]; ok {
+		t.Fatal("forwarding suggestion should retire once the WAN is set")
+	}
+	if _, ok := keys(Suggest(Scan{}, store.Firewall{InputPolicy: "drop"}, nil, 0))["forwarding-unmanaged"]; ok {
+		t.Fatal("non-routing box should not get the forwarding suggestion")
+	}
+
+	// A forward-chain accept must not count as input coverage: the uncovered
+	// suggestion still fires.
+	scan = Scan{Listeners: []Listener{{Proto: "tcp", Port: 80, Addr: "0.0.0.0", Wild: true, Process: "nginx"}}}
+	rules := []store.Rule{{Chain: "forward", Action: "accept", Proto: "tcp", DPorts: "80", Enabled: true}}
+	if _, ok := keys(Suggest(scan, store.Firewall{InputPolicy: "drop"}, rules, 0))["uncovered-tcp-80"]; !ok {
+		t.Fatal("forward accept should not cover an input listener")
+	}
+}
+
 func TestParseProcNet(t *testing.T) {
 	tcp := `  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
    0: 00000000:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 12345 1 0000000000000000 100 0 0 10 0

@@ -8,7 +8,7 @@ import (
 )
 
 func TestConfigBaselineAndPolicy(t *testing.T) {
-	out := Config(store.Firewall{InputPolicy: "drop"}, nil)
+	out := Config(store.Firewall{InputPolicy: "drop"}, nil, nil)
 
 	for _, want := range []string{
 		"table inet nftably {",
@@ -25,10 +25,10 @@ func TestConfigBaselineAndPolicy(t *testing.T) {
 	}
 
 	// An unknown policy falls back to drop; accept is honoured.
-	if out := Config(store.Firewall{InputPolicy: "accept"}, nil); !strings.Contains(out, "policy accept;") {
+	if out := Config(store.Firewall{InputPolicy: "accept"}, nil, nil); !strings.Contains(out, "policy accept;") {
 		t.Errorf("accept policy not rendered:\n%s", out)
 	}
-	if out := Config(store.Firewall{}, nil); !strings.Contains(out, "policy drop;") {
+	if out := Config(store.Firewall{}, nil, nil); !strings.Contains(out, "policy drop;") {
 		t.Errorf("empty policy should render as drop:\n%s", out)
 	}
 }
@@ -92,12 +92,80 @@ func TestConfigSkipsDisabledRules(t *testing.T) {
 		{Name: "on", Action: "accept", Proto: "tcp", DPorts: "22", Enabled: true},
 		{Name: "off", Action: "accept", Proto: "tcp", DPorts: "23", Enabled: false},
 	}
-	out := Config(store.Firewall{InputPolicy: "drop"}, rules)
+	out := Config(store.Firewall{InputPolicy: "drop"}, rules, nil)
 	if !strings.Contains(out, "nftably: on") {
 		t.Error("enabled rule missing")
 	}
 	if strings.Contains(out, "nftably: off") {
 		t.Error("disabled rule should not render")
+	}
+}
+
+func TestConfigForwarding(t *testing.T) {
+	// No WAN interface: no forward, no nat — the M3 output, byte for byte.
+	out := Config(store.Firewall{InputPolicy: "drop", Masquerade: false}, nil, []store.PortForward{
+		{Proto: "tcp", DPort: "80", Dest: "10.0.0.2", Enabled: true},
+	})
+	for _, absent := range []string{"chain forward", "chain prerouting", "chain postrouting", "dnat"} {
+		if strings.Contains(out, absent) {
+			t.Errorf("forwarding rendered without a WAN interface (%q):\n%s", absent, out)
+		}
+	}
+
+	fw := store.Firewall{InputPolicy: "drop", ForwardPolicy: "drop", WANIface: "eth0", Masquerade: true}
+	rules := []store.Rule{
+		{Name: "no-iot-internet", Chain: "forward", Action: "drop", Proto: "any", SAddrs: "192.168.66.0/24", Enabled: true},
+		{Name: "ssh", Chain: "input", Action: "accept", Proto: "tcp", DPorts: "22", Enabled: true},
+	}
+	pfs := []store.PortForward{
+		{Name: "web", Proto: "tcp", DPort: "80", Dest: "10.0.0.2", DestPort: "8080", Enabled: true},
+		{Name: "off", Proto: "tcp", DPort: "81", Dest: "10.0.0.3", Enabled: false},
+		{Name: "game", Proto: "udp", DPort: "27000-27100", Dest: "10.0.0.4", Enabled: true},
+		{Name: "v6", Proto: "tcp", DPort: "443", Dest: "2001:db8::10", DestPort: "8443", Enabled: true},
+	}
+	out = Config(fw, rules, pfs)
+
+	for _, want := range []string{
+		"type filter hook forward priority filter; policy drop;",
+		"ct status dnat accept comment \"nftably:baseline port-forwards\"",
+		`ip saddr 192.168.66.0/24 drop comment "nftably: no-iot-internet"`,
+		`iifname != "eth0" oifname "eth0" accept comment "nftably:baseline lan-wan"`,
+		"type nat hook prerouting priority dstnat; policy accept;",
+		`iifname "eth0" tcp dport 80 dnat ip to 10.0.0.2:8080 comment "nftably: web"`,
+		`iifname "eth0" udp dport 27000-27100 dnat ip to 10.0.0.4 comment "nftably: game"`,
+		`iifname "eth0" tcp dport 443 dnat ip6 to [2001:db8::10]:8443 comment "nftably: v6"`,
+		"type nat hook postrouting priority srcnat; policy accept;",
+		`oifname "eth0" masquerade comment "nftably:baseline masquerade"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("forwarding config missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "dport 81") {
+		t.Error("disabled port-forward rendered")
+	}
+
+	// The forward drop rule must land in the forward chain, not input, and
+	// before the lan-wan accept so it can actually cut that subnet off.
+	fwdChain := out[strings.Index(out, "chain forward"):strings.Index(out, "chain prerouting")]
+	if !strings.Contains(fwdChain, "no-iot-internet") {
+		t.Errorf("forward rule not in forward chain:\n%s", out)
+	}
+	if strings.Index(fwdChain, "no-iot-internet") > strings.Index(fwdChain, "lan-wan") {
+		t.Errorf("forward rule rendered after the lan-wan accept:\n%s", fwdChain)
+	}
+	inputChain := out[strings.Index(out, "chain input"):strings.Index(out, "chain forward")]
+	if strings.Contains(inputChain, "no-iot-internet") {
+		t.Errorf("forward rule leaked into input chain:\n%s", inputChain)
+	}
+
+	// No enabled forwards and no masquerade: forward chain only.
+	out = Config(store.Firewall{WANIface: "eth0"}, nil, nil)
+	if !strings.Contains(out, "chain forward") {
+		t.Error("forward chain missing with WAN set")
+	}
+	if strings.Contains(out, "chain prerouting") || strings.Contains(out, "chain postrouting") {
+		t.Errorf("nat chains rendered with nothing to put in them:\n%s", out)
 	}
 }
 
