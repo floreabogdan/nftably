@@ -37,6 +37,10 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **Firewall log viewer** (`/logs`). Packets logged by a rule's **Log** action now
+  show in-app — time, prefix, interfaces, source → destination, protocol/ports —
+  read live from the kernel ring buffer (dmesg). Pairs with the per-rule counters:
+  add *Count + Log* to a rule and watch, in numbers and in detail, what it catches.
 - **Sourced named sets — GeoIP countries and remote feeds.** A named set can now
   be populated automatically instead of by hand: from **a country's CIDRs** (built
   from the GeoIP database you already load — so a rule can `ip saddr @country_cn

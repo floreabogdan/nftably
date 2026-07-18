@@ -70,9 +70,10 @@ make** and **easy to get right**:
   rules and editable named sets for you, each explaining what it adds and why.
 - **See, then act.** The Connections page shows every flow conntrack knows about —
   to, from and through the box, with countries when you point nftably at a GeoIP
-  database. The live ruleset viewer shows exactly what the kernel is running, and a
+  database. The live ruleset viewer shows exactly what the kernel is running; a
   rule with a *Count* action shows its live packet/byte total right on the Firewall
-  page — build a rule, apply it, and watch it catch traffic.
+  page; and a rule with a *Log* action feeds the built-in **firewall log viewer** —
+  build a rule, apply it, and watch it catch traffic, in numbers and in detail.
 - **An advisor that's grounded, not generic.** It scans what's actually listening
   on the box and runs each service through the simulator against your model, telling
   you what your firewall really does about it — *"PostgreSQL is reachable from the
@@ -171,6 +172,7 @@ internal/simulate/ trace a packet through the model (accept/drop/reject) — pow
 internal/advisor/  scan the box's listeners, run each through the simulator, and
                    report what the firewall actually does about each exposure
 internal/conntrack/ read the kernel's live connection table
+internal/klog/     read netfilter LOG lines from the kernel ring buffer (dmesg)
 internal/web/      server-rendered UI (html/template), auth, access control, presets
 ```
 
