@@ -506,6 +506,35 @@ func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
 }
 
+// handleRulePreview renders the rule the form currently describes and returns it
+// as JSON, so the editor's "renders as" panel updates live as you fill it in. It
+// uses the same Go renderer the apply path uses, so the preview can never drift
+// from what would actually be applied.
+func (s *Server) handleRulePreview(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		writeJSON(w, map[string]any{"error": "bad form"})
+		return
+	}
+	chainID, _ := strconv.ParseInt(r.FormValue("chain_id"), 10, 64)
+	chain, err := s.store.GetChain(chainID)
+	if err != nil {
+		writeJSON(w, map[string]any{"error": "unknown chain"})
+		return
+	}
+	table, _ := s.store.GetTable(chain.TableID)
+
+	vm := ruleFormVM{Chain: chain, Comment: strings.TrimSpace(r.FormValue("comment")), Conds: readConds(r), Acts: readActs(r)}
+	rule := ruleFromForm(vm)
+
+	resp := map[string]any{"chain": chain.Name, "family": table.Family, "table": table.Name}
+	if line, rerr := nftconf.RenderRule(table.Family, rule); rerr != nil {
+		resp["error"] = rerr.Error()
+	} else {
+		resp["line"] = line
+	}
+	writeJSON(w, resp)
+}
+
 func (s *Server) handleRuleDelete(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.DeleteChainRule(pathID(r)); err != nil {
 		redirectErr(w, r, "/firewall", "Could not delete rule: "+err.Error())

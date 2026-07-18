@@ -159,7 +159,9 @@ The database holds nftably's own state and the model. nftably only ever touches 
 tables it owns (recorded in its model); tables it did not create are never modified.
 Applying replaces exactly the owned tables in one transaction, and removes tables you
 delete from the model. GeoIP lookups (optional, Settings → GeoIP) run against a local
-MaxMind file — nftably never phones anywhere.
+`.mmdb` file — point at your own MaxMind database, or let nftably fetch the free DB-IP
+Lite one (CC-BY 4.0, no account). That opt-in download is the **only** thing that ever
+makes nftably reach the network, and only when you click it or enable the monthly refresh.
 
 ## Development
 

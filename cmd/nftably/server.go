@@ -76,6 +76,7 @@ Fix it with:
 		Nft:                client,
 		Log:                log,
 		ListenAddr:         effListen,
+		DataDir:            filepath.Dir(*dbPath),
 		IptablesSave:       *iptablesSave,
 		Ip6tablesSave:      *ip6tablesSave,
 		IptablesBin:        "iptables",
@@ -87,6 +88,10 @@ Fix it with:
 	// the operator never confirmed, and restarting the service is not a way to
 	// skip the confirm step.
 	srv.RecoverPendingApply()
+
+	// If the operator opted into GeoIP auto-update, refresh a stale/missing
+	// database in the background. Does nothing unless they turned it on.
+	srv.RefreshGeoIPIfStale()
 
 	// Said once, at startup: nftably binds every interface by default, so an
 	// allow-all access list means anyone who finds the port reaches the login —

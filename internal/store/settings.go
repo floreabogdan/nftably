@@ -16,9 +16,13 @@ type Settings struct {
 	// always allowed and an empty list means no restriction, so it defaults open
 	// and cannot lock out an SSH tunnel. See access.go.
 	AccessWhitelist string
-	// GeoIPDB is an optional path to a MaxMind GeoLite2/GeoIP2 Country
-	// database (.mmdb); when set, the connections view shows countries.
+	// GeoIPDB is an optional path to a MaxMind/DB-IP Country database (.mmdb);
+	// when set, the connections view shows countries.
 	GeoIPDB string
+	// GeoIPAutoUpdate, when true, lets nftably refresh a downloaded DB-IP Lite
+	// database monthly (opt-in — the only thing that ever makes nftably reach
+	// the network).
+	GeoIPAutoUpdate bool
 }
 
 // GetSettings returns the single settings row, or (Settings{}, false, nil) if
@@ -26,9 +30,9 @@ type Settings struct {
 func (s *Store) GetSettings() (Settings, bool, error) {
 	var st Settings
 	row := s.db.QueryRow(`
-		SELECT router_label, listen_addr, nft_binary, access_whitelist, geoip_db
+		SELECT router_label, listen_addr, nft_binary, access_whitelist, geoip_db, geoip_autoupdate
 		FROM settings WHERE id = 1`)
-	err := row.Scan(&st.RouterLabel, &st.ListenAddr, &st.NftBinary, &st.AccessWhitelist, &st.GeoIPDB)
+	err := row.Scan(&st.RouterLabel, &st.ListenAddr, &st.NftBinary, &st.AccessWhitelist, &st.GeoIPDB, &st.GeoIPAutoUpdate)
 	if err == sql.ErrNoRows {
 		return Settings{}, false, nil
 	}
@@ -63,6 +67,16 @@ func (s *Store) SaveGeoIPDB(path string) error {
 	res, err := s.db.Exec(`UPDATE settings SET geoip_db = ?, updated_at = ? WHERE id = 1`, path, now())
 	if err != nil {
 		return fmt.Errorf("store: save geoip db: %w", err)
+	}
+	return affectedOne(res)
+}
+
+// SaveGeoIP updates the GeoIP database path and the auto-update opt-in together.
+func (s *Store) SaveGeoIP(path string, autoUpdate bool) error {
+	res, err := s.db.Exec(`UPDATE settings SET geoip_db = ?, geoip_autoupdate = ?, updated_at = ? WHERE id = 1`,
+		path, autoUpdate, now())
+	if err != nil {
+		return fmt.Errorf("store: save geoip: %w", err)
 	}
 	return affectedOne(res)
 }

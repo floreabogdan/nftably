@@ -16,9 +16,12 @@ CREATE TABLE IF NOT EXISTS settings (
 	-- list means no restriction, so it defaults open and cannot lock out an SSH
 	-- tunnel.
 	access_whitelist TEXT NOT NULL DEFAULT '',
-	-- Optional path to a MaxMind GeoLite2/GeoIP2 Country database; empty
-	-- means the connections view shows no countries.
+	-- Optional path to a MaxMind/DB-IP Country database; empty means the
+	-- connections view shows no countries.
 	geoip_db         TEXT NOT NULL DEFAULT '',
+	-- Opt-in: refresh a downloaded DB-IP Lite database monthly. The only thing
+	-- that ever makes nftably reach the network.
+	geoip_autoupdate INTEGER NOT NULL DEFAULT 0,
 	created_at       TEXT NOT NULL,
 	updated_at       TEXT NOT NULL
 );

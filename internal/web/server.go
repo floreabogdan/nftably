@@ -34,6 +34,10 @@ type Server struct {
 	// listenAddr is where nftably is bound, for the wide-open warning.
 	listenAddr string
 
+	// dataDir is where nftably may store downloaded artifacts (the optional
+	// GeoIP database) — the directory holding its SQLite file.
+	dataDir string
+
 	// iptables tool paths for the coexistence probe and the import preview.
 	iptablesSave       string
 	ip6tablesSave      string
@@ -70,6 +74,7 @@ type Config struct {
 	Nft                *nft.Client
 	Log                *slog.Logger
 	ListenAddr         string
+	DataDir            string
 	IptablesSave       string
 	Ip6tablesSave      string
 	IptablesBin        string
@@ -91,6 +96,7 @@ func New(cfg Config) *Server {
 		nft:                cfg.Nft,
 		log:                log,
 		listenAddr:         cfg.ListenAddr,
+		dataDir:            cfg.DataDir,
 		iptablesSave:       cfg.IptablesSave,
 		ip6tablesSave:      cfg.Ip6tablesSave,
 		iptablesBin:        cfg.IptablesBin,
@@ -186,6 +192,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /firewall/chains/{id}/move", s.requireAuth(s.handleChainMove))
 	s.mux.Handle("GET /firewall/chains/{id}/rules/new", s.requireAuth(s.handleRuleNew))
 	s.mux.Handle("POST /firewall/chains/{id}/rules/new", s.requireAuth(s.handleRuleSave))
+	s.mux.Handle("POST /firewall/rules/preview", s.requireAuth(s.handleRulePreview))
 	s.mux.Handle("GET /firewall/rules/{id}/edit", s.requireAuth(s.handleRuleEditGet))
 	s.mux.Handle("POST /firewall/rules/{id}/edit", s.requireAuth(s.handleRuleSave))
 	s.mux.Handle("POST /firewall/rules/{id}/delete", s.requireAuth(s.handleRuleDelete))
@@ -226,6 +233,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /settings/identity", s.requireAuth(s.handleSettingsIdentity))
 	s.mux.Handle("POST /settings/access", s.requireAuth(s.handleSettingsAccess))
 	s.mux.Handle("POST /settings/geoip", s.requireAuth(s.handleSettingsGeoIP))
+	s.mux.Handle("POST /settings/geoip/download", s.requireAuth(s.handleGeoIPDownload))
 
 	s.mux.Handle("GET /profile", s.requireAuth(s.handleProfilePage))
 	s.mux.Handle("POST /profile/identity", s.requireAuth(s.handleProfileIdentity))

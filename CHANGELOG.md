@@ -35,6 +35,17 @@ typed, explained control instead of a fixed form.
 - The Connections **Block** button now takes effect immediately (the presets drop
   `@blacklist` before established connections).
 
+### Added
+
+- **Live rule preview.** The editor's "renders as" panel now updates as you type
+  (debounced, server-rendered so it can't drift from what applies) and shows the
+  rule inside its chain — `chain input { … <your rule> … }`.
+- **Opt-in GeoIP download.** Settings → GeoIP can fetch the free DB-IP Lite
+  country database (CC-BY 4.0, no account), validate it, and optionally refresh it
+  monthly. Your own MaxMind file still works. This is the only thing that ever
+  makes nftably reach the network, and only when you ask.
+- Catalogue knobs for BGP GTSM (`ip ttl` / `ip6 hoplimit`) and connection marks.
+
 ### Removed
 
 - The opinionated pages `/rules`, `/forwarding`, `/setup` and `/library`, folded

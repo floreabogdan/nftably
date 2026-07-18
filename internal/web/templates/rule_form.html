@@ -13,7 +13,8 @@
 <script type="application/json" id="catalogue">{{.CatalogueJSON}}</script>
 <script type="application/json" id="pagedata">{{.PageDataJSON}}</script>
 
-<form method="post" action="{{if .IsNew}}/firewall/chains/{{.Chain.ID}}/rules/new{{else}}/firewall/rules/{{.RuleID}}/edit{{end}}" class="split">
+<form id="rule-form" method="post" action="{{if .IsNew}}/firewall/chains/{{.Chain.ID}}/rules/new{{else}}/firewall/rules/{{.RuleID}}/edit{{end}}" class="split">
+<input type="hidden" name="chain_id" value="{{.Chain.ID}}">
 <div class="split-main">
 
 	<div class="card">
@@ -97,8 +98,8 @@
 	<div class="card sticky-preview">
 		<div class="card-header"><div class="card-title">{{template "icon-changes"}} Renders as</div></div>
 		<div class="card-body">
-			<p class="hint">The exact nftables line this rule becomes:</p>
-			<pre class="code-block mono" id="rule-preview">{{if .Preview}}{{.Preview}}{{else}}(add a condition or action){{end}}</pre>
+			<p class="hint">The exact nftables line this rule becomes, in its chain:</p>
+			<pre class="code-block mono" id="rule-preview" data-chain="{{.Chain.Name}}">{{if .Preview}}{{.Preview}}{{else}}(add a condition or action){{end}}</pre>
 			<p class="hint">Save it, then <a href="/changes">Review &amp; apply</a> — with the armed auto-revert so a mistake can't lock you out.</p>
 		</div>
 	</div>

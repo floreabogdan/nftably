@@ -177,7 +177,53 @@
 		if (hidden) hidden.classList.remove("extra");
 	}
 	var addCond = document.getElementById("add-cond");
-	if (addCond) addCond.addEventListener("click", function () { revealNext("conds"); });
+	if (addCond) addCond.addEventListener("click", function () { revealNext("conds"); updatePreview(); });
 	var addAct = document.getElementById("add-act");
-	if (addAct) addAct.addEventListener("click", function () { revealNext("acts"); });
+	if (addAct) addAct.addEventListener("click", function () { revealNext("acts"); updatePreview(); });
+
+	// ── live "renders as" preview ────────────────────────────────────────────
+	// As the form changes, ask the server to render the rule (the same renderer
+	// the apply path uses, so the preview never drifts) and show it inside its
+	// chain, with … standing in for the chain's other rules.
+	var form = document.getElementById("rule-form");
+	var box = document.getElementById("rule-preview");
+	var timer = null;
+
+	function showPreview(data) {
+		if (!box) return;
+		var chain = box.getAttribute("data-chain") || "chain";
+		if (data.error) {
+			box.textContent = data.error;
+			return;
+		}
+		if (!data.line) {
+			box.textContent = "(add a condition or action)";
+			return;
+		}
+		box.textContent = "chain " + chain + " {\n        …\n        " + data.line + "\n        …\n}";
+	}
+
+	function updatePreview() {
+		if (!form || !box) return;
+		var body = new URLSearchParams(new FormData(form));
+		fetch("/firewall/rules/preview", {
+			method: "POST",
+			headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			body: body.toString(),
+		})
+			.then(function (r) { return r.json(); })
+			.then(showPreview)
+			.catch(function () { /* leave the last good preview in place */ });
+	}
+
+	function schedulePreview() {
+		if (timer) clearTimeout(timer);
+		timer = setTimeout(updatePreview, 250);
+	}
+
+	if (form) {
+		form.addEventListener("input", schedulePreview);
+		form.addEventListener("change", schedulePreview);
+		updatePreview(); // first paint in chain context
+	}
 })();
