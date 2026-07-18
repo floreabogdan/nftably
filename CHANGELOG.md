@@ -115,9 +115,29 @@ typed, explained control instead of a fixed form.
   minute and the entry cap is enforced by an O(1) eviction on insert, so a botnet
   cycling source addresses can no longer turn every login attempt into a full-map
   walk.
+- **Feed-sourced sets fetch only public addresses.** A URL feed can't be turned
+  into a request against the box's own internal surface (cloud metadata, loopback,
+  the LAN) — the dialer refuses non-public destinations, after DNS and across
+  redirects.
+- **Precise, simulator-based lockout warning.** Before you apply, nftably traces a
+  new connection from *your own address* to the UI port and SSH and warns if it
+  would be dropped — catching the case the heuristic misses, where access is
+  allowed but scoped to a management set you're not in.
 
 ### Fixed
 
+- **Simulator verdicts corrected.** A negated match (`!=`) no longer wrongly fires
+  on a wrong-family/protocol packet (nft negates only the value, not the implicit
+  family/proto gate), and a rule in an `ip6`-only table no longer matches IPv4
+  packets. The advisor, which runs on the same engine, is corrected with it.
+- **The Connections "Block" button now actually blocks** even without a preset: it
+  wires up the early `@blacklist` drop rules, instead of adding to a set that
+  nothing drops.
+- **Named-set usage is tracked against the object model.** A set used only by
+  object-model rules no longer shows "0 uses" and can't be deleted out from under
+  them (which would break the next apply).
+- The "Filter this page" box now works on the Firewall page, and is hidden on
+  pages with nothing to filter.
 - Fetching a single rule (or one chain) no longer scans every match/statement in
   the database; added the object-model foreign-key indexes.
 - The starter table/lists are seeded only on a genuinely new database, so a schema
@@ -140,6 +160,10 @@ typed, explained control instead of a fixed form.
 - The opinionated pages `/rules`, `/forwarding`, `/setup` and `/library`, folded
   into the object model and presets. (The advisor is back, rebuilt against the new
   model — see Added.)
+- The dormant pre-redesign flat firewall model (`fw_rules`, `firewall`,
+  `port_forwards` tables and their Go code) — fully superseded by the object model
+  and unreferenced by the UI. Existing databases keep the now-unread tables; fresh
+  installs never create them.
 
 ## Earlier
 
