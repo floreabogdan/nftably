@@ -21,15 +21,15 @@ func TestPortForwardValidate(t *testing.T) {
 	}
 
 	bad := []PortForward{
-		{Proto: "icmp", DPort: "80", Dest: "10.0.0.2"},              // bad proto
-		{Proto: "tcp", DPort: "0", Dest: "10.0.0.2"},                // bad port
-		{Proto: "tcp", DPort: "80", Dest: "not-an-ip"},              // bad dest
-		{Proto: "tcp", DPort: "80", Dest: "127.0.0.1"},              // loopback dest
-		{Proto: "tcp", DPort: "80", Dest: "224.0.0.1"},              // multicast dest
+		{Proto: "icmp", DPort: "80", Dest: "10.0.0.2"}, // bad proto
+		{Proto: "tcp", DPort: "0", Dest: "10.0.0.2"},   // bad port
+		{Proto: "tcp", DPort: "80", Dest: "not-an-ip"}, // bad dest
+		{Proto: "tcp", DPort: "80", Dest: "127.0.0.1"}, // loopback dest
+		{Proto: "tcp", DPort: "80", Dest: "224.0.0.1"}, // multicast dest
 		{Proto: "tcp", DPort: "80", Dest: "10.0.0.2", DestPort: "x"},
-		{Proto: "tcp", DPort: "80", Dest: "10.0.0.2", DestPort: "1-9"},    // dest range
+		{Proto: "tcp", DPort: "80", Dest: "10.0.0.2", DestPort: "1-9"},   // dest range
 		{Proto: "tcp", DPort: "80-90", Dest: "10.0.0.2", DestPort: "80"}, // range + dest port
-		{Proto: "tcp", DPort: "80", Dest: "10.0.0.2", Name: `a"b`},        // quote in name
+		{Proto: "tcp", DPort: "80", Dest: "10.0.0.2", Name: `a"b`},       // quote in name
 	}
 	for i, p := range bad {
 		if errs := p.Validate(); len(errs) == 0 {

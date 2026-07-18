@@ -1,0 +1,40 @@
+# Run nftably in a container on the host whose firewall you want to manage.
+#
+# nftably reads and writes netfilter through `nft`, which lives in the host's
+# network namespace — so the container must share it (`network_mode: host`) and
+# hold CAP_NET_ADMIN. A container in its own namespace only ever sees its own,
+# empty ruleset.
+#
+# One-time setup — create the database and admin account:
+#
+#   docker compose run --rm nftably init --label rt1
+#
+# (add --password to avoid the prompt; it will land in your shell history).
+# Then bring up the server:
+#
+#   docker compose up -d
+#
+# nftably has no TLS. With host networking it listens on the port below on every
+# interface, so either bind it to loopback (below) and reach it over an SSH
+# tunnel — `ssh -L 8080:127.0.0.1:8080 rt1`, then open http://127.0.0.1:8080 —
+# or set the IP allow-list under Settings → Access control the moment you log in.
+
+services:
+  nftably:
+    build: .
+    # Or pull a published image instead of building:
+    # image: ghcr.io/floreabogdan/nftably:latest
+    restart: unless-stopped
+    # Loopback-only by default; tunnel in over SSH. Change to 0.0.0.0:8080 only
+    # once the access list (or TLS) is in place.
+    command: ["server", "--listen", "127.0.0.1:8080"]
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      # nftably's own state: login, settings, events, the firewall model and the
+      # config-version history. Not secret, but back it up.
+      - nftably-data:/var/lib/nftably
+
+volumes:
+  nftably-data:

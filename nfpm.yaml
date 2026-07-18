@@ -9,13 +9,14 @@ platform: linux
 version: ${VERSION}
 maintainer: "Bogdan Florea <ixsplit@gmail.com>"
 description: |
-  Web UI for nftables that runs on your router.
-  nftably detects the host firewall backend and shows the live netfilter ruleset
-  (IPv4 and IPv6 together, via the inet family). It reads iptables rules for a
-  one-time import. This release is read-only; managing rules, zones and NAT with
-  an armed auto-revert arrives in later milestones. It listens on every interface
-  and has no TLS, so set the IP allow-list (Settings, Access control) as soon as
-  you log in, or bind it to loopback and reach it over an SSH tunnel.
+  Web UI for nftables. nftably manages the firewall as its real object model
+  (tables, chains and rules, in any family) and makes every match and statement a
+  typed control that explains what it does. Changes are validated by nft --check,
+  applied as one atomic transaction, and armed with an auto-revert so a bad rule
+  cannot lock you out. Includes best-practice presets (a hardened BGP edge router,
+  a basic secure server), named sets, a live connections view and iptables import.
+  It listens on every interface and has no TLS, so set the IP allow-list (Settings,
+  Access control) as soon as you log in, or bind it to loopback and tunnel in.
 vendor: nftably
 homepage: https://github.com/floreabogdan/nftably
 license: 0BSD

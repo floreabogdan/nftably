@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest something nftably should do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        nftably aims to let you set **any** nftables option, but with every knob explained and safe
+        by default. Requests that make the tool clearer or safer, or that expose a real nftables
+        capability it's missing, fit the grain best. Please describe the use case, not just the
+        feature — see [CONTRIBUTING.md](https://github.com/floreabogdan/nftably/blob/main/CONTRIBUTING.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The operational problem you have, not the solution you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like nftably to do?
+      description: How you imagine it working, and how it fits nftably's "everything, but explained and safe" design.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What you do today, or other ways this could be solved (including hand-writing the nftables ruleset).

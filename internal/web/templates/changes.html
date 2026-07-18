@@ -53,7 +53,7 @@
 	{{else if not .TableExists}}
 	<div class="card-body">
 		<span class="badge badge-info">first apply</span>
-		<span class="text-muted">The kernel has no <span class="mono">table inet nftably</span> yet — everything below is new.</span>
+		<span class="text-muted">None of nftably's tables are in the kernel yet — everything below is new.</span>
 	</div>
 	{{else if .Hunks}}
 	<div class="diff" data-search-target>
@@ -122,7 +122,7 @@
 <div class="card">
 	<div class="card-header">
 		<span class="card-title">{{template "icon-list"}}Rendered config</span>
-		<span class="text-muted">{{.RuleCount}} rule{{if ne .RuleCount 1}}s{{end}} + baseline</span>
+		<span class="text-muted">{{.RuleCount}} enabled rule{{if ne .RuleCount 1}}s{{end}}</span>
 	</div>
 	<div class="card-body">
 		<pre class="code-block mono" style="white-space:pre;overflow:auto" data-search-target>{{.Candidate}}</pre>

@@ -10,6 +10,26 @@ It's a single Go binary backed by SQLite. No agent, no cloud, no external
 dependencies at runtime beyond `nft` itself. Install the package, run
 `nftably init`, and go.
 
+> **Status: beta.** nftably reads and writes netfilter through `nft`. Every apply
+> is dry-run through `nft --check`, loaded as one atomic transaction and armed with
+> an auto-revert — but it is young software. Run it behind the access list or an
+> SSH tunnel, and review the diff before you apply.
+
+## Screenshots
+
+The firewall is tables → chains (shown as tabs) → rules, each rendered as the real
+nft line it becomes:
+
+![The firewall page](docs/screenshots/firewall.jpg)
+
+| The typed, explained rule editor | Best-practice presets |
+| :---: | :---: |
+| ![Rule editor](docs/screenshots/rule-editor.jpg) | ![Presets](docs/screenshots/presets.jpg) |
+| **Review the diff, apply with auto-revert** | **A live overview** |
+| ![Review and apply](docs/screenshots/review.jpg) | ![Dashboard](docs/screenshots/dashboard.jpg) |
+
+<sub>All addresses shown are documentation examples (RFC 5737 / RFC 3849).</sub>
+
 ---
 
 ## Why

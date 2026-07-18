@@ -1,11 +1,8 @@
-// Command nftably is a single-host nftables manager: a web UI, backed by
-// SQLite, that reads the live netfilter ruleset and (from M3 on) renders and
-// applies it with an armed auto-revert so a bad rule can never lock you out of
-// your own router. Run `nftably init` once, then `nftably server` (normally
-// under systemd).
-//
-// This build is M1: detect the firewall backend and show the live ruleset
-// read-only. It never writes to netfilter yet.
+// Command nftably is an nftables manager: a web UI, backed by SQLite, that
+// models the firewall as tables, chains and rules, renders it to nft config and
+// applies it as one atomic transaction with an armed auto-revert so a bad rule
+// can never lock you out of the box you're editing. Run `nftably init` once,
+// then `nftably server` (normally under systemd).
 package main
 
 import (

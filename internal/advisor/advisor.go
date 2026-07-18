@@ -233,8 +233,8 @@ func Suggest(scan Scan, fw store.Firewall, rules []store.Rule, listenPort int) [
 	if has["bird"] && !ruleAccepts(rules, "tcp", 179) && drop {
 		out = append(out, Suggestion{
 			Key: "bird-bgp", Severity: "info",
-			Title: "BIRD is installed, but BGP (tcp 179) is not accepted",
-			Body:  "If this box speaks BGP, its peers must reach tcp 179. Add the rule and restrict it to your peers' addresses — nobody else has business on that port.",
+			Title:   "BIRD is installed, but BGP (tcp 179) is not accepted",
+			Body:    "If this box speaks BGP, its peers must reach tcp 179. Add the rule and restrict it to your peers' addresses — nobody else has business on that port.",
 			Prefill: &Prefill{Name: "bgp peers", Action: "accept", Proto: "tcp", DPorts: "179"},
 		})
 	}
@@ -242,24 +242,24 @@ func Suggest(scan Scan, fw store.Firewall, rules []store.Rule, listenPort int) [
 		(!ruleAccepts(rules, "tcp", 80) || !ruleAccepts(rules, "tcp", 443)) {
 		out = append(out, Suggestion{
 			Key: "web-server", Severity: "info",
-			Title: "A web server is installed, but HTTP/HTTPS are not (fully) accepted",
-			Body:  "If it serves the outside world, allow tcp 80 and 443. A redirect-only port 80 still needs to be open for the redirect to happen.",
+			Title:   "A web server is installed, but HTTP/HTTPS are not (fully) accepted",
+			Body:    "If it serves the outside world, allow tcp 80 and 443. A redirect-only port 80 still needs to be open for the redirect to happen.",
 			Prefill: &Prefill{Name: "web", Action: "accept", Proto: "tcp", DPorts: "80, 443"},
 		})
 	}
 	if has["wireguard"] && drop && !ruleAccepts(rules, "udp", 51820) {
 		out = append(out, Suggestion{
 			Key: "wireguard", Severity: "info",
-			Title: "WireGuard is installed, but its port is not accepted",
-			Body:  "Handshakes arrive on udp 51820 (unless configured otherwise). WireGuard is silent to unauthenticated probes, so accepting it from anywhere is normal practice.",
+			Title:   "WireGuard is installed, but its port is not accepted",
+			Body:    "Handshakes arrive on udp 51820 (unless configured otherwise). WireGuard is silent to unauthenticated probes, so accepting it from anywhere is normal practice.",
 			Prefill: &Prefill{Name: "wireguard", Action: "accept", Proto: "udp", DPorts: "51820"},
 		})
 	}
 	if has["dns"] && drop && (!ruleAccepts(rules, "udp", 53) || !ruleAccepts(rules, "tcp", 53)) {
 		out = append(out, Suggestion{
 			Key: "dns", Severity: "info",
-			Title: "A DNS server is installed, but port 53 is not (fully) accepted",
-			Body:  "Resolvers need udp 53 and tcp 53 (TCP carries large answers and zone transfers). If it only serves your LAN, restrict the sources — an open resolver is an amplification-attack tool.",
+			Title:   "A DNS server is installed, but port 53 is not (fully) accepted",
+			Body:    "Resolvers need udp 53 and tcp 53 (TCP carries large answers and zone transfers). If it only serves your LAN, restrict the sources — an open resolver is an amplification-attack tool.",
 			Prefill: &Prefill{Name: "dns", Action: "accept", Proto: "udp", DPorts: "53"},
 		})
 	}

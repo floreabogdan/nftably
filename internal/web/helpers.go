@@ -1,12 +1,28 @@
 package web
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 
 	"github.com/floreabogdan/nftably/internal/store"
 )
+
+// ownListenPort is nftably's own TCP port, parsed from its listen address; 0
+// when loopback-bound or unparsable. Presets use it to allow the UI from the
+// management set.
+func (s *Server) ownListenPort() int {
+	_, portStr, err := net.SplitHostPort(s.listenAddr)
+	if err != nil {
+		return 0
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return 0
+	}
+	return port
+}
 
 // audit records an operator action on the event timeline, attributed to the
 // logged-in user. Best-effort: a failed audit write never blocks the action.

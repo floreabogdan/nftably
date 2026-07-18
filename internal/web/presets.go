@@ -21,7 +21,7 @@ type presetDef struct {
 	// What lists a preset expects you to fill in, and why.
 	Sets []presetSet
 	// Bullet points shown on the card: what it adds and the reasoning.
-	Adds []string
+	Adds  []string
 	build func(s *Server, r *http.Request) error
 }
 

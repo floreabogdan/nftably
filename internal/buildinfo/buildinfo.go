@@ -5,3 +5,7 @@ package buildinfo
 // tag via -ldflags "-X github.com/floreabogdan/nftably/internal/buildinfo.Version=...".
 // A source build leaves it at this default.
 var Version = "0.1.0-dev"
+
+// Commit is the git SHA the release build was cut from; empty on a source build.
+// Set via -ldflags "-X github.com/floreabogdan/nftably/internal/buildinfo.Commit=...".
+var Commit = ""

@@ -69,9 +69,10 @@ func ProbeIptables(ctx context.Context, v4save, v6save, iptablesBin string) Ipta
 
 // TranslateIptables produces the nft commands equivalent to the current
 // iptables ruleset, by piping `iptables-save` through
-// `iptables-restore-translate`. It is a preview only — M1 never applies it —
-// and best-effort: the translate tool ships in iptables 1.8+ but is not always
-// installed. save/translate default to iptables-save / iptables-restore-translate.
+// `iptables-restore-translate`. It is a reference preview only — nftably never
+// applies the translation — and best-effort: the translate tool ships in
+// iptables 1.8+ but is not always installed. save/translate default to
+// iptables-save / iptables-restore-translate.
 func TranslateIptables(ctx context.Context, save, translate string) (string, error) {
 	save = orDefault(save, "iptables-save")
 	translate = orDefault(translate, "iptables-restore-translate")

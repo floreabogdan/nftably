@@ -15,7 +15,6 @@ func DecodeParams(s string) map[string]string {
 	return out
 }
 
-
 // EncodeParams is the inverse, for the web layer building a statement from a
 // form. Empty maps encode as "{}".
 func EncodeParams(p map[string]string) string {

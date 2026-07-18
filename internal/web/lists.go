@@ -256,25 +256,6 @@ func (s *Server) blockRoleList() (store.IPList, error) {
 	return s.store.GetList(id)
 }
 
-// allowRoleList mirrors blockRoleList for the management side.
-func (s *Server) allowRoleList() (store.IPList, error) {
-	lists, err := s.store.ListLists()
-	if err != nil {
-		return store.IPList{}, err
-	}
-	for _, l := range lists {
-		if l.Role == store.RoleAllow {
-			return l, nil
-		}
-	}
-	id, err := s.store.CreateList(store.IPList{Name: "management", Role: store.RoleAllow,
-		Note: "Accepted before everything — this network can never be locked out."})
-	if err != nil {
-		return store.IPList{}, err
-	}
-	return s.store.GetList(id)
-}
-
 // refuseSelfBlock stops the operator from blacklisting the address they are
 // connecting from. The established-state ordering would not save them: block
 // lists are deliberately checked before established, so this block would cut

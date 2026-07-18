@@ -51,7 +51,7 @@ type Match struct {
 	Group    string
 	Help     string
 	Example  string
-	Expr     string   // nft left-hand expression, e.g. "ip saddr", "tcp dport"
+	Expr     string // nft left-hand expression, e.g. "ip saddr", "tcp dport"
 	Kind     Kind
 	Quote    bool     // wrap each value token in double quotes (interfaces/strings)
 	Options  []Option // for KindEnum / KindFlags
@@ -228,7 +228,7 @@ var statements = []Statement{
 	{Key: "return", Label: "Return", Group: "Verdict", Help: "Stop this chain and go back to the one that jumped here (in a base chain, applies the policy).", Example: "return",
 		render: func(_ map[string]string, _ Ctx) (string, error) { return "return", nil }},
 	{Key: "jump", Label: "Jump to chain", Group: "Verdict", Example: "jump my_checks",
-		Help: "Hand the packet to another (regular) chain, then come back here if that chain returns.",
+		Help:   "Hand the packet to another (regular) chain, then come back here if that chain returns.",
 		Params: []Param{{Key: "target", Label: "Chain", Kind: KindText, Placeholder: "chain name", Help: "The regular chain to jump into."}},
 		render: func(p map[string]string, _ Ctx) (string, error) {
 			t := strings.TrimSpace(p["target"])
@@ -238,7 +238,7 @@ var statements = []Statement{
 			return "jump " + t, nil
 		}},
 	{Key: "goto", Label: "Go to chain", Group: "Verdict", Example: "goto my_checks",
-		Help: "Like jump, but does not come back — evaluation continues in the target chain and returns to the caller of this one.",
+		Help:   "Like jump, but does not come back — evaluation continues in the target chain and returns to the caller of this one.",
 		Params: []Param{{Key: "target", Label: "Chain", Kind: KindText, Placeholder: "chain name", Help: "The regular chain to go to."}},
 		render: func(p map[string]string, _ Ctx) (string, error) {
 			t := strings.TrimSpace(p["target"])
@@ -309,7 +309,7 @@ var statements = []Statement{
 
 	// Marking
 	{Key: "meta.mark.set", Label: "Set packet mark", Group: "Marking", Example: "meta mark set 0x1",
-		Help: "Attach a number to the packet — later rules or policy routing can match it.",
+		Help:   "Attach a number to the packet — later rules or policy routing can match it.",
 		Params: []Param{{Key: "value", Label: "Mark", Kind: KindText, Placeholder: "0x1", Help: "A number (decimal or 0x-hex)."}},
 		render: func(p map[string]string, _ Ctx) (string, error) {
 			v := strings.TrimSpace(p["value"])
@@ -319,7 +319,7 @@ var statements = []Statement{
 			return "meta mark set " + v, nil
 		}},
 	{Key: "ct.mark.set", Label: "Set connection mark", Group: "Marking", Example: "ct mark set 0x1",
-		Help: "Attach a number to the whole connection (persists across its packets).",
+		Help:   "Attach a number to the whole connection (persists across its packets).",
 		Params: []Param{{Key: "value", Label: "Mark", Kind: KindText, Placeholder: "0x1", Help: "A number (decimal or 0x-hex)."}},
 		render: func(p map[string]string, _ Ctx) (string, error) {
 			v := strings.TrimSpace(p["value"])
@@ -345,10 +345,10 @@ var statements = []Statement{
 		},
 		render: func(p map[string]string, ctx Ctx) (string, error) { return renderNatTo("snat", p, ctx) }},
 	{Key: "masquerade", Label: "Masquerade", Group: "NAT", Example: "masquerade",
-		Help: "Source-NAT to whatever address the outgoing interface currently has — the standard 'share one internet connection' setting for a router. Use in a postrouting nat chain.",
+		Help:   "Source-NAT to whatever address the outgoing interface currently has — the standard 'share one internet connection' setting for a router. Use in a postrouting nat chain.",
 		render: func(_ map[string]string, _ Ctx) (string, error) { return "masquerade", nil }},
 	{Key: "redirect", Label: "Redirect (to this host)", Group: "NAT", Example: "redirect to :3128",
-		Help: "Send traffic to a port on this same machine — e.g. transparently to a local proxy. Use in a prerouting nat chain.",
+		Help:   "Send traffic to a port on this same machine — e.g. transparently to a local proxy. Use in a prerouting nat chain.",
 		Params: []Param{{Key: "port", Label: "To port", Kind: KindPort, Optional: true, Placeholder: "3128", Help: "The local port to redirect to (blank keeps the original)."}},
 		render: func(p map[string]string, _ Ctx) (string, error) {
 			if port := strings.TrimSpace(p["port"]); port != "" {

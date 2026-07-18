@@ -33,9 +33,9 @@ func TestBGPPresetBuildsValidConfig(t *testing.T) {
 		"ip saddr @mgmt4 tcp dport 22 accept",
 		"ip saddr @peers4 tcp dport 179 accept",
 		"udp dport { 3784, 3785, 4784 }",
-		"ip saddr @blacklist4 drop",       // Connections "block" bites
+		"ip saddr @blacklist4 drop", // Connections "block" bites
 		"chain output {",
-		"udp dport 5353 drop",             // output hygiene: no mDNS leak
+		"udp dport 5353 drop", // output hygiene: no mDNS leak
 		"chain forward {",
 		"policy accept;",
 	} {
