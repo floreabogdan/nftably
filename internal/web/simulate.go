@@ -26,6 +26,12 @@ type simVM struct {
 }
 
 func (s *Server) handleSimulate(w http.ResponseWriter, r *http.Request) {
+	// Deep link: /simulate?run=1&proto=…&dport=… (the advisor's "Simulate" link)
+	// prefills the form and runs it immediately, so a finding opens its trace.
+	if r.URL.Query().Get("run") == "1" {
+		s.handleSimulateRun(w, r)
+		return
+	}
 	vm := simVM{
 		nav:        s.navFor(r, "simulate"),
 		Hooks:      []string{"input", "output", "forward", "prerouting", "postrouting"},

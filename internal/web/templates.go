@@ -21,6 +21,11 @@ var funcs = template.FuncMap{
 	// list builds a slice from its arguments, for ranging over a fixed set of
 	// option values inline in a template (log levels, rate units…).
 	"list": func(items ...string) []string { return items },
+	// rawURL marks an internally-constructed URL safe so html/template does not
+	// re-escape its query string. Only ever used on URLs nftably builds itself
+	// (e.g. the advisor's /simulate deep links, already url.Values-encoded), never
+	// on user input.
+	"rawURL": func(s string) template.URL { return template.URL(s) },
 	"fmttime": func(t time.Time) string {
 		if t.IsZero() {
 			return "-"

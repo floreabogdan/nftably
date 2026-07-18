@@ -229,9 +229,12 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /lists/entries/{id}/delete", s.requireAuth(s.handleListEntryDelete))
 	s.mux.Handle("POST /lists/block", s.requireAuth(s.handleQuickBlock))
 
-	// The advisor (detect what runs on the box, suggest rules) is temporarily
-	// unlinked while it is re-pointed at the new object model — its handlers
-	// remain but are not routed.
+	// The advisor: scan the box's listeners and route each exposure through the
+	// simulator to report what the firewall actually does about it.
+	s.mux.Handle("GET /advisor", s.requireAuth(s.handleAdvisor))
+	s.mux.Handle("POST /advisor/allow", s.requireAuth(s.handleAdvisorAllow))
+	s.mux.Handle("POST /advisor/dismiss", s.requireAuth(s.handleAdvisorDismiss))
+	s.mux.Handle("POST /advisor/restore", s.requireAuth(s.handleAdvisorRestore))
 
 	s.mux.Handle("GET /settings", s.requireAuth(s.handleSettingsPage))
 	s.mux.Handle("POST /settings/identity", s.requireAuth(s.handleSettingsIdentity))

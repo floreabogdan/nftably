@@ -45,6 +45,13 @@ typed, explained control instead of a fixed form.
   kernel, no privilege. Conditions it can't model (marks, tcp flags, icmp types)
   mark a rule *indeterminate* and flag the trace as uncertain rather than
   guessing — so you can answer "will my SSH still get in?" before you apply.
+- **Advisor, reworked** (`/advisor`). Instead of generic tips keyed on installed
+  binaries, it now scans the box's live listening sockets and runs each one
+  through the packet simulator against your model, reporting what the firewall
+  actually does: "sshd listens on :22 — a connection from the internet would be
+  DROPPED" or "PostgreSQL is reachable from the internet (would ACCEPT)". Each
+  finding offers a one-click *Allow* (adds the accept rule and drops you on
+  Review & apply), a deep link into the simulator, and a dismiss/restore.
 - **Live rule preview.** The editor's "renders as" panel now updates as you type
   (debounced, server-rendered so it can't drift from what applies) and shows the
   rule inside its chain — `chain input { … <your rule> … }`.
@@ -113,8 +120,8 @@ typed, explained control instead of a fixed form.
 ### Removed
 
 - The opinionated pages `/rules`, `/forwarding`, `/setup` and `/library`, folded
-  into the object model and presets. The advisor UI is temporarily unlinked
-  pending a re-point at the new model.
+  into the object model and presets. (The advisor is back, rebuilt against the new
+  model — see Added.)
 
 ## Earlier
 

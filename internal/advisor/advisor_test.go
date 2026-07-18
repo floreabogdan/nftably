@@ -4,120 +4,131 @@ import (
 	"strings"
 	"testing"
 
+	nftconf "github.com/floreabogdan/nftably/internal/render"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
-func keys(sugs []Suggestion) map[string]Suggestion {
-	m := map[string]Suggestion{}
-	for _, s := range sugs {
-		m[s.Key] = s
+func keyed(fs []Finding) map[string]Finding {
+	m := map[string]Finding{}
+	for _, f := range fs {
+		m[f.Key] = f
 	}
 	return m
 }
 
-func TestSuggestUncoveredAndExposed(t *testing.T) {
-	scan := Scan{
-		Listeners: []Listener{
-			{Proto: "tcp", Port: 80, Addr: "0.0.0.0", Wild: true, Process: "nginx"},
-			{Proto: "tcp", Port: 5432, Addr: "0.0.0.0", Wild: true, Process: "postgres"},
-			{Proto: "tcp", Port: 8080, Addr: "0.0.0.0", Wild: true, Process: "nftably"},
-			{Proto: "tcp", Port: 631, Addr: "127.0.0.1", Wild: false, Process: "cupsd"},
-		},
-	}
-	fw := store.Firewall{InputPolicy: "drop"}
-	rules := []store.Rule{{Action: "accept", Proto: "tcp", DPorts: "5432", Enabled: true}}
+// inputModel builds a one-table model with an input base chain of the given
+// policy plus the supplied rules.
+func inputModel(policy string, rules ...store.ChainRule) nftconf.Model {
+	return nftconf.Model{Tables: []nftconf.TableTree{{
+		Table: store.Table{Family: "inet", Name: "filter"},
+		Chains: []nftconf.ChainTree{{
+			Chain: store.Chain{Name: "input", Kind: "base", Hook: "input", ChainType: "filter", Priority: "filter", Policy: policy},
+			Rules: rules,
+		}},
+	}}}
+}
 
-	got := keys(Suggest(scan, fw, rules, 8080))
-
-	// nginx on 80: uncovered under drop → prefilled suggestion.
-	s, ok := got["uncovered-tcp-80"]
-	if !ok || s.Prefill == nil || s.Prefill.DPorts != "80" {
-		t.Fatalf("missing/incomplete port-80 suggestion: %+v", s)
+func acceptPort(proto string, port string) store.ChainRule {
+	key := "tcp.dport"
+	if proto == "udp" {
+		key = "udp.dport"
 	}
-	// postgres covered by an accept rule → exposure warning, not "uncovered".
-	if _, ok := got["exposed-tcp-5432"]; !ok {
-		t.Fatalf("missing postgres exposure warning: %v", got)
-	}
-	// A sensitive port that the drop policy shields must NOT get an accept
-	// prefill — it gets the bind-localhost advice instead.
-	scan.Listeners = append(scan.Listeners, Listener{Proto: "tcp", Port: 6379, Addr: "0.0.0.0", Wild: true, Process: "redis-server"})
-	got = keys(Suggest(scan, fw, rules, 8080))
-	if _, ok := got["uncovered-tcp-6379"]; ok {
-		t.Fatal("redis under drop must not be suggested for opening")
-	}
-	if s, ok := got["shielded-tcp-6379"]; !ok || s.Prefill != nil {
-		t.Fatalf("redis should get the shielded/bind-localhost advice: %+v", s)
-	}
-	// nftably's own port and loopback-bound cups draw nothing.
-	for k := range got {
-		if strings.Contains(k, "8080") || strings.Contains(k, "631") {
-			t.Fatalf("unexpected suggestion %q", k)
-		}
+	return store.ChainRule{Enabled: true,
+		Matches:    []store.RuleMatch{{Key: key, Op: "==", Value: port}},
+		Statements: []store.RuleStatement{{Key: "accept"}},
 	}
 }
 
-func TestSuggestPolicyAndSoftwareNotes(t *testing.T) {
-	scan := Scan{Software: []Software{
-		{Key: "docker"}, {Key: "bird"}, {Key: "sshd"}, {Key: "nginx"},
+func TestAnalyzeBlockedListenerOffersAllow(t *testing.T) {
+	// sshd listens on :22, drop-policy input with no rule for it → blocked, with
+	// a one-click allow.
+	scan := Scan{Listeners: []Listener{{Proto: "tcp", Port: 22, Addr: "0.0.0.0", Wild: true, Process: "sshd"}}}
+	got := keyed(Analyze(scan, inputModel("drop"), Options{ListenPort: 8080}))
+	f, ok := got["listener-tcp-22-blocked"]
+	if !ok {
+		t.Fatalf("expected a blocked-listener finding, got %v", got)
+	}
+	if f.Verdict != "DROP" || f.Allow == nil || f.Allow.Port != 22 || f.Sim == "" {
+		t.Fatalf("blocked finding is incomplete: %+v", f)
+	}
+}
+
+func TestAnalyzeExposedDatabaseWarns(t *testing.T) {
+	// postgres reachable from anywhere (accept rule for 5432) → exposure warning,
+	// severity warn, no allow action.
+	scan := Scan{Listeners: []Listener{{Proto: "tcp", Port: 5432, Addr: "0.0.0.0", Wild: true, Process: "postgres"}}}
+	got := keyed(Analyze(scan, inputModel("drop", acceptPort("tcp", "5432")), Options{ListenPort: 8080}))
+	f, ok := got["listener-tcp-5432-exposed"]
+	if !ok {
+		t.Fatalf("expected an exposed-database warning, got %v", got)
+	}
+	if f.Severity != "warn" || f.Verdict != "ACCEPT" || f.Allow != nil {
+		t.Fatalf("exposed finding wrong: %+v", f)
+	}
+}
+
+func TestAnalyzeOpenNonSensitiveIsInfo(t *testing.T) {
+	// A web server reachable from anywhere is fine — info, not warn.
+	scan := Scan{Listeners: []Listener{{Proto: "tcp", Port: 443, Addr: "0.0.0.0", Wild: true, Process: "nginx"}}}
+	got := keyed(Analyze(scan, inputModel("drop", acceptPort("tcp", "443")), Options{ListenPort: 8080}))
+	f, ok := got["listener-tcp-443-open"]
+	if !ok || f.Severity != "info" || f.Verdict != "ACCEPT" {
+		t.Fatalf("expected an info 'reachable from anywhere' finding, got %+v (%v)", f, got)
+	}
+}
+
+func TestAnalyzeSkipsOwnPortAndLoopback(t *testing.T) {
+	scan := Scan{Listeners: []Listener{
+		{Proto: "tcp", Port: 8080, Addr: "0.0.0.0", Wild: true, Process: "nftably"},
+		{Proto: "tcp", Port: 631, Addr: "127.0.0.1", Wild: false, Process: "cupsd"},
 	}}
-	fw := store.Firewall{InputPolicy: "accept"}
-	rules := []store.Rule{{Action: "accept", Proto: "tcp", DPorts: "22", Enabled: true}}
-
-	got := keys(Suggest(scan, fw, rules, 0))
-	for _, want := range []string{"policy-drop", "docker-note", "ssh-narrow"} {
-		if _, ok := got[want]; !ok {
-			t.Errorf("missing %q; got %v", want, got)
-		}
-	}
-	// bird-bgp and web-server only fire under a drop policy — under accept
-	// everything is already reachable.
-	if _, ok := got["bird-bgp"]; ok {
-		t.Error("bird-bgp should not fire under an accept policy")
-	}
-
-	// Under drop, they do.
-	fw.InputPolicy = "drop"
-	got = keys(Suggest(scan, fw, rules, 0))
-	if _, ok := got["bird-bgp"]; !ok {
-		t.Errorf("bird-bgp missing under drop: %v", got)
-	}
-	if _, ok := got["web-server"]; !ok {
-		t.Errorf("web-server missing under drop: %v", got)
-	}
-	// Warnings sort before infos.
-	all := Suggest(scan, fw, rules, 0)
-	sawInfo := false
-	for _, s := range all {
-		if s.Severity == "info" {
-			sawInfo = true
-		} else if sawInfo {
-			t.Fatal("warn suggestion sorted after an info one")
+	for k := range keyed(Analyze(scan, inputModel("drop"), Options{ListenPort: 8080})) {
+		if strings.Contains(k, "8080") || strings.Contains(k, "631") {
+			t.Fatalf("own port / loopback listener should not produce a finding: %q", k)
 		}
 	}
 }
 
-func TestSuggestForwarding(t *testing.T) {
-	// A routing box with forwarding unconfigured gets the pointer; naming the
-	// WAN interface retires it.
-	scan := Scan{IPForward: true}
-	fw := store.Firewall{InputPolicy: "drop"}
-	if _, ok := keys(Suggest(scan, fw, nil, 0))["forwarding-unmanaged"]; !ok {
-		t.Fatal("router without WAN should draw the forwarding suggestion")
+func TestAnalyzePosture(t *testing.T) {
+	// Accept-policy input → the "accepts by default" warning.
+	if _, ok := keyed(Analyze(Scan{}, inputModel("accept"), Options{}))["input-accept-policy"]; !ok {
+		t.Fatal("accept-policy input should warn")
 	}
-	fw.WANIface = "eth0"
-	if _, ok := keys(Suggest(scan, fw, nil, 0))["forwarding-unmanaged"]; ok {
-		t.Fatal("forwarding suggestion should retire once the WAN is set")
+	// Drop-policy input → no posture warning.
+	if _, ok := keyed(Analyze(Scan{}, inputModel("drop"), Options{}))["input-accept-policy"]; ok {
+		t.Fatal("drop-policy input should not warn about posture")
 	}
-	if _, ok := keys(Suggest(Scan{}, store.Firewall{InputPolicy: "drop"}, nil, 0))["forwarding-unmanaged"]; ok {
-		t.Fatal("non-routing box should not get the forwarding suggestion")
+	// No input chain at all → the strongest posture warning.
+	empty := nftconf.Model{Tables: []nftconf.TableTree{{Table: store.Table{Family: "inet", Name: "filter"}}}}
+	if _, ok := keyed(Analyze(Scan{}, empty, Options{}))["no-input-chain"]; !ok {
+		t.Fatal("a model with no input chain should warn that nothing filters input")
 	}
+}
 
-	// A forward-chain accept must not count as input coverage: the uncovered
-	// suggestion still fires.
-	scan = Scan{Listeners: []Listener{{Proto: "tcp", Port: 80, Addr: "0.0.0.0", Wild: true, Process: "nginx"}}}
-	rules := []store.Rule{{Chain: "forward", Action: "accept", Proto: "tcp", DPorts: "80", Enabled: true}}
-	if _, ok := keys(Suggest(scan, store.Firewall{InputPolicy: "drop"}, rules, 0))["uncovered-tcp-80"]; !ok {
-		t.Fatal("forward accept should not cover an input listener")
+func TestAnalyzeForwarding(t *testing.T) {
+	// Routing box, no drop-policy forward chain → forwarding-open.
+	if _, ok := keyed(Analyze(Scan{IPForward: true}, inputModel("drop"), Options{}))["forwarding-open"]; !ok {
+		t.Fatal("a routing box without a filtering forward chain should be flagged")
+	}
+	// Add a drop-policy forward chain → retired.
+	m := inputModel("drop")
+	m.Tables[0].Chains = append(m.Tables[0].Chains, nftconf.ChainTree{
+		Chain: store.Chain{Name: "forward", Kind: "base", Hook: "forward", ChainType: "filter", Priority: "filter", Policy: "drop"},
+	})
+	if _, ok := keyed(Analyze(Scan{IPForward: true}, m, Options{}))["forwarding-open"]; ok {
+		t.Fatal("a drop-policy forward chain should retire the forwarding finding")
+	}
+	// Non-routing box → nothing.
+	if _, ok := keyed(Analyze(Scan{IPForward: false}, inputModel("drop"), Options{}))["forwarding-open"]; ok {
+		t.Fatal("a non-routing box should not be flagged for forwarding")
+	}
+}
+
+func TestFilterDismissed(t *testing.T) {
+	fs := []Finding{{Key: "a"}, {Key: "b"}, {Key: "c"}}
+	vis, hid := Filter(fs, map[string]bool{"b": true})
+	if len(vis) != 2 || len(hid) != 1 || hid[0].Key != "b" {
+		t.Fatalf("filter split wrong: vis=%v hid=%v", vis, hid)
 	}
 }
 
@@ -149,7 +160,6 @@ func TestParseProcNet(t *testing.T) {
 	if ls[0].Port != 80 || !ls[0].Wild || ls[0].Addr != "::" {
 		t.Fatalf("v6 wildcard: %+v", ls[0])
 	}
-	// A v4-mapped socket unmaps to its real v4 address.
 	if ls[1].Port != 443 || ls[1].Addr != "127.0.0.1" {
 		t.Fatalf("v4-mapped: %+v", ls[1])
 	}
