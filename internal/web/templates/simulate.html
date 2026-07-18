@@ -1,0 +1,129 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Manage</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Simulate a packet</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>{{template "icon-route"}} Simulate a packet</h1>
+		<div class="page-sub">Describe a packet and see exactly which rule decides it — evaluated against your
+		<a href="/firewall">firewall model</a> the same way the kernel would, but touching nothing. Use it to
+		answer "will my SSH still get in?" <em>before</em> you apply.</div>
+	</div>
+</div>
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-activity"}}The packet</span></div>
+	<div class="card-body">
+		{{if .FormErr}}<div class="flash flash-error">{{.FormErr}}</div>{{end}}
+		<form method="post" action="/simulate">
+			<div class="field-row">
+				<div class="field">
+					<label for="hook">Arrives at hook</label>
+					<select id="hook" name="hook">
+						{{range .Hooks}}<option value="{{.}}"{{if eq . $.Hook}} selected{{end}}>{{.}}</option>{{end}}
+					</select>
+					<div class="field-hint">input = to this box · forward = through it · output = from it.</div>
+				</div>
+				<div class="field">
+					<label for="proto">Protocol</label>
+					<select id="proto" name="proto">
+						{{range $p := (list "tcp" "udp" "icmp" "icmpv6")}}<option value="{{$p}}"{{if eq $p $.Proto}} selected{{end}}>{{$p}}</option>{{end}}
+						<option value=""{{if eq .Proto ""}} selected{{end}}>(unspecified)</option>
+					</select>
+				</div>
+				<div class="field">
+					<label for="ctstate">Connection state</label>
+					<select id="ctstate" name="ctstate">
+						<option value=""{{if eq .CtState ""}} selected{{end}}>(unspecified)</option>
+						{{range $c := (list "new" "established" "related" "invalid" "untracked")}}<option value="{{$c}}"{{if eq $c $.CtState}} selected{{end}}>{{$c}}</option>{{end}}
+					</select>
+				</div>
+			</div>
+			<div class="field-row">
+				<div class="field">
+					<label for="src">Source address</label>
+					<input type="text" id="src" name="src" value="{{.Src}}" placeholder="203.0.113.5" autocomplete="off">
+				</div>
+				<div class="field">
+					<label for="sport">Source port</label>
+					<input type="text" id="sport" name="sport" value="{{.SPort}}" placeholder="(any)" autocomplete="off">
+				</div>
+				<div class="field">
+					<label for="dst">Destination address</label>
+					<input type="text" id="dst" name="dst" value="{{.Dst}}" placeholder="this host's IP" autocomplete="off">
+				</div>
+				<div class="field">
+					<label for="dport">Destination port</label>
+					<input type="text" id="dport" name="dport" value="{{.DPort}}" placeholder="22" autocomplete="off">
+				</div>
+			</div>
+			<div class="field-row">
+				<div class="field">
+					<label for="iif">Ingress interface</label>
+					<input type="text" id="iif" name="iif" value="{{.Iif}}" placeholder="eth0" autocomplete="off" list="ifaces">
+				</div>
+				<div class="field">
+					<label for="oif">Egress interface</label>
+					<input type="text" id="oif" name="oif" value="{{.Oif}}" placeholder="(any)" autocomplete="off" list="ifaces">
+				</div>
+				<datalist id="ifaces">{{range .Interfaces}}<option value="{{.}}"></option>{{end}}</datalist>
+			</div>
+			<p class="hint">Leave a field blank to say "unspecified" — a rule that needs it becomes <em>indeterminate</em>
+			(the trace tells you when that could change the answer).</p>
+			<div class="form-actions"><button type="submit" class="btn btn-primary">{{template "icon-route"}} Trace this packet</button></div>
+		</form>
+	</div>
+</div>
+
+{{if .Ran}}
+{{$final := .Trace.Final}}
+<div class="card sim-verdict {{if eq $final "ACCEPT"}}sim-accept{{else}}sim-drop{{end}}">
+	<div class="card-body">
+		<div class="sim-verdict-head">
+			<span class="sim-verdict-badge">{{$final}}</span>
+			<div>
+				<strong>{{if eq $final "ACCEPT"}}The packet would be allowed.{{else if eq $final "REJECT"}}The packet would be rejected (sender notified).{{else}}The packet would be dropped.{{end}}</strong>
+				<div class="text-muted">Decided by {{.Trace.DecidedBy}}.</div>
+			</div>
+		</div>
+		{{if .Trace.Uncertain}}
+		<div class="lint-warn" style="margin-top:12px">{{template "icon-alert"}} One or more rules use a condition the simulator can't evaluate (marks, tcp flags, icmp types…). If such a rule could have matched first, the real verdict may differ — the uncertain rules are marked below.</div>
+		{{end}}
+	</div>
+</div>
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-changes"}}How it was decided</span></div>
+	<div class="card-body">
+		{{range .Trace.Chains}}
+		<div class="sim-chain">
+			<div class="sim-chain-head">
+				<span class="mono">{{.Table}} · chain {{.Chain}}</span>
+				<span class="text-muted">hook {{.Hook}} · priority {{.Priority}} · policy {{if .Policy}}{{.Policy}}{{else}}accept{{end}}</span>
+			</div>
+			{{if .Rules}}
+			<ol class="sim-rules">
+				{{range .Rules}}
+				<li class="sim-rule sim-{{.Outcome}}">
+					<span class="sim-tag">{{.Outcome}}</span>
+					<div class="sim-rule-body">
+						{{if .Preview}}<code class="mono">{{.Preview}}</code>{{else}}<span class="text-muted">(rule {{.Index}})</span>{{end}}
+						{{if .Comment}}<div class="hint">{{.Comment}}</div>{{end}}
+						{{if .Verdict}}<div class="hint">→ {{.Verdict}}</div>{{end}}
+						{{if .Reason}}<div class="hint text-muted">{{.Reason}}</div>{{end}}
+					</div>
+				</li>
+				{{end}}
+			</ol>
+			{{else}}
+			<p class="empty">No rules — straight to the policy.</p>
+			{{end}}
+			<div class="sim-chain-result text-muted">{{.Result}}</div>
+		</div>
+		{{end}}
+		{{range .Trace.Notes}}<p class="hint text-muted">{{template "icon-info"}} {{.}}</p>{{end}}
+	</div>
+</div>
+{{end}}
+{{template "shell-close" .}}

@@ -189,6 +189,38 @@ h1, h2, h3 { font-weight: 700; color: var(--text); margin: 0; }
 }
 .skip-link:focus { top: 8px; text-decoration: none; }
 
+/* ---------- packet simulator ---------- */
+.sim-verdict .card-body { border-radius: var(--radius-card); }
+.sim-verdict.sim-accept { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.sim-verdict.sim-accept .card-body { background: color-mix(in srgb, var(--success) 8%, var(--surface)); }
+.sim-verdict.sim-drop { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.sim-verdict.sim-drop .card-body { background: color-mix(in srgb, var(--danger) 7%, var(--surface)); }
+.sim-verdict-head { display: flex; align-items: center; gap: 16px; }
+.sim-verdict-badge {
+	font-family: var(--font-mono); font-weight: 700; font-size: 1.05rem;
+	letter-spacing: 0.04em; padding: 8px 16px; border-radius: var(--radius-badge);
+	color: #fff; flex: 0 0 auto;
+}
+.sim-accept .sim-verdict-badge { background: var(--btn-success-bg); }
+.sim-drop .sim-verdict-badge { background: var(--danger-deep); }
+
+.sim-chain { border: 1px solid var(--border); border-radius: var(--radius-control); padding: 12px 14px; margin-bottom: 14px; }
+.sim-chain-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 0.8125rem; margin-bottom: 10px; }
+.sim-rules { list-style: none; margin: 0; padding: 0; counter-reset: none; }
+.sim-rule { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); }
+.sim-rule:first-child { border-top: none; }
+.sim-tag {
+	flex: 0 0 auto; font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+	letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-top: 1px;
+	border: 1px solid transparent;
+}
+.sim-matched .sim-tag { background: color-mix(in srgb, var(--success) 16%, var(--surface)); color: var(--success-deep); border-color: color-mix(in srgb, var(--success) 35%, transparent); }
+.sim-skipped .sim-tag { background: var(--surface-alt); color: var(--text-muted); }
+.sim-indeterminate .sim-tag { background: color-mix(in srgb, var(--warning) 16%, var(--surface)); color: var(--warning-deep); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }
+.sim-rule-body { min-width: 0; overflow-wrap: anywhere; }
+.sim-skipped .sim-rule-body code { opacity: 0.65; }
+.sim-chain-result { font-size: 0.75rem; margin-top: 8px; }
+
 /* ---------- pending-apply countdown ---------- */
 /* The armed auto-revert is the highest-stakes moment in the app, so the seconds
    remaining are the loudest thing on the panel: a large numeral plus a

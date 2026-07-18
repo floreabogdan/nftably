@@ -200,6 +200,10 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /firewall/rules/{id}/move", s.requireAuth(s.handleRuleMove))
 	s.mux.Handle("GET /changes", s.requireAuth(s.handleChanges))
 
+	// Simulate: trace a synthetic packet through the candidate model (no kernel).
+	s.mux.Handle("GET /simulate", s.requireAuth(s.handleSimulate))
+	s.mux.Handle("POST /simulate", s.requireAuth(s.handleSimulateRun))
+
 	// Presets: one-click best-practice starting points (BGP router, secure server).
 	s.mux.Handle("GET /presets", s.requireAuth(s.handlePresets))
 	s.mux.Handle("POST /presets/apply", s.requireAuth(s.handlePresetApply))

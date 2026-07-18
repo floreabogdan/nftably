@@ -37,6 +37,14 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **Packet-path simulator** (`/simulate`). Describe a packet — hook, protocol,
+  source/destination, ports, interfaces, connection state — and see a step-by-step
+  trace of which rule decides it, ending in ACCEPT/DROP/REJECT. It walks the
+  candidate model exactly as netfilter would (base chains in priority order,
+  rules top to bottom, following jump/goto) but touches nothing: pure Go, no
+  kernel, no privilege. Conditions it can't model (marks, tcp flags, icmp types)
+  mark a rule *indeterminate* and flag the trace as uncertain rather than
+  guessing — so you can answer "will my SSH still get in?" before you apply.
 - **Live rule preview.** The editor's "renders as" panel now updates as you type
   (debounced, server-rendered so it can't drift from what applies) and shows the
   rule inside its chain — `chain input { … <your rule> … }`.
