@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS nft_chains (
 	chain_type TEXT NOT NULL DEFAULT '',  -- filter | nat | route
 	priority   TEXT NOT NULL DEFAULT '',  -- keyword (filter, srcnat, dstnat, …) or signed int
 	policy     TEXT NOT NULL DEFAULT '',  -- accept | drop (base chains)
+	device     TEXT NOT NULL DEFAULT '',  -- interface name, required for ingress/egress hooks
 	position   INTEGER NOT NULL,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,

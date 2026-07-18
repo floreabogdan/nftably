@@ -80,8 +80,17 @@ type Chain struct {
 	ChainType string // filter | nat | route
 	Priority  string // keyword (filter, srcnat, dstnat…) or signed integer
 	Policy    string // accept | drop
+	Device    string // interface name; required for ingress/egress hooks, empty otherwise
 	Position  int
 }
+
+// deviceHooks are the base-chain hooks that bind to a single interface and so
+// require a device.
+var deviceHooks = map[string]bool{"ingress": true, "egress": true}
+
+// ifaceNameRe is a conservative interface-name charset — emitted quoted into nft
+// config, but kept closed so it can never break out of the token.
+var ifaceNameRe = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
 
 // IsBase reports whether the chain hooks into netfilter.
 func (c Chain) IsBase() bool { return c.Kind == "base" }
@@ -116,9 +125,19 @@ func (c *Chain) Validate() []string {
 		if c.Policy == "" {
 			c.Policy = "accept"
 		}
+		// ingress/egress hooks bind to one interface and need a device; other
+		// hooks must not carry one.
+		c.Device = strings.TrimSpace(c.Device)
+		if deviceHooks[c.Hook] {
+			if !ifaceNameRe.MatchString(c.Device) {
+				errs = append(errs, fmt.Sprintf("The %s hook needs a device (an interface name, e.g. eth0).", c.Hook))
+			}
+		} else {
+			c.Device = ""
+		}
 	} else {
 		// A regular chain carries none of the base attributes.
-		c.Hook, c.ChainType, c.Priority, c.Policy = "", "", "", ""
+		c.Hook, c.ChainType, c.Priority, c.Policy, c.Device = "", "", "", "", ""
 	}
 	return errs
 }
@@ -284,7 +303,7 @@ func (s *Store) MoveTable(id int64, dir int) error {
 // ListChains returns the chains of one table in render order.
 func (s *Store) ListChains(tableID int64) ([]Chain, error) {
 	rows, err := s.db.Query(`
-		SELECT id, table_id, name, kind, hook, chain_type, priority, policy, position
+		SELECT id, table_id, name, kind, hook, chain_type, priority, policy, device, position
 		FROM nft_chains WHERE table_id = ? ORDER BY position, id`, tableID)
 	if err != nil {
 		return nil, fmt.Errorf("store: list chains: %w", err)
@@ -296,7 +315,7 @@ func (s *Store) ListChains(tableID int64) ([]Chain, error) {
 // AllChains returns every chain grouped by table id — the render path's bulk load.
 func (s *Store) AllChains() (map[int64][]Chain, error) {
 	rows, err := s.db.Query(`
-		SELECT id, table_id, name, kind, hook, chain_type, priority, policy, position
+		SELECT id, table_id, name, kind, hook, chain_type, priority, policy, device, position
 		FROM nft_chains ORDER BY position, id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: all chains: %w", err)
@@ -317,7 +336,7 @@ func scanChains(rows *sql.Rows) ([]Chain, error) {
 	var out []Chain
 	for rows.Next() {
 		var c Chain
-		if err := rows.Scan(&c.ID, &c.TableID, &c.Name, &c.Kind, &c.Hook, &c.ChainType, &c.Priority, &c.Policy, &c.Position); err != nil {
+		if err := rows.Scan(&c.ID, &c.TableID, &c.Name, &c.Kind, &c.Hook, &c.ChainType, &c.Priority, &c.Policy, &c.Device, &c.Position); err != nil {
 			return nil, fmt.Errorf("store: scan chain: %w", err)
 		}
 		out = append(out, c)
@@ -329,9 +348,9 @@ func scanChains(rows *sql.Rows) ([]Chain, error) {
 func (s *Store) GetChain(id int64) (Chain, error) {
 	var c Chain
 	row := s.db.QueryRow(`
-		SELECT id, table_id, name, kind, hook, chain_type, priority, policy, position
+		SELECT id, table_id, name, kind, hook, chain_type, priority, policy, device, position
 		FROM nft_chains WHERE id = ?`, id)
-	err := row.Scan(&c.ID, &c.TableID, &c.Name, &c.Kind, &c.Hook, &c.ChainType, &c.Priority, &c.Policy, &c.Position)
+	err := row.Scan(&c.ID, &c.TableID, &c.Name, &c.Kind, &c.Hook, &c.ChainType, &c.Priority, &c.Policy, &c.Device, &c.Position)
 	if err == sql.ErrNoRows {
 		return Chain{}, ErrNotFound
 	}
@@ -345,9 +364,9 @@ func (s *Store) GetChain(id int64) (Chain, error) {
 func (s *Store) CreateChain(c Chain) (int64, error) {
 	ts := now()
 	res, err := s.db.Exec(`
-		INSERT INTO nft_chains (table_id, name, kind, hook, chain_type, priority, policy, position, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM nft_chains WHERE table_id = ?), ?, ?)`,
-		c.TableID, c.Name, c.Kind, c.Hook, c.ChainType, c.Priority, c.Policy, c.TableID, ts, ts)
+		INSERT INTO nft_chains (table_id, name, kind, hook, chain_type, priority, policy, device, position, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM nft_chains WHERE table_id = ?), ?, ?)`,
+		c.TableID, c.Name, c.Kind, c.Hook, c.ChainType, c.Priority, c.Policy, c.Device, c.TableID, ts, ts)
 	if err != nil {
 		return 0, fmt.Errorf("store: create chain: %w", err)
 	}
@@ -357,9 +376,9 @@ func (s *Store) CreateChain(c Chain) (int64, error) {
 // UpdateChain saves a chain's definition (not its table or position).
 func (s *Store) UpdateChain(c Chain) error {
 	res, err := s.db.Exec(`
-		UPDATE nft_chains SET name = ?, kind = ?, hook = ?, chain_type = ?, priority = ?, policy = ?, updated_at = ?
+		UPDATE nft_chains SET name = ?, kind = ?, hook = ?, chain_type = ?, priority = ?, policy = ?, device = ?, updated_at = ?
 		WHERE id = ?`,
-		c.Name, c.Kind, c.Hook, c.ChainType, c.Priority, c.Policy, now(), c.ID)
+		c.Name, c.Kind, c.Hook, c.ChainType, c.Priority, c.Policy, c.Device, now(), c.ID)
 	if err != nil {
 		return fmt.Errorf("store: update chain: %w", err)
 	}

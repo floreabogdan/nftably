@@ -93,7 +93,12 @@ func writeChain(b *strings.Builder, family string, c ChainTree) {
 	fmt.Fprintf(b, "\tchain %s {\n", c.Name)
 	if c.IsBase() {
 		// e.g.  type filter hook input priority filter; policy drop;
-		fmt.Fprintf(b, "\t\ttype %s hook %s priority %s;", c.ChainType, c.Hook, c.Priority)
+		// ingress/egress hooks bind to an interface: ... hook ingress device "eth0" priority …
+		fmt.Fprintf(b, "\t\ttype %s hook %s", c.ChainType, c.Hook)
+		if c.Device != "" {
+			fmt.Fprintf(b, " device %q", c.Device)
+		}
+		fmt.Fprintf(b, " priority %s;", c.Priority)
 		if c.Policy != "" {
 			fmt.Fprintf(b, " policy %s;", c.Policy)
 		}

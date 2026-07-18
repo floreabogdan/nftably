@@ -130,3 +130,16 @@ func TestBuildRevertFileRestoresAndDrops(t *testing.T) {
 		t.Error("a table absent before must stay deleted on revert")
 	}
 }
+
+func TestIngressChainRendersDevice(t *testing.T) {
+	m := Model{Tables: []TableTree{{
+		Table: store.Table{Family: "netdev", Name: "nd"},
+		Chains: []ChainTree{{
+			Chain: store.Chain{Name: "ingress", Kind: "base", Hook: "ingress", ChainType: "filter", Priority: "0", Policy: "drop", Device: "eth0"},
+		}},
+	}}}
+	out := Config(m)
+	if want := `type filter hook ingress device "eth0" priority 0;`; !strings.Contains(out, want) {
+		t.Fatalf("ingress chain missing device clause:\n%s", out)
+	}
+}

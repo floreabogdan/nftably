@@ -205,6 +205,9 @@ func hookLine(c store.Chain) string {
 		return "regular chain — reached only by jump/goto"
 	}
 	line := "hook " + c.Hook + " · " + c.ChainType + " · priority " + c.Priority
+	if c.Device != "" {
+		line += " · device " + c.Device
+	}
 	if c.Policy != "" {
 		line += " · policy " + c.Policy
 	}
@@ -332,6 +335,7 @@ func (s *Server) handleChainSave(w http.ResponseWriter, r *http.Request) {
 	c.ChainType = r.FormValue("chain_type")
 	c.Priority = strings.TrimSpace(r.FormValue("priority"))
 	c.Policy = r.FormValue("policy")
+	c.Device = strings.TrimSpace(r.FormValue("device"))
 
 	if errs := c.Validate(); len(errs) > 0 {
 		s.chainForm(w, r, chainFormVM{Table: table, Chain: c, IsNew: isNew, Errors: errs})

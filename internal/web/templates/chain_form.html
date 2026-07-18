@@ -33,14 +33,21 @@
 
 	<div class="field">
 		<label>Hook <span class="text-muted">(base chains)</span></label>
-		<select name="hook">
+		<select name="hook" data-source-select>
 			<option value="">—</option>
 			{{$h := .Chain.Hook}}
 			{{range .Hooks}}<option value="{{.}}"{{if eq . $h}} selected{{end}}>{{.}}</option>{{end}}
 		</select>
 		<div class="field-hint"><strong>input</strong> = traffic addressed to this box · <strong>output</strong> = traffic this box sends ·
 		<strong>forward</strong> = traffic routed through it · <strong>prerouting</strong>/<strong>postrouting</strong> = for NAT
-		(rewriting addresses as packets arrive / leave).</div>
+		(rewriting addresses as packets arrive / leave) · <strong>ingress</strong>/<strong>egress</strong> = earliest/latest,
+		bound to one interface.</div>
+	</div>
+
+	<div class="field source-field" data-source-field="ingress egress"{{if not (or (eq .Chain.Hook "ingress") (eq .Chain.Hook "egress"))}} hidden{{end}}>
+		<label>Device <span class="text-muted">(ingress/egress hooks)</span></label>
+		<input type="text" name="device" value="{{.Chain.Device}}" class="mono" placeholder="eth0" autocomplete="off">
+		<div class="field-hint">The interface this ingress/egress chain binds to — these hooks require one (they run per-interface, before the rest of the pipeline).</div>
 	</div>
 
 	<div class="field-row">
