@@ -306,6 +306,15 @@ func (s *Server) handleQuickBlock(w http.ResponseWriter, r *http.Request) {
 		redirectMsg(w, r, back, "err", err.Error())
 		return
 	}
+	// Make sure something actually drops the blacklist: a bare set with no rule
+	// referencing it blocks nothing. If there's an input chain, ensure the early
+	// drop rules exist (a preset already adds them; this covers a hand-built
+	// firewall so the Block button is never a no-op).
+	if chainID, ok := s.primaryInputChainID(); ok {
+		if _, err := s.ensureBlockDropRules(chainID, bl.Name); err != nil {
+			s.log.Warn("could not ensure blacklist drop rules", "error", err)
+		}
+	}
 	s.audit(r, fmt.Sprintf("blacklisted %s (list %q)", ip, bl.Name))
 	redirectMsg(w, r, back, "saved", "1")
 }

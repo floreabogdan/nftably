@@ -70,7 +70,7 @@ func (s *Server) handleBlockCountry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	added, err := s.ensureCountryDropRules(chainID, name)
+	added, err := s.ensureBlockDropRules(chainID, name)
 	if err != nil {
 		redirectMsg(w, r, back, "err", "Could not add the drop rules: "+err.Error())
 		return
@@ -83,10 +83,11 @@ func (s *Server) handleBlockCountry(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/changes", http.StatusSeeOther)
 }
 
-// ensureCountryDropRules adds early "ip[6] saddr @<name>N drop" rules for the two
+// ensureBlockDropRules adds early "ip[6] saddr @<name>N drop" rules for the two
 // families to the chain, skipping either that already exists. Returns how many
-// it added (0 = already fully blocked).
-func (s *Server) ensureCountryDropRules(chainID int64, name string) (int, error) {
+// it added (0 = the set is already dropped). Used both to block a country and to
+// wire up the blacklist so the Connections "Block" button actually takes effect.
+func (s *Server) ensureBlockDropRules(chainID int64, name string) (int, error) {
 	existing, err := s.store.ListChainRules(chainID)
 	if err != nil {
 		return 0, err

@@ -97,9 +97,9 @@
 			<div class="field">
 				<label for="role">Behaviour</label>
 				<select id="role" name="role">
-					<option value="" {{if not .List.Role}}selected{{end}}>address group — rules use it as a source</option>
-					<option value="allow" {{if eq .List.Role "allow"}}selected{{end}}>always allow — accepted before everything</option>
-					<option value="block" {{if eq .List.Role "block"}}selected{{end}}>always block — dropped, cuts live connections</option>
+					<option value="" {{if not .List.Role}}selected{{end}}>address group — a rule matches it as a source/destination</option>
+					<option value="allow" {{if eq .List.Role "allow"}}selected{{end}}>allow list — presets accept it before everything</option>
+					<option value="block" {{if eq .List.Role "block"}}selected{{end}}>block list — the Connections “Block” button drops it early</option>
 				</select>
 			</div>
 			<div class="field">

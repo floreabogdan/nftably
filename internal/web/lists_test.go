@@ -138,7 +138,23 @@ func TestQuickBlockAndSelfGuard(t *testing.T) {
 		t.Fatalf("self-block stored: %+v", entries)
 	}
 
-	// Even with the seeded lists deleted, quick block recreates a blacklist.
+	// The quick block also wired up the early drop rules, so the block is
+	// effective — the blacklist is now referenced and protected from deletion.
+	refs, _ := srv.store.RulesReferencingSet("blacklist")
+	if len(refs) != 2 {
+		t.Fatalf("quick block should add ip+ip6 @blacklist drop rules, got %d", len(refs))
+	}
+	if err := srv.store.DeleteList(bl.ID); err == nil {
+		t.Fatal("blacklist deleted while drop rules reference it")
+	}
+
+	// With those rules and the entry removed, the list can go — and a later quick
+	// block recreates a blacklist from scratch.
+	for _, u := range refs {
+		if err := srv.store.DeleteChainRule(u.RuleID); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := srv.store.DeleteListEntry(entries[0].ID); err != nil {
 		t.Fatal(err)
 	}
