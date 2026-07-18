@@ -197,6 +197,18 @@ func (s *Store) GetListByName(name string) (IPList, error) {
 // DeleteList removes a list and its entries. A list still referenced by
 // rules cannot be deleted — the rules would silently match nothing.
 func (s *Store) DeleteList(id int64) error {
+	l, err := s.GetList(id)
+	if err != nil {
+		return err
+	}
+	// The general model references a list by its set name (@name4 / @name6);
+	// deleting a still-referenced list would leave rules pointing at a set that no
+	// longer exists, and the next apply would fail. Refuse it.
+	if refs, err := s.RulesReferencingSet(l.Name); err != nil {
+		return err
+	} else if len(refs) > 0 {
+		return fmt.Errorf("%d firewall rule(s) reference @%s — delete or repoint them first", len(refs), l.Name)
+	}
 	var n int
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM fw_rules WHERE src_list_id = ?`, id).Scan(&n); err != nil {
 		return fmt.Errorf("store: delete list: %w", err)
@@ -220,6 +232,95 @@ func (s *Store) DeleteList(id int64) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// SetUsage names one object-model rule that references a named set.
+type SetUsage struct {
+	TableFamily string
+	TableName   string
+	ChainName   string
+	RuleID      int64
+}
+
+// setReferences scans every object-model match value and maps each referenced
+// set's BASE name (the list name — the nft set's family suffix stripped) to the
+// distinct rules that use it. This is how the general model references a list;
+// the old fw_rules.src_list_id path is separate and dormant.
+func (s *Store) setReferences() (map[string][]SetUsage, error) {
+	rows, err := s.db.Query(`
+		SELECT t.family, t.name, c.name, r.id, m.value
+		FROM nft_rule_matches m
+		JOIN nft_rules r  ON r.id = m.rule_id
+		JOIN nft_chains c ON c.id = r.chain_id
+		JOIN nft_tables t ON t.id = c.table_id
+		WHERE m.value LIKE '%@%'`)
+	if err != nil {
+		return nil, fmt.Errorf("store: scan set references: %w", err)
+	}
+	defer rows.Close()
+	out := map[string][]SetUsage{}
+	seen := map[string]bool{} // "base|ruleID" — a rule counts once per set
+	for rows.Next() {
+		var u SetUsage
+		var val string
+		if err := rows.Scan(&u.TableFamily, &u.TableName, &u.ChainName, &u.RuleID, &val); err != nil {
+			return nil, fmt.Errorf("store: scan set reference: %w", err)
+		}
+		for _, base := range referencedBaseNames(val) {
+			key := base + "|" + strconv.FormatInt(u.RuleID, 10)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out[base] = append(out[base], u)
+		}
+	}
+	return out, rows.Err()
+}
+
+// referencedBaseNames returns the list names a stored match value references via
+// @name4 / @name6 tokens — the family suffix stripped, matching how the render
+// layer maps a set name back to its list.
+func referencedBaseNames(value string) []string {
+	var out []string
+	for _, tok := range strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t' || r == '{' || r == '}'
+	}) {
+		name, ok := strings.CutPrefix(tok, "@")
+		if !ok || name == "" {
+			continue
+		}
+		if b, ok := strings.CutSuffix(name, "4"); ok {
+			out = append(out, b)
+		} else if b, ok := strings.CutSuffix(name, "6"); ok {
+			out = append(out, b)
+		} else {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// RulesReferencingSet returns the object-model rules that use the named set.
+func (s *Store) RulesReferencingSet(name string) ([]SetUsage, error) {
+	refs, err := s.setReferences()
+	if err != nil {
+		return nil, err
+	}
+	return refs[name], nil
+}
+
+// SetReferenceCounts returns, per list name, how many object-model rules use it.
+func (s *Store) SetReferenceCounts() (map[string]int, error) {
+	refs, err := s.setReferences()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int, len(refs))
+	for name, uses := range refs {
+		out[name] = len(uses)
+	}
+	return out, nil
 }
 
 // RulesUsingList returns the rules whose source is this list.

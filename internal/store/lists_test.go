@@ -210,3 +210,32 @@ func TestReplaceListEntries(t *testing.T) {
 		t.Fatalf("entries after replace = %+v", entries)
 	}
 }
+
+func TestSetReferencesObjectModel(t *testing.T) {
+	s := testStore(t)
+	lid, err := s.CreateList(IPList{Name: "office"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Build an object-model rule that references @office4.
+	tid, _ := s.CreateTable(Table{Family: "inet", Name: "t1"})
+	cid, _ := s.CreateChain(Chain{TableID: tid, Name: "input", Kind: "base", Hook: "input", ChainType: "filter", Priority: "filter", Policy: "drop"})
+	if _, err := s.CreateChainRule(ChainRule{ChainID: cid, Enabled: true,
+		Matches:    []RuleMatch{{Key: "ip.saddr", Op: "==", Value: "@office4"}},
+		Statements: []RuleStatement{{Key: "accept"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	uses, err := s.RulesReferencingSet("office")
+	if err != nil || len(uses) != 1 || uses[0].ChainName != "input" || uses[0].TableName != "t1" {
+		t.Fatalf("RulesReferencingSet = %+v err=%v", uses, err)
+	}
+	if counts, _ := s.SetReferenceCounts(); counts["office"] != 1 {
+		t.Fatalf("SetReferenceCounts[office] = %d, want 1", counts["office"])
+	}
+	// Delete must be refused while the object-model rule references it.
+	if err := s.DeleteList(lid); err == nil {
+		t.Fatal("deleted a list still referenced by an object-model rule")
+	}
+}

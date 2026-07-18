@@ -46,21 +46,32 @@ func TestListsCreateEntriesDeleteFlow(t *testing.T) {
 		t.Fatalf("entries: %+v", entries)
 	}
 
-	// A rule sourcing the list appears on its page; deleting the list is
-	// refused while the rule exists.
-	if _, err := srv.store.CreateRule(store.Rule{Name: "ssh office", Action: "accept", Proto: "tcp", DPorts: "22", SrcListID: office.ID, Enabled: true}); err != nil {
+	// An object-model rule referencing @office4 shows as usage on the list's
+	// page, and deleting the list is refused while that rule exists.
+	tid, err := srv.store.CreateTable(store.Table{Family: "inet", Name: "lt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cid, err := srv.store.CreateChain(store.Chain{TableID: tid, Name: "input", Kind: "base", Hook: "input", ChainType: "filter", Priority: "filter", Policy: "drop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.store.CreateChainRule(store.ChainRule{ChainID: cid, Enabled: true,
+		Matches:    []store.RuleMatch{{Key: "ip.saddr", Op: "==", Value: "@office4"}},
+		Statements: []store.RuleStatement{{Key: "accept", Params: "{}"}},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	req := httptest.NewRequest(http.MethodGet, base, nil)
 	req.AddCookie(cookie)
 	page := httptest.NewRecorder()
 	srv.ServeHTTP(page, req)
-	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "ssh office") {
-		t.Fatalf("list page: %d", page.Code)
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "inet lt") {
+		t.Fatalf("list page did not show the referencing rule's chain: %d", page.Code)
 	}
 	rec = postForm(srv, base+"/delete", url.Values{}, cookie)
 	if !strings.Contains(rec.Header().Get("Location"), "err=") {
-		t.Fatal("delete accepted while a rule uses the list")
+		t.Fatal("delete accepted while a rule references the set")
 	}
 
 	// Entry delete round-trips back to the list page.

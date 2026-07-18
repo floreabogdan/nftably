@@ -41,14 +41,10 @@ func (s *Server) handleLists(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, "list entries", err)
 		return
 	}
-	rules, err := s.store.ListRules()
+	used, err := s.store.SetReferenceCounts()
 	if err != nil {
-		s.serverError(w, "list rules", err)
+		s.serverError(w, "set reference counts", err)
 		return
-	}
-	used := map[int64]int{}
-	for _, rule := range rules {
-		used[rule.SrcListID]++
 	}
 
 	vm := listsVM{
@@ -57,7 +53,7 @@ func (s *Server) handleLists(w http.ResponseWriter, r *http.Request) {
 		Err:   r.URL.Query().Get("err"),
 	}
 	for _, l := range lists {
-		row := listRow{IPList: l, Entries: len(entries[l.ID]), UsedBy: used[l.ID]}
+		row := listRow{IPList: l, Entries: len(entries[l.ID]), UsedBy: used[l.Name]}
 		if len(entries[l.ID]) > 0 {
 			row.FirstCIDR = entries[l.ID][0].CIDR
 		}
@@ -144,12 +140,13 @@ func (s *Server) handleListRefresh(w http.ResponseWriter, r *http.Request) {
 	redirectMsg(w, r, back, "saved", "1")
 }
 
-// listDetailVM is one list's page: entries, and the rules sourcing from it.
+// listDetailVM is one list's page: entries, and the object-model rules that
+// reference it as a set.
 type listDetailVM struct {
 	nav
 	List        store.IPList
 	Entries     []store.ListEntry
-	Rules       []store.Rule
+	UsedBy      []store.SetUsage
 	LastRefresh time.Time // parsed List.LastRefresh, zero if never
 	Saved       bool
 	Err         string
@@ -165,9 +162,9 @@ func (s *Server) handleListDetail(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, "list entries", err)
 		return
 	}
-	rules, err := s.store.RulesUsingList(l.ID)
+	usedBy, err := s.store.RulesReferencingSet(l.Name)
 	if err != nil {
-		s.serverError(w, "rules using list", err)
+		s.serverError(w, "rules referencing set", err)
 		return
 	}
 	var lastRefresh time.Time
@@ -178,7 +175,7 @@ func (s *Server) handleListDetail(w http.ResponseWriter, r *http.Request) {
 		nav:         s.navFor(r, "lists"),
 		List:        l,
 		Entries:     entries,
-		Rules:       rules,
+		UsedBy:      usedBy,
 		LastRefresh: lastRefresh,
 		Saved:       r.URL.Query().Get("saved") == "1",
 		Err:         r.URL.Query().Get("err"),
