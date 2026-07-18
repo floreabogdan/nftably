@@ -24,6 +24,7 @@
 {{define "icon-down"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>{{end}}
 {{define "icon-changes"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><polyline points="8 8 4 12 8 16"/><polyline points="16 8 20 12 16 16"/></svg>{{end}}
 {{define "icon-bulb"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>{{end}}
+{{define "icon-spark"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>{{end}}
 {{define "icon-activity"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>{{end}}
 {{define "icon-ban"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>{{end}}
 {{define "icon-book"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>{{end}}
@@ -41,10 +42,10 @@
 		<a href="/timeline" class="{{if eq .Active "timeline"}}active{{end}}">{{template "icon-clock"}}Timeline</a>
 
 		<div class="nav-label">Manage</div>
+		<a href="/setup" class="{{if eq .Active "setup"}}active{{end}}">{{template "icon-spark"}}Guided setup</a>
 		<a href="/rules" class="{{if eq .Active "rules"}}active{{end}}">{{template "icon-shield"}}Rules</a>
 		<a href="/lists" class="{{if eq .Active "lists"}}active{{end}}">{{template "icon-ban"}}Lists</a>
 		<a href="/forwarding" class="{{if eq .Active "forwarding"}}active{{end}}">{{template "icon-route"}}Forwarding</a>
-		<a href="/library" class="{{if eq .Active "library"}}active{{end}}">{{template "icon-book"}}Library</a>
 		<a href="/changes" class="{{if eq .Active "changes"}}active{{end}}">{{template "icon-changes"}}Changes</a>
 		<a href="/advisor" class="{{if eq .Active "advisor"}}active{{end}}">{{template "icon-bulb"}}Advisor</a>
 		<a href="/import" class="{{if eq .Active "import"}}active{{end}}">{{template "icon-import"}}Import iptables</a>

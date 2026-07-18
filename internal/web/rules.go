@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	nftconf "github.com/floreabogdan/nftably/internal/render"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
@@ -14,7 +13,9 @@ type rulesVM struct {
 	nav
 	Rules    []store.Rule
 	Firewall store.Firewall
-	Saved    bool
+	// ListNames resolves a rule's source list for display.
+	ListNames map[int64]string
+	Saved     bool
 }
 
 func (s *Server) handleRulesList(w http.ResponseWriter, r *http.Request) {
@@ -28,11 +29,21 @@ func (s *Server) handleRulesList(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, "get firewall", err)
 		return
 	}
+	lists, err := s.store.ListLists()
+	if err != nil {
+		s.serverError(w, "list lists", err)
+		return
+	}
+	names := map[int64]string{}
+	for _, l := range lists {
+		names[l.ID] = l.Name
+	}
 	render(w, s.log, "rules.html", rulesVM{
-		nav:      s.navFor(r, "rules"),
-		Rules:    rules,
-		Firewall: fw,
-		Saved:    r.URL.Query().Get("saved") == "1",
+		nav:       s.navFor(r, "rules"),
+		Rules:     rules,
+		Firewall:  fw,
+		ListNames: names,
+		Saved:     r.URL.Query().Get("saved") == "1",
 	})
 }
 
@@ -41,9 +52,24 @@ type ruleFormVM struct {
 	Rule   store.Rule
 	IsNew  bool
 	Errors []string
+	// Lists populates the source-list select: a rule can match a named list
+	// instead of literal addresses.
+	Lists []store.IPList
 	// Preview is the nft syntax the rule renders to, shown under the form after
-	// a failed submit and on edit — the operator sees exactly what M3 will load.
+	// a failed submit and on edit — the operator sees exactly what apply loads.
 	Preview []string
+}
+
+// ruleForm renders the form with lists and (when the rule is valid) a
+// preview computed against the current model.
+func (s *Server) ruleForm(w http.ResponseWriter, _ *http.Request, vm ruleFormVM) {
+	lists, err := s.store.ListLists()
+	if err != nil {
+		s.serverError(w, "list lists", err)
+		return
+	}
+	vm.Lists = lists
+	render(w, s.log, "rule_form.html", vm)
 }
 
 func (s *Server) handleRuleNew(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +93,13 @@ func (s *Server) handleRuleNew(w http.ResponseWriter, r *http.Request) {
 	if v := q.Get("dports"); v != "" {
 		rule.DPorts = v
 	}
-	render(w, s.log, "rule_form.html", ruleFormVM{
+	// A list page can link "add rule with this source".
+	if v := q.Get("src_list"); v != "" {
+		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
+			rule.SrcListID = id
+		}
+	}
+	s.ruleForm(w, r, ruleFormVM{
 		nav:   s.navFor(r, "rules"),
 		Rule:  rule,
 		IsNew: true,
@@ -79,10 +111,15 @@ func (s *Server) handleRuleEdit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	render(w, s.log, "rule_form.html", ruleFormVM{
+	m, err := s.loadModel()
+	if err != nil {
+		s.serverError(w, "load model", err)
+		return
+	}
+	s.ruleForm(w, r, ruleFormVM{
 		nav:     s.navFor(r, "rules"),
 		Rule:    rule,
-		Preview: nftconf.RuleLines(rule),
+		Preview: m.RuleLines(rule),
 	})
 }
 
@@ -104,6 +141,16 @@ func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
 		IIf:     strings.TrimSpace(r.FormValue("iif")),
 		Enabled: r.FormValue("enabled") == "on",
 	}
+	if id, err := strconv.ParseInt(r.FormValue("src_list"), 10, 64); err == nil && id > 0 {
+		rule.SrcListID = id
+		if _, err := s.store.GetList(id); err != nil {
+			s.ruleForm(w, r, ruleFormVM{
+				nav: s.navFor(r, "rules"), Rule: rule, IsNew: r.PathValue("id") == "",
+				Errors: []string{"The chosen source list no longer exists."},
+			})
+			return
+		}
+	}
 	if !isNew {
 		existing, ok := s.ruleFromPath(w, r)
 		if !ok {
@@ -114,7 +161,7 @@ func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errs := rule.Validate(); len(errs) > 0 {
-		render(w, s.log, "rule_form.html", ruleFormVM{
+		s.ruleForm(w, r, ruleFormVM{
 			nav:    s.navFor(r, "rules"),
 			Rule:   rule,
 			IsNew:  isNew,

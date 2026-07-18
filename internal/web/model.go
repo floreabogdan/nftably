@@ -2,7 +2,6 @@ package web
 
 import (
 	nftconf "github.com/floreabogdan/nftably/internal/render"
-	"github.com/floreabogdan/nftably/internal/store"
 )
 
 // loadModel reads everything the render layer needs from the store. Every
@@ -20,11 +19,16 @@ func (s *Server) loadModel() (nftconf.Model, error) {
 	if m.Forwards, err = s.store.ListPortForwards(); err != nil {
 		return m, err
 	}
-	if m.Mgmt, err = s.store.ListEntries(store.ListMgmt); err != nil {
+	lists, err := s.store.ListLists()
+	if err != nil {
 		return m, err
 	}
-	if m.Block, err = s.store.ListEntries(store.ListBlock); err != nil {
+	entries, err := s.store.AllEntries()
+	if err != nil {
 		return m, err
+	}
+	for _, l := range lists {
+		m.Lists = append(m.Lists, nftconf.ListWithEntries{IPList: l, Entries: entries[l.ID]})
 	}
 	return m, nil
 }

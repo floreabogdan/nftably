@@ -1,16 +1,13 @@
 package web
 
-import (
-	"fmt"
-	"net/http"
+import "github.com/floreabogdan/nftably/internal/store"
 
-	nftconf "github.com/floreabogdan/nftably/internal/render"
-	"github.com/floreabogdan/nftably/internal/store"
-)
+// The rule catalogue behind the guided setup: the services people actually
+// run, each with the reasoning attached. Deliberately absent: databases,
+// Redis, SMB-to-the-internet and friends — the advisor warns about exposing
+// those, so setup will not hand out a rule that does.
 
-// libEntry is one curated, explained rule (or small bundle of rules) the
-// operator can add with a click. The library teaches while it configures:
-// Why says what the service is and how tightly to hold it.
+// libEntry is one curated, explained rule (or small bundle of rules).
 type libEntry struct {
 	Key   string
 	Name  string
@@ -26,14 +23,11 @@ type libGroup struct {
 	Entries []libEntry
 }
 
-// library is the curated catalogue. Deliberately absent: databases, Redis,
-// SMB-to-the-internet and friends — the advisor warns about exposing those,
-// so the library will not hand out a rule that does.
 var library = []libGroup{
 	{"Remote access", []libEntry{
 		{
 			Key: "ssh", Name: "SSH",
-			Why: "Remote administration on tcp 22. The internet knocks on this port all day; restricting the rule to your management addresses (or using the management list) makes the brute-force noise disappear without changing how you work.",
+			Why: "Remote administration on tcp 22. The internet knocks on this port all day; restricting the rule to your management addresses (or a management list) makes the brute-force noise disappear without changing how you work.",
 			Rules: []store.Rule{{Name: "ssh", Action: "accept", Proto: "tcp", DPorts: "22", Enabled: true}}, Restrict: true,
 		},
 		{
@@ -125,134 +119,4 @@ var library = []libGroup{
 			Rules: []store.Rule{{Name: "node exporter", Action: "accept", Proto: "tcp", DPorts: "9100", Enabled: true}}, Restrict: true,
 		},
 	}},
-}
-
-// libraryVM is the /library page: the catalogue, plus which entries already
-// have a matching rule and the hardening card's state.
-type libraryVM struct {
-	nav
-	Groups   []libGroup
-	Have     map[string]bool // entry key -> a rule with its name exists
-	PolicyOK bool            // input policy is already drop
-	SSHOK    bool
-	UIOK     bool
-	UIPort   int
-	Added    string
-	Hardened bool
-}
-
-func (s *Server) handleLibrary(w http.ResponseWriter, r *http.Request) {
-	rules, err := s.store.ListRules()
-	if err != nil {
-		s.serverError(w, "list rules", err)
-		return
-	}
-	fw, err := s.store.GetFirewall()
-	if err != nil {
-		s.serverError(w, "get firewall", err)
-		return
-	}
-
-	names := map[string]bool{}
-	for _, rule := range rules {
-		names[rule.Name] = true
-	}
-	have := map[string]bool{}
-	for _, g := range library {
-		for _, e := range g.Entries {
-			have[e.Key] = names[e.Rules[0].Name]
-		}
-	}
-
-	uiPort := s.ownListenPort()
-	render(w, s.log, "library.html", libraryVM{
-		nav:      s.navFor(r, "library"),
-		Groups:   library,
-		Have:     have,
-		PolicyOK: fw.InputPolicy == "drop",
-		SSHOK:    nftconf.InputAccepts(rules, 22),
-		UIOK:     uiPort == 0 || nftconf.InputAccepts(rules, uiPort),
-		UIPort:   uiPort,
-		Added:    r.URL.Query().Get("added"),
-		Hardened: r.URL.Query().Get("hardened") == "1",
-	})
-}
-
-func (s *Server) handleLibraryAdd(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
-		return
-	}
-	key := r.FormValue("key")
-	var entry *libEntry
-	for gi := range library {
-		for ei := range library[gi].Entries {
-			if library[gi].Entries[ei].Key == key {
-				entry = &library[gi].Entries[ei]
-			}
-		}
-	}
-	if entry == nil {
-		http.Error(w, "unknown library entry", http.StatusBadRequest)
-		return
-	}
-
-	existing, err := s.store.ListRules()
-	if err != nil {
-		s.serverError(w, "list rules", err)
-		return
-	}
-	names := map[string]bool{}
-	for _, rule := range existing {
-		names[rule.Name] = true
-	}
-	for _, rule := range entry.Rules {
-		if names[rule.Name] {
-			continue // added before; do not duplicate
-		}
-		if _, err := s.store.CreateRule(rule); err != nil {
-			s.serverError(w, "create rule", err)
-			return
-		}
-	}
-	s.audit(r, fmt.Sprintf("added %q from the rule library", entry.Name))
-	http.Redirect(w, r, "/library?added="+entry.Key, http.StatusSeeOther)
-}
-
-// handleLibraryHarden is the one-click hardening: make sure a way in exists
-// (SSH, and nftably's own port when it listens beyond loopback), then switch
-// the input policy to drop. The order matters — the accepts are created
-// before the policy flips, and nothing touches the kernel until the operator
-// applies, where lint and the auto-revert stand guard anyway.
-func (s *Server) handleLibraryHarden(w http.ResponseWriter, r *http.Request) {
-	rules, err := s.store.ListRules()
-	if err != nil {
-		s.serverError(w, "list rules", err)
-		return
-	}
-	fw, err := s.store.GetFirewall()
-	if err != nil {
-		s.serverError(w, "get firewall", err)
-		return
-	}
-
-	if !nftconf.InputAccepts(rules, 22) {
-		if _, err := s.store.CreateRule(store.Rule{Name: "ssh", Action: "accept", Proto: "tcp", DPorts: "22", Enabled: true}); err != nil {
-			s.serverError(w, "create ssh rule", err)
-			return
-		}
-	}
-	if port := s.ownListenPort(); port > 0 && !nftconf.InputAccepts(rules, port) {
-		if _, err := s.store.CreateRule(store.Rule{Name: "nftably ui", Action: "accept", Proto: "tcp", DPorts: fmt.Sprint(port), Enabled: true}); err != nil {
-			s.serverError(w, "create ui rule", err)
-			return
-		}
-	}
-	fw.InputPolicy = "drop"
-	if err := s.store.SaveFirewall(fw); err != nil {
-		s.serverError(w, "save firewall", err)
-		return
-	}
-	s.audit(r, "hardened: input policy drop, SSH + UI accepts ensured")
-	http.Redirect(w, r, "/library?hardened=1", http.StatusSeeOther)
 }

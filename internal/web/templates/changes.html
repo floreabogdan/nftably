@@ -10,6 +10,10 @@
 	</div>
 </div>
 
+{{if .SetupDone}}
+<div class="card card-success"><div class="card-body"><strong>Setup saved.</strong> Below is exactly what will be loaded into the kernel — review the diff, then apply. The auto-revert stays armed until you confirm, so even a bad choice cannot lock you out.</div></div>
+{{end}}
+
 {{if .ApplyErr}}
 <div class="card card-danger"><div class="card-body">
 	<strong>Apply failed.</strong> The kernel ruleset was not changed.

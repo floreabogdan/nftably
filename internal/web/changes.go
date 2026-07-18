@@ -30,6 +30,8 @@ type changesVM struct {
 	// Pending is the armed apply awaiting confirmation; nil when none.
 	Pending *pendingVM
 	History []store.ConfigVersion
+	// SetupDone greets the operator arriving from the guided setup.
+	SetupDone bool
 }
 
 type pendingVM struct {
@@ -72,6 +74,7 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 		nav:       s.navFor(r, "changes"),
 		Candidate: nftconf.Config(m),
 		LintWarns: nftconf.Lint(m, s.listenAddr),
+		SetupDone: r.URL.Query().Get("setup") == "1",
 	}
 	for _, rule := range m.Rules {
 		if rule.Enabled {

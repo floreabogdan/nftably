@@ -108,20 +108,36 @@ CREATE TABLE IF NOT EXISTS config_versions (
 	updated_at TEXT NOT NULL
 );
 
--- M6 block/allow lists, rendered as named sets. list "mgmt" is the
--- management allow list (accepted before everything, even the blacklist);
--- list "block" is the blacklist (dropped before established, so blocking an
--- address also cuts its live connections). cidr is stored normalized: a bare
--- IP for single hosts, a masked prefix otherwise — exactly how nft echoes
--- set elements back.
+-- M6 named address lists, rendered as nft sets (<name>4 / <name>6). The
+-- operator creates as many as they want. role gives a list instant
+-- behaviour: 'allow' is accepted before everything, even before block lists
+-- (a management network that can never be locked out); 'block' is dropped
+-- before established/related (blocking also cuts live connections); '' is a
+-- plain address group that rules reference as their source. The name doubles
+-- as the nft set name, so it is set-safe by validation. Two lists are seeded
+-- on migration: management (allow) and blacklist (block).
+CREATE TABLE IF NOT EXISTS ip_lists (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	name       TEXT NOT NULL UNIQUE,      -- ^[a-z][a-z0-9_]{0,23}$
+	role       TEXT NOT NULL DEFAULT '',  -- '' | allow | block
+	note       TEXT NOT NULL DEFAULT '',
+	position   INTEGER NOT NULL,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+
+-- One address/range on a list. cidr is stored normalized: a bare IP for
+-- single hosts, a masked prefix otherwise — exactly how nft echoes set
+-- elements back. (The legacy "list" text column predates ip_lists.)
 CREATE TABLE IF NOT EXISTS list_entries (
 	id         INTEGER PRIMARY KEY AUTOINCREMENT,
-	list       TEXT NOT NULL,             -- mgmt | block
+	list       TEXT NOT NULL DEFAULT '',
+	list_id    INTEGER NOT NULL DEFAULT 0,
 	cidr       TEXT NOT NULL,
 	note       TEXT NOT NULL DEFAULT '',
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
-	UNIQUE(list, cidr)
+	UNIQUE(list_id, cidr)
 );
 
 -- Advisor suggestions the operator waved away, by stable suggestion key. A

@@ -93,3 +93,66 @@ func TestMigrateFromV1(t *testing.T) {
 		t.Fatalf("second open: %+v %v", fw, err)
 	}
 }
+
+// TestMigrateAdoptsV3Lists builds a database from the fixed-two-lists era —
+// list_entries keyed by the legacy "mgmt"/"block" text column, user_version 3
+// — and checks that Open moves the entries under the seeded ip_lists rows.
+func TestMigrateAdoptsV3Lists(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v3.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{
+		`CREATE TABLE list_entries (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			list       TEXT NOT NULL,
+			cidr       TEXT NOT NULL,
+			note       TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			UNIQUE(list, cidr)
+		)`,
+		`INSERT INTO list_entries (list, cidr, note, created_at, updated_at) VALUES
+			('mgmt', '10.0.0.0/24', 'office', 't', 't'),
+			('block', '203.0.113.9', 'scanner', 't', 't')`,
+		`PRAGMA user_version = 3`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("build v3 db: %v\n%s", err, stmt)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("open v3 db: %v", err)
+	}
+	defer s.Close()
+
+	mgmt, err := s.GetListByName("management")
+	if err != nil || mgmt.Role != RoleAllow {
+		t.Fatalf("management list: %+v err=%v", mgmt, err)
+	}
+	block, err := s.GetListByName("blacklist")
+	if err != nil || block.Role != RoleBlock {
+		t.Fatalf("blacklist: %+v err=%v", block, err)
+	}
+	me, err := s.ListEntries(mgmt.ID)
+	if err != nil || len(me) != 1 || me[0].CIDR != "10.0.0.0/24" || me[0].Note != "office" {
+		t.Fatalf("adopted mgmt entries: %+v err=%v", me, err)
+	}
+	be, _ := s.ListEntries(block.ID)
+	if len(be) != 1 || be[0].CIDR != "203.0.113.9" {
+		t.Fatalf("adopted block entries: %+v", be)
+	}
+	// Uniqueness still works per list on the legacy constraint.
+	if err := s.AddListEntry(block.ID, "203.0.113.9", ""); err == nil {
+		t.Fatal("duplicate accepted after adoption")
+	}
+	if err := s.AddListEntry(mgmt.ID, "192.0.2.1", ""); err != nil {
+		t.Fatalf("post-adoption insert: %v", err)
+	}
+}

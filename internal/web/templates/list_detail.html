@@ -1,0 +1,110 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Manage</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><a href="/lists">Lists</a><span class="sep">/</span><span class="current">{{.List.Name}}</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1><span class="mono">{{.List.Name}}</span></h1>
+		<div class="page-sub">
+			{{if eq .List.Role "allow"}}Always allowed: these sources are accepted before every rule, before even block lists — on the input chain and, with forwarding on, through the router. A network here can never be locked out.
+			{{else if eq .List.Role "block"}}Always blocked: these sources are dropped before established connections are accepted, so a new entry also cuts sessions that are already open, the moment you apply.
+			{{else}}An address group. It does nothing by itself — <a href="/rules">rules</a> that name it as their source match exactly these addresses, and every rule follows when the list changes.{{end}}
+		</div>
+	</div>
+	<div class="page-header-actions">
+		{{if not .List.Role}}<a class="btn btn-sm btn-primary" href="/rules/new?src_list={{.List.ID}}">{{template "icon-plus"}}Add rule using this list</a>{{end}}
+	</div>
+</div>
+
+{{if .Saved}}<div class="card card-success"><div class="card-body">Saved. Review and apply under <a href="/changes">Changes</a>.</div></div>{{end}}
+{{if .Err}}<div class="card card-danger"><div class="card-body">{{.Err}}</div></div>{{end}}
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-ban"}}Entries</span><span class="text-muted">{{len .Entries}} entr{{if eq (len .Entries) 1}}y{{else}}ies{{end}} &middot; renders as <span class="mono">@{{.List.Name}}4</span> / <span class="mono">@{{.List.Name}}6</span></span></div>
+	<div class="card-body">
+		<form method="post" action="/lists/{{.List.ID}}/entries" class="inline-add">
+			<input type="text" name="cidr" class="mono" placeholder="203.0.113.9 or 10.0.0.0/24 or 2001:db8::/32" autocomplete="off" required>
+			<input type="text" name="note" placeholder="note (optional)" autocomplete="off">
+			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-plus"}}Add</button>
+		</form>
+	</div>
+	{{if .Entries}}
+	<div class="table-scroll">
+		<table data-search-target>
+			<thead><tr><th>Address / range</th><th>Note</th><th></th></tr></thead>
+			<tbody>
+				{{range .Entries}}
+				<tr>
+					<td class="mono">{{.CIDR}}</td>
+					<td>{{if .Note}}{{.Note}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>
+					<td class="row-actions">
+						<form method="post" action="/lists/entries/{{.ID}}/delete" data-confirm="Remove {{.CIDR}} from {{$.List.Name}}?">
+							<button type="submit" class="icon-action a-danger" title="Remove" aria-label="Remove entry">{{template "icon-trash"}}</button>
+						</form>
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	</div>
+	{{end}}
+</div>
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Rules using this list</span><span class="text-muted">{{len .Rules}}</span></div>
+	{{if .Rules}}
+	<div class="table-scroll">
+		<table>
+			<thead><tr><th>Name</th><th>Match</th><th>Action</th><th></th></tr></thead>
+			<tbody>
+				{{range .Rules}}
+				<tr{{if not .Enabled}} class="row-disabled"{{end}}>
+					<td>{{if .Name}}{{.Name}}{{else}}<span class="text-muted">(unnamed)</span>{{end}}</td>
+					<td><div class="attr-chips">
+						{{if eq .Chain "forward"}}<span class="chip chip-warning mono">forward</span>{{end}}
+						{{if ne .Proto "any"}}<span class="chip chip-primary mono">{{.Proto}}{{if .DPorts}} dport {{.DPorts}}{{end}}</span>{{end}}
+					</div></td>
+					<td>{{if eq .Action "accept"}}<span class="badge badge-success">accept</span>{{else if eq .Action "drop"}}<span class="badge badge-danger">drop</span>{{else}}<span class="badge badge-warning">reject</span>{{end}}</td>
+					<td class="row-actions"><a class="icon-action" href="/rules/{{.ID}}/edit" title="Edit" aria-label="Edit rule">{{template "icon-edit"}}</a></td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	</div>
+	{{else}}
+	<div class="card-body"><div class="empty">{{if .List.Role}}This list acts on its own — its behaviour needs no rules.{{else}}No rules use this list yet. <a href="/rules/new?src_list={{.List.ID}}">Add one</a> — for example, allow SSH only from here.{{end}}</div></div>
+	{{end}}
+</div>
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-settings"}}List settings</span></div>
+	<div class="card-body">
+		<form method="post" action="/lists/{{.List.ID}}/update">
+			<div class="field">
+				<label for="name">Name</label>
+				<input type="text" id="name" name="name" class="mono" value="{{.List.Name}}" autocomplete="off">
+				<div class="field-hint text-muted">Also the nft set name — renaming updates every rule that uses the list.</div>
+			</div>
+			<div class="field">
+				<label for="role">Behaviour</label>
+				<select id="role" name="role">
+					<option value="" {{if not .List.Role}}selected{{end}}>address group — rules use it as a source</option>
+					<option value="allow" {{if eq .List.Role "allow"}}selected{{end}}>always allow — accepted before everything</option>
+					<option value="block" {{if eq .List.Role "block"}}selected{{end}}>always block — dropped, cuts live connections</option>
+				</select>
+			</div>
+			<div class="field">
+				<label for="note">Note</label>
+				<input type="text" id="note" name="note" value="{{.List.Note}}" autocomplete="off">
+			</div>
+			<div class="form-actions">
+				<button type="submit" class="btn btn-primary">Save</button>
+			</div>
+		</form>
+		<form method="post" action="/lists/{{.List.ID}}/delete" data-confirm="Delete list {{.List.Name}} and its entries?">
+			<button type="submit" class="btn btn-danger">{{template "icon-trash"}}Delete list</button>
+		</form>
+	</div>
+</div>
+{{template "shell-close" .}}

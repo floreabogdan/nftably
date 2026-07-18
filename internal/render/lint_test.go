@@ -48,11 +48,39 @@ func TestLintWarnsOnLockoutFootguns(t *testing.T) {
 		t.Fatalf("loopback bind: %v", warns)
 	}
 
-	// A populated management list is a guaranteed way in: those sources are
-	// accepted before everything, so the lockout warnings stand down.
-	mgmt := []store.ListEntry{{List: store.ListMgmt, CIDR: "10.0.0.0/24"}}
-	if warns := Lint(Model{FW: fw, Mgmt: mgmt}, "0.0.0.0:8080"); len(warns) != 0 {
-		t.Fatalf("management list should silence lockout warnings: %v", warns)
+	// A populated allow-role list is a guaranteed way in: those sources are
+	// accepted before everything, so the lockout warnings stand down. An
+	// empty one is not.
+	mgmt := ListWithEntries{
+		IPList:  store.IPList{ID: 1, Name: "management", Role: store.RoleAllow},
+		Entries: []store.ListEntry{{CIDR: "10.0.0.0/24"}},
+	}
+	if warns := Lint(Model{FW: fw, Lists: []ListWithEntries{mgmt}}, "0.0.0.0:8080"); len(warns) != 0 {
+		t.Fatalf("allow list should silence lockout warnings: %v", warns)
+	}
+	mgmt.Entries = nil
+	if warns := Lint(Model{FW: fw, Lists: []ListWithEntries{mgmt}}, "0.0.0.0:8080"); len(warns) != 2 {
+		t.Fatalf("empty allow list should not silence lockout warnings: %v", warns)
+	}
+}
+
+func TestLintWarnsOnListSourcedRules(t *testing.T) {
+	fw := store.Firewall{InputPolicy: "accept"}
+	office := ListWithEntries{IPList: store.IPList{ID: 3, Name: "office"}}
+	rules := []store.Rule{{Name: "ssh office", Action: "accept", Proto: "tcp", DPorts: "22", SrcListID: 3, Enabled: true}}
+
+	// Empty list: warns; populated: quiet; dangling: warns.
+	warns := Lint(Model{FW: fw, Lists: []ListWithEntries{office}, Rules: rules}, "127.0.0.1:1")
+	if len(warns) != 1 || !strings.Contains(warns[0], "no entries") {
+		t.Fatalf("empty-list rule: %v", warns)
+	}
+	office.Entries = []store.ListEntry{{CIDR: "10.9.0.0/24"}}
+	if warns := Lint(Model{FW: fw, Lists: []ListWithEntries{office}, Rules: rules}, "127.0.0.1:1"); len(warns) != 0 {
+		t.Fatalf("populated-list rule warned: %v", warns)
+	}
+	warns = Lint(Model{FW: fw, Rules: rules}, "127.0.0.1:1")
+	if len(warns) != 1 || !strings.Contains(warns[0], "no longer exists") {
+		t.Fatalf("dangling-list rule: %v", warns)
 	}
 }
 

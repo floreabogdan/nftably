@@ -5,83 +5,59 @@
 </div>
 <div class="page-header">
 	<div>
-		<h1>Block &amp; allow lists</h1>
-		<div class="page-sub">Two lists checked before everything else. Management wins over the blacklist, the blacklist wins over established connections. Changes are model-only until you <a href="/changes">apply</a>.</div>
+		<h1>Address lists</h1>
+		<div class="page-sub">Named groups of IPs and ranges, rendered as nftables sets. Give a list a behaviour — always allow, always block — or keep it plain and point <a href="/rules">rules</a> at it as their source. Create as many as you need.</div>
 	</div>
 </div>
 
-{{if .Saved}}<div class="card card-success"><div class="card-body">Saved. Review and apply under <a href="/changes">Changes</a> — a new blacklist entry cuts that address's live connections when applied.</div></div>{{end}}
+{{if .Saved}}<div class="card card-success"><div class="card-body">Saved. Review and apply under <a href="/changes">Changes</a>.</div></div>{{end}}
 {{if .Err}}<div class="card card-danger"><div class="card-body">{{.Err}}</div></div>{{end}}
 
 <div class="card">
-	<div class="card-header">
-		<span class="card-title">{{template "icon-shield"}}Management allow list</span>
-		<span class="text-muted">{{len .Mgmt}} entr{{if eq (len .Mgmt) 1}}y{{else}}ies{{end}}</span>
-	</div>
+	<div class="card-header"><span class="card-title">{{template "icon-plus"}}New list</span></div>
 	<div class="card-body">
-		<p class="text-muted">Sources here are <strong>accepted before everything</strong> — before the blacklist, before your rules, on the input chain and (when forwarding is on) through the router too. Put your management network or VPN range here and it can never be locked out, whatever the rest of the config does. While this list has entries, the lockout warnings on Changes stand down.</p>
-		<form method="post" action="/lists/add" class="inline-add">
-			<input type="hidden" name="list" value="mgmt">
-			<input type="text" name="cidr" class="mono" placeholder="10.0.0.0/24 or 2001:db8::5" autocomplete="off" required>
+		<form method="post" action="/lists/create" class="inline-add">
+			<input type="text" name="name" class="mono" placeholder="office, cameras, partners…" autocomplete="off" required>
+			<select name="role">
+				<option value="">address group — rules use it as a source</option>
+				<option value="allow">always allow — accepted before everything</option>
+				<option value="block">always block — dropped, cuts live connections</option>
+			</select>
 			<input type="text" name="note" placeholder="note (optional)" autocomplete="off">
-			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-plus"}}Allow</button>
+			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-plus"}}Create</button>
 		</form>
+		<div class="field-hint text-muted">The name becomes the nft set name (<span class="mono">@name4</span> / <span class="mono">@name6</span>) — lowercase letters, digits, underscore. Order of behaviour: <strong>allow lists beat block lists</strong>, and block lists beat established connections.</div>
 	</div>
-	{{if .Mgmt}}
-	<div class="table-scroll">
-		<table>
-			<thead><tr><th>Address / range</th><th>Note</th><th></th></tr></thead>
-			<tbody>
-				{{range .Mgmt}}
-				<tr>
-					<td class="mono">{{.CIDR}}</td>
-					<td>{{if .Note}}{{.Note}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>
-					<td class="row-actions">
-						<form method="post" action="/lists/{{.ID}}/delete" data-confirm="Remove {{.CIDR}} from the management list?">
-							<button type="submit" class="icon-action a-danger" title="Remove" aria-label="Remove entry">{{template "icon-trash"}}</button>
-						</form>
-					</td>
-				</tr>
-				{{end}}
-			</tbody>
-		</table>
-	</div>
-	{{end}}
 </div>
 
 <div class="card">
-	<div class="card-header">
-		<span class="card-title">{{template "icon-ban"}}Blacklist</span>
-		<span class="text-muted">{{len .Block}} entr{{if eq (len .Block) 1}}y{{else}}ies{{end}}</span>
-	</div>
-	<div class="card-body">
-		<p class="text-muted">Sources here are <strong>dropped before established connections are accepted</strong>, so blocking an address also cuts sessions it already has open the moment you apply. It applies to traffic to this box and, with forwarding on, to traffic routed through it. Only the management list outranks it. One-click blocking on the <a href="/connections">Connections</a> page lands entries here.</p>
-		<form method="post" action="/lists/add" class="inline-add">
-			<input type="hidden" name="list" value="block">
-			<input type="text" name="cidr" class="mono" placeholder="203.0.113.9 or 198.51.100.0/24" autocomplete="off" required>
-			<input type="text" name="note" placeholder="note (optional)" autocomplete="off">
-			<button type="submit" class="btn btn-sm btn-danger">{{template "icon-ban"}}Block</button>
-		</form>
-	</div>
-	{{if .Block}}
+	<div class="card-header"><span class="card-title">{{template "icon-ban"}}Your lists</span><span class="text-muted">{{len .Lists}} list{{if ne (len .Lists) 1}}s{{end}}</span></div>
+	{{if .Lists}}
 	<div class="table-scroll">
 		<table data-search-target>
-			<thead><tr><th>Address / range</th><th>Note</th><th></th></tr></thead>
+			<thead><tr><th>Name</th><th>Behaviour</th><th>Entries</th><th>Used by rules</th><th>Note</th><th></th></tr></thead>
 			<tbody>
-				{{range .Block}}
+				{{range .Lists}}
 				<tr>
-					<td class="mono">{{.CIDR}}</td>
+					<td><a href="/lists/{{.ID}}" class="mono">{{.Name}}</a></td>
+					<td>
+						{{if eq .Role "allow"}}<span class="badge badge-success">always allow</span>
+						{{else if eq .Role "block"}}<span class="badge badge-danger">always block</span>
+						{{else}}<span class="badge">address group</span>{{end}}
+					</td>
+					<td class="mono">{{.Entries}}{{if .FirstCIDR}} <span class="text-muted">({{.FirstCIDR}}{{if gt .Entries 1}}, &hellip;{{end}})</span>{{end}}</td>
+					<td class="mono">{{if .UsedBy}}{{.UsedBy}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>
 					<td>{{if .Note}}{{.Note}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>
 					<td class="row-actions">
-						<form method="post" action="/lists/{{.ID}}/delete" data-confirm="Unblock {{.CIDR}}?">
-							<button type="submit" class="icon-action a-danger" title="Remove" aria-label="Remove entry">{{template "icon-trash"}}</button>
-						</form>
+						<a class="icon-action" href="/lists/{{.ID}}" title="Open" aria-label="Open list">{{template "icon-edit"}}</a>
 					</td>
 				</tr>
 				{{end}}
 			</tbody>
 		</table>
 	</div>
+	{{else}}
+	<div class="card-body"><div class="empty">No lists yet. Create one above — a <span class="mono">management</span> allow list is the classic first move.</div></div>
 	{{end}}
 </div>
 {{template "shell-close" .}}

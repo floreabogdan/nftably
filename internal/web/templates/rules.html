@@ -55,9 +55,10 @@
 						<div class="attr-chips">
 							{{if eq .Chain "forward"}}<span class="chip chip-warning mono">forward</span>{{end}}
 							{{if ne .Proto "any"}}<span class="chip chip-primary mono">{{.Proto}}{{if .DPorts}} dport {{.DPorts}}{{end}}</span>{{end}}
+							{{if .SrcListID}}<span class="chip mono">from @{{index $.ListNames .SrcListID}}</span>{{end}}
 							{{if .SAddrs}}<span class="chip mono">from {{.SAddrs}}</span>{{end}}
 							{{if .IIf}}<span class="chip mono">iif {{.IIf}}</span>{{end}}
-							{{if and (eq .Proto "any") (not .SAddrs) (not .IIf)}}<span class="chip mono">everything</span>{{end}}
+							{{if and (eq .Proto "any") (not .SAddrs) (not .IIf) (not .SrcListID)}}<span class="chip mono">everything</span>{{end}}
 						</div>
 					</td>
 					<td>

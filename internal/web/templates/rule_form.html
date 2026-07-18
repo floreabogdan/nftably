@@ -54,9 +54,17 @@
 				<div class="field-hint text-muted">Numbers and ranges, comma-separated. Leave blank to match the whole protocol. Requires tcp or udp.</div>
 			</div>
 			<div class="field">
+				<label for="src_list">Source list</label>
+				<select id="src_list" name="src_list">
+					<option value="0" {{if eq .Rule.SrcListID 0}}selected{{end}}>&mdash; use the addresses below (or any source)</option>
+					{{range .Lists}}<option value="{{.ID}}" {{if eq .ID $.Rule.SrcListID}}selected{{end}}>{{.Name}}{{if .Role}} ({{if eq .Role "allow"}}always allow{{else}}always block{{end}}){{end}}</option>{{end}}
+				</select>
+				<div class="field-hint text-muted">Match a <a href="/lists">named list</a> instead of typing addresses — edit the list later and every rule using it follows. Renders as <span class="mono">ip saddr @&lt;list&gt;4</span>.</div>
+			</div>
+			<div class="field">
 				<label for="saddrs">Source addresses</label>
 				<textarea id="saddrs" name="saddrs" rows="3" class="mono" placeholder="10.0.0.0/8&#10;2001:db8::/32">{{.Rule.SAddrs}}</textarea>
-				<div class="field-hint text-muted">IPs or CIDRs, either family, comma or newline separated. Empty matches any source.</div>
+				<div class="field-hint text-muted">IPs or CIDRs, either family, comma or newline separated. Empty matches any source. Ignored when a source list is chosen above.</div>
 			</div>
 			<div class="field">
 				<label for="iif">Ingress interface</label>

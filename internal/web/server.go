@@ -201,20 +201,26 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /apply/confirm", s.requireAuth(s.handleApplyConfirm))
 	s.mux.Handle("POST /apply/rollback", s.requireAuth(s.handleApplyRollback))
 
+	// The guided setup: detection-prefilled, opinionated first configuration.
+	s.mux.Handle("GET /setup", s.requireAuth(s.handleSetup))
+	s.mux.Handle("POST /setup", s.requireAuth(s.handleSetupApply))
+	s.mux.Handle("POST /setup/preview", s.requireAuth(s.handleSetupPreview))
+
 	// M6 connections: the live conntrack view with one-click block.
 	s.mux.Handle("GET /connections", s.requireAuth(s.handleConnections))
 
-	// M6 lists: the management allow list and the blacklist, plus the
-	// one-click block endpoint the connections view posts to.
+	// Named address lists: as many as the operator wants, each either a
+	// plain address group (rules source from it) or with instant behaviour
+	// (allow-all / block-all). Plus the one-click block endpoint the
+	// connections view posts to.
 	s.mux.Handle("GET /lists", s.requireAuth(s.handleLists))
-	s.mux.Handle("POST /lists/add", s.requireAuth(s.handleListAdd))
+	s.mux.Handle("POST /lists/create", s.requireAuth(s.handleListCreate))
+	s.mux.Handle("GET /lists/{id}", s.requireAuth(s.handleListDetail))
+	s.mux.Handle("POST /lists/{id}/update", s.requireAuth(s.handleListUpdate))
 	s.mux.Handle("POST /lists/{id}/delete", s.requireAuth(s.handleListDelete))
+	s.mux.Handle("POST /lists/{id}/entries", s.requireAuth(s.handleListEntryAdd))
+	s.mux.Handle("POST /lists/entries/{id}/delete", s.requireAuth(s.handleListEntryDelete))
 	s.mux.Handle("POST /lists/block", s.requireAuth(s.handleQuickBlock))
-
-	// M5 rule library: curated, explained rules and one-click hardening.
-	s.mux.Handle("GET /library", s.requireAuth(s.handleLibrary))
-	s.mux.Handle("POST /library/add", s.requireAuth(s.handleLibraryAdd))
-	s.mux.Handle("POST /library/harden", s.requireAuth(s.handleLibraryHarden))
 
 	// The advisor: detect what runs on the box, suggest rules for it.
 	s.mux.Handle("GET /advisor", s.requireAuth(s.handleAdvisor))

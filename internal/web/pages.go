@@ -36,16 +36,25 @@ type dashboardVM struct {
 	Backend  nft.Backend
 	Iptables nft.IptablesReport
 	WideOpen bool
+	// NeedsSetup nudges a fresh install towards the guided setup: no rules
+	// modelled yet means nftably is not managing anything.
+	NeedsSetup bool
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := reqCtx(r)
 	defer cancel()
+	rules, err := s.store.ListRules()
+	if err != nil {
+		s.serverError(w, "list rules", err)
+		return
+	}
 	vm := dashboardVM{
-		nav:      s.navFor(r, "dashboard"),
-		Backend:  nft.Detect(ctx, s.nft),
-		Iptables: nft.ProbeIptables(ctx, s.iptablesSave, s.ip6tablesSave, s.iptablesBin),
-		WideOpen: s.WideOpen(),
+		nav:        s.navFor(r, "dashboard"),
+		Backend:    nft.Detect(ctx, s.nft),
+		Iptables:   nft.ProbeIptables(ctx, s.iptablesSave, s.ip6tablesSave, s.iptablesBin),
+		WideOpen:   s.WideOpen(),
+		NeedsSetup: len(rules) == 0,
 	}
 	render(w, s.log, "dashboard.html", vm)
 }

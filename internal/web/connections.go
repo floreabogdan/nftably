@@ -58,15 +58,25 @@ func (s *Server) handleConnections(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, "get settings", err)
 		return
 	}
-	blockList, err := s.store.ListEntries(store.ListBlock)
+	lists, err := s.store.ListLists()
 	if err != nil {
-		s.serverError(w, "list block entries", err)
+		s.serverError(w, "list lists", err)
+		return
+	}
+	entries, err := s.store.AllEntries()
+	if err != nil {
+		s.serverError(w, "list entries", err)
 		return
 	}
 	var blocked []netip.Prefix
-	for _, e := range blockList {
-		if p, err := store.EntryPrefix(e.CIDR); err == nil {
-			blocked = append(blocked, p)
+	for _, l := range lists {
+		if l.Role != store.RoleBlock {
+			continue
+		}
+		for _, e := range entries[l.ID] {
+			if p, err := store.EntryPrefix(e.CIDR); err == nil {
+				blocked = append(blocked, p)
+			}
 		}
 	}
 	isBlocked := func(a netip.Addr) bool {

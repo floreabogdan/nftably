@@ -21,6 +21,18 @@
 	</div>
 </section>
 
+{{if .NeedsSetup}}
+<div class="card card-cta">
+	<div class="card-body setup-cta">
+		<div>
+			<strong>This firewall has no rules yet.</strong>
+			<div class="text-muted">Let nftably look at what runs on this box and prepare an opinionated, explained setup — management access, the right accept rules, drop policy. Two minutes, nothing applied without your review.</div>
+		</div>
+		<a class="btn btn-primary" href="/setup">{{template "icon-book"}}Guided setup</a>
+	</div>
+</div>
+{{end}}
+
 {{if .WideOpen}}
 <div class="card card-warning">
 	<div class="card-body">

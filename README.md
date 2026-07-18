@@ -10,12 +10,14 @@ It's a single Go binary backed by SQLite. No agent, no cloud, no external
 dependencies at runtime beyond `nft` itself. Install the package, run
 `nftably init`, and go.
 
-> **Status: M6.** nftably now watches and reacts: a live connections view
-> (with optional GeoIP countries and one-click block), a blacklist that beats
-> established connections, a management allow list that can never be locked
-> out, a curated rule library with the reasoning attached, and one-click
-> hardening for the accept→drop switch — all still applied through the same
-> atomic transaction with the armed auto-revert.
+> **Status: M6.** nftably now starts with a guided setup — it detects what
+> runs on the box, pre-checks the right rules with the reasoning attached,
+> and shows the generated config live while you decide. Around it: named
+> address lists (create as many as you want — plain groups your rules source
+> from, always-allow management networks, always-block blacklists), a live
+> connections view with optional GeoIP countries and one-click block, and
+> everything still applied as one atomic transaction with the armed
+> auto-revert.
 
 ---
 
@@ -41,17 +43,23 @@ on a remote router **safe to make**:
   baseline (replies, DNAT'ed flows and LAN→WAN pass; the policy decides the
   rest), masquerade is one checkbox, and port-forwards are DNAT rules that work
   under a drop policy without extra accepts.
+- **Named lists, as many as you want.** A list is a group of IPs/ranges,
+  rendered as nft sets. Point rules at one as their source ("SSH only from
+  @office") and edit the list later — every rule follows. Or give a list
+  instant behaviour: *always allow* (accepted before everything — a
+  management network that can never be locked out) or *always block*
+  (dropped before established connections, so a block also cuts live
+  sessions). Allow beats block; block beats established.
 - **See, then act.** The Connections page shows every flow conntrack knows
   about — to, from and through the box, with countries when you point nftably
-  at a GeoIP database — and every remote address has a Block button. Blocks
-  land on a blacklist that is checked *before* established connections, so
-  applying one also cuts sessions that are already open. Its counterpart is
-  the management allow list: sources accepted before everything, so your
-  management network can never be locked out.
-- **Explained, not just configured.** The rule library ships the common rules
-  (SSH, VPNs, web, DNS, mail, …) with the why attached — including why
-  databases are deliberately absent — and one-click hardening flips the
-  default policy to drop only after making sure a way in exists.
+  at a GeoIP database — and every remote address has a Block button.
+- **Explained, not just configured.** The guided setup detects what runs on
+  the box (nginx listening on 80, sshd, a routing kernel…), pre-checks the
+  matching rules from a curated catalogue — each with the why attached, and
+  databases deliberately absent — prefills your management network from the
+  address you are connecting from, and previews the generated nftables
+  config live as you change choices. It saves the model; Changes applies it
+  with the auto-revert armed.
 
 ## Roadmap
 
@@ -62,8 +70,8 @@ on a remote router **safe to make**:
 | **M3** | Apply + commit-confirmed auto-revert + lint guardrails | ✅ |
 | — | Advisor: detect installed software & listeners, advise rules | ✅ |
 | **M4** | Forward filtering / NAT / port-forwards | ✅ |
-| **M5** | Rule library ("pick rules") + one-click hardening | ✅ |
-| **M6** | Live connections + top IPs (GeoIP), blacklist / management allow list, one-click block | ✅ this release |
+| **M5** | Rule catalogue + one-click hardening (now inside the guided setup) | ✅ |
+| **M6** | Guided setup, named lists (+roles), list-sourced rules, live connections + top IPs (GeoIP), one-click block | ✅ this release |
 | **M7** | Drop logging + viewer, rate limiting / brute-force protection, country blocking | planned |
 
 ## Quick start
@@ -128,7 +136,7 @@ cmd/nftably/       CLI: init · doctor · detect · server
 internal/nft/      shell out to nft (-j JSON for structure, -a text for rule wording);
                    backend detection; iptables coexistence probe + translate preview
 internal/store/    SQLite: settings, users, sessions, events, the rule model,
-                   port-forwards, block/allow lists, config versions + the
+                   port-forwards, named address lists, config versions + the
                    persisted pending apply
 internal/render/   model → `table inet nftably` config text (sets + input/
                    forward/nat chains); apply/revert transactions; lockout

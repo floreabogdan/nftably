@@ -36,6 +36,9 @@ type Rule struct {
 	// families may be mixed — the render layer splits them, since in the inet
 	// family "ip saddr" matches only v4 packets and "ip6 saddr" only v6.
 	SAddrs string
+	// SrcListID, when non-zero, uses a named list as the source instead of
+	// SAddrs — the rule matches `ip saddr @<list>4` / `ip6 saddr @<list>6`.
+	SrcListID int64
 	// IIf is the ingress interface name; empty matches any interface.
 	IIf     string
 	Enabled bool
@@ -87,6 +90,9 @@ func (r *Rule) Validate() []string {
 	}
 	if _, serrs := ParseSources(r.SAddrs); len(serrs) > 0 {
 		errs = append(errs, serrs...)
+	}
+	if r.SrcListID != 0 && strings.TrimSpace(r.SAddrs) != "" {
+		errs = append(errs, "Choose either a source list or source addresses, not both.")
 	}
 	if r.IIf != "" && !ifaceRe.MatchString(r.IIf) {
 		errs = append(errs, fmt.Sprintf("%q is not a valid interface name.", r.IIf))
@@ -149,7 +155,7 @@ func ParseSources(text string) ([]netip.Prefix, []string) {
 // ListRules returns every rule in render order.
 func (s *Store) ListRules() ([]Rule, error) {
 	rows, err := s.db.Query(`
-		SELECT id, position, name, chain, action, proto, dports, saddrs, iif, enabled
+		SELECT id, position, name, chain, action, proto, dports, saddrs, src_list_id, iif, enabled
 		FROM fw_rules ORDER BY position, id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list rules: %w", err)
@@ -159,7 +165,7 @@ func (s *Store) ListRules() ([]Rule, error) {
 	var out []Rule
 	for rows.Next() {
 		var r Rule
-		if err := rows.Scan(&r.ID, &r.Position, &r.Name, &r.Chain, &r.Action, &r.Proto, &r.DPorts, &r.SAddrs, &r.IIf, &r.Enabled); err != nil {
+		if err := rows.Scan(&r.ID, &r.Position, &r.Name, &r.Chain, &r.Action, &r.Proto, &r.DPorts, &r.SAddrs, &r.SrcListID, &r.IIf, &r.Enabled); err != nil {
 			return nil, fmt.Errorf("store: scan rule: %w", err)
 		}
 		out = append(out, r)
@@ -171,9 +177,9 @@ func (s *Store) ListRules() ([]Rule, error) {
 func (s *Store) GetRule(id int64) (Rule, error) {
 	var r Rule
 	row := s.db.QueryRow(`
-		SELECT id, position, name, chain, action, proto, dports, saddrs, iif, enabled
+		SELECT id, position, name, chain, action, proto, dports, saddrs, src_list_id, iif, enabled
 		FROM fw_rules WHERE id = ?`, id)
-	err := row.Scan(&r.ID, &r.Position, &r.Name, &r.Chain, &r.Action, &r.Proto, &r.DPorts, &r.SAddrs, &r.IIf, &r.Enabled)
+	err := row.Scan(&r.ID, &r.Position, &r.Name, &r.Chain, &r.Action, &r.Proto, &r.DPorts, &r.SAddrs, &r.SrcListID, &r.IIf, &r.Enabled)
 	if err == sql.ErrNoRows {
 		return Rule{}, ErrNotFound
 	}
@@ -187,9 +193,9 @@ func (s *Store) GetRule(id int64) (Rule, error) {
 func (s *Store) CreateRule(r Rule) (int64, error) {
 	ts := now()
 	res, err := s.db.Exec(`
-		INSERT INTO fw_rules (position, name, chain, action, proto, dports, saddrs, iif, enabled, created_at, updated_at)
-		VALUES ((SELECT COALESCE(MAX(position), 0) + 1 FROM fw_rules), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.Name, ruleChain(r.Chain), r.Action, r.Proto, r.DPorts, r.SAddrs, r.IIf, r.Enabled, ts, ts)
+		INSERT INTO fw_rules (position, name, chain, action, proto, dports, saddrs, src_list_id, iif, enabled, created_at, updated_at)
+		VALUES ((SELECT COALESCE(MAX(position), 0) + 1 FROM fw_rules), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.Name, ruleChain(r.Chain), r.Action, r.Proto, r.DPorts, r.SAddrs, r.SrcListID, r.IIf, r.Enabled, ts, ts)
 	if err != nil {
 		return 0, fmt.Errorf("store: create rule: %w", err)
 	}
@@ -199,9 +205,9 @@ func (s *Store) CreateRule(r Rule) (int64, error) {
 // UpdateRule saves an edited rule's match and action fields (not its position).
 func (s *Store) UpdateRule(r Rule) error {
 	res, err := s.db.Exec(`
-		UPDATE fw_rules SET name = ?, chain = ?, action = ?, proto = ?, dports = ?, saddrs = ?, iif = ?, enabled = ?, updated_at = ?
+		UPDATE fw_rules SET name = ?, chain = ?, action = ?, proto = ?, dports = ?, saddrs = ?, src_list_id = ?, iif = ?, enabled = ?, updated_at = ?
 		WHERE id = ?`,
-		r.Name, ruleChain(r.Chain), r.Action, r.Proto, r.DPorts, r.SAddrs, r.IIf, r.Enabled, now(), r.ID)
+		r.Name, ruleChain(r.Chain), r.Action, r.Proto, r.DPorts, r.SAddrs, r.SrcListID, r.IIf, r.Enabled, now(), r.ID)
 	if err != nil {
 		return fmt.Errorf("store: update rule: %w", err)
 	}

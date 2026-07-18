@@ -16,14 +16,21 @@ import (
 //
 // The baseline rules already guarantee loopback, established/related and
 // essential ICMP — so the checks here are about what a drop policy does to NEW
-// connections the operator depends on. A non-empty management list is treated
+// connections the operator depends on. A populated allow-role list is treated
 // as a way in: those sources are accepted before everything, so the lockout
 // warnings stand down.
 func Lint(m Model, listenAddr string) []string {
 	fw, rules, pfs := m.FW, m.Rules, m.Forwards
 	var warns []string
 
-	if (fw.InputPolicy == "drop" || fw.InputPolicy == "") && len(m.Mgmt) == 0 {
+	hasAllowList := false
+	for _, l := range m.Lists {
+		if l.Role == store.RoleAllow && len(l.Entries) > 0 {
+			hasAllowList = true
+		}
+	}
+
+	if (fw.InputPolicy == "drop" || fw.InputPolicy == "") && !hasAllowList {
 		if port := listenPort(listenAddr); port > 0 && !InputAccepts(rules, port) {
 			warns = append(warns, fmt.Sprintf(
 				"No rule accepts new connections to nftably's own port (tcp %d). Your current session survives on established/related, but a reconnect would be dropped — the auto-revert would save you, and then you'd add this rule anyway.", port))
@@ -45,6 +52,23 @@ func Lint(m Model, listenAddr string) []string {
 		if n := enabledChainRules(rules, "forward"); n > 0 {
 			warns = append(warns, fmt.Sprintf(
 				"%d forward-chain rule(s) are enabled but no WAN interface is set, so the forward chain is not rendered. Name the WAN interface on the Forwarding page to activate it.", n))
+		}
+	}
+
+	// A rule sourcing from a missing or empty list matches nothing — legal,
+	// but almost certainly not what the operator meant.
+	for _, r := range rules {
+		if !r.Enabled || r.SrcListID == 0 {
+			continue
+		}
+		l := m.list(r.SrcListID)
+		switch {
+		case l == nil:
+			warns = append(warns, fmt.Sprintf(
+				"Rule %q sources from a list that no longer exists — it matches nothing and is not rendered.", r.Name))
+		case len(l.Entries) == 0:
+			warns = append(warns, fmt.Sprintf(
+				"Rule %q sources from list %q, which has no entries yet — it matches nothing until the list does.", r.Name, l.Name))
 		}
 	}
 	return warns

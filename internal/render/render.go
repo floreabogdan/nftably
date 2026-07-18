@@ -27,11 +27,28 @@ type Model struct {
 	FW       store.Firewall
 	Rules    []store.Rule
 	Forwards []store.PortForward
-	// Mgmt is the management allow list: sources accepted before everything,
-	// even the blacklist. Block is the blacklist: sources dropped before
-	// established/related, so a block also cuts already-open connections.
-	Mgmt  []store.ListEntry
-	Block []store.ListEntry
+	// Lists are the named address lists in position order. Allow-role lists
+	// are accepted before everything, even before block-role lists; block-
+	// role lists are dropped before established/related, so a block also
+	// cuts already-open connections. Plain lists render only when a rule
+	// uses them as its source.
+	Lists []ListWithEntries
+}
+
+// ListWithEntries pairs a list with its entries for rendering.
+type ListWithEntries struct {
+	store.IPList
+	Entries []store.ListEntry
+}
+
+// list looks a list up by id; nil when absent.
+func (m Model) list(id int64) *ListWithEntries {
+	for i := range m.Lists {
+		if m.Lists[i].ID == id {
+			return &m.Lists[i]
+		}
+	}
+	return nil
 }
 
 // Config renders the full managed table: named sets for the lists, chain
@@ -52,29 +69,35 @@ func Config(m Model) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "table inet %s {\n", TableName)
 
-	mgmt4, mgmt6 := splitFamilies(m.Mgmt)
-	block4, block6 := splitFamilies(m.Block)
-	writeSet(&b, "mgmt4", "ipv4_addr", mgmt4)
-	writeSet(&b, "mgmt6", "ipv6_addr", mgmt6)
-	writeSet(&b, "block4", "ipv4_addr", block4)
-	writeSet(&b, "block6", "ipv6_addr", block6)
+	// Sets first: one per rendered list and family. A role list renders when
+	// it has entries; a plain list when an enabled rule sources from it (an
+	// empty referenced set is declared and matches nothing — the honest
+	// rendering of "list has no members yet", and lint says so).
+	for _, l := range m.renderedLists() {
+		v4, v6 := splitFamilies(l.Entries)
+		if len(v4) > 0 || l.referencedByRule(m) {
+			writeSet(&b, l.Name+"4", "ipv4_addr", v4)
+		}
+		if len(v6) > 0 || l.referencedByRule(m) {
+			writeSet(&b, l.Name+"6", "ipv6_addr", v6)
+		}
+	}
 
 	b.WriteString("\tchain input {\n")
 	fmt.Fprintf(&b, "\t\ttype filter hook input priority filter; policy %s;\n", policyOrDrop(fw.InputPolicy))
 
-	// Baseline: order matters — invalid is dropped first; the management list
-	// is accepted before the blacklist (management wins); the blacklist is
-	// dropped before established/related, so blocking an address also cuts
-	// its connections that are already open; everything precedes operator
-	// rules.
+	// Baseline: order matters — invalid is dropped first; allow lists are
+	// accepted before block lists (management wins); block lists are dropped
+	// before established/related, so blocking an address also cuts its
+	// connections that are already open; everything precedes operator rules.
 	b.WriteString("\t\tiif \"lo\" accept comment \"nftably:baseline loopback\"\n")
 	b.WriteString("\t\tct state invalid drop comment \"nftably:baseline invalid\"\n")
-	writeListRules(&b, mgmt4, mgmt6, block4, block6)
+	m.writeRoleLines(&b)
 	b.WriteString("\t\tct state established,related accept comment \"nftably:baseline conntrack\"\n")
 	b.WriteString("\t\ticmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, echo-request, echo-reply, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept comment \"nftably:baseline icmpv6\"\n")
 	b.WriteString("\t\ticmp type { echo-reply, destination-unreachable, echo-request, time-exceeded, parameter-problem } accept comment \"nftably:baseline icmp\"\n")
 
-	writeRules(&b, m.Rules, "input")
+	m.writeRules(&b, "input")
 	b.WriteString("\t}\n")
 
 	if fw.WANIface != "" {
@@ -92,10 +115,10 @@ func Config(m Model) string {
 		// lan-wan accept comes AFTER operator rules so a drop rule above it
 		// can still cut a specific LAN host or port off from the internet.
 		b.WriteString("\t\tct state invalid drop comment \"nftably:baseline invalid\"\n")
-		writeListRules(&b, mgmt4, mgmt6, block4, block6)
+		m.writeRoleLines(&b)
 		b.WriteString("\t\tct state established,related accept comment \"nftably:baseline conntrack\"\n")
 		b.WriteString("\t\tct status dnat accept comment \"nftably:baseline port-forwards\"\n")
-		writeRules(&b, m.Rules, "forward")
+		m.writeRules(&b, "forward")
 		fmt.Fprintf(&b, "\t\tiifname != %s oifname %s accept comment \"nftably:baseline lan-wan\"\n", wan, wan)
 		b.WriteString("\t}\n")
 
@@ -162,43 +185,83 @@ func splitFamilies(entries []store.ListEntry) (v4, v6 []string) {
 
 // writeSet emits one named set followed by a blank line, in nft's canonical
 // listing format: elements two per line, continuations aligned under the
-// opening brace. Empty sets are not declared at all.
+// opening brace; an empty set has no elements line at all, exactly as nft
+// lists one.
 func writeSet(b *strings.Builder, name, typ string, elements []string) {
-	if len(elements) == 0 {
-		return
-	}
 	fmt.Fprintf(b, "\tset %s {\n", name)
 	fmt.Fprintf(b, "\t\ttype %s\n", typ)
 	b.WriteString("\t\tflags interval\n")
-	b.WriteString("\t\telements = { ")
-	for i, e := range elements {
-		if i > 0 {
-			if i%2 == 0 {
-				b.WriteString(",\n\t\t\t     ")
-			} else {
-				b.WriteString(", ")
+	if len(elements) > 0 {
+		b.WriteString("\t\telements = { ")
+		for i, e := range elements {
+			if i > 0 {
+				if i%2 == 0 {
+					b.WriteString(",\n\t\t\t     ")
+				} else {
+					b.WriteString(", ")
+				}
 			}
+			b.WriteString(e)
 		}
-		b.WriteString(e)
+		b.WriteString(" }\n")
 	}
-	b.WriteString(" }\n")
 	b.WriteString("\t}\n\n")
 }
 
-// writeListRules emits the mgmt-accept and block-drop lines for whichever
-// sets exist, in that order — management wins over the blacklist.
-func writeListRules(b *strings.Builder, mgmt4, mgmt6, block4, block6 []string) {
-	if len(mgmt4) > 0 {
-		b.WriteString("\t\tip saddr @mgmt4 accept comment \"nftably:baseline management\"\n")
+// renderedLists returns the lists that appear in the config: role lists with
+// entries, and any list an enabled, rendered rule sources from.
+func (m Model) renderedLists() []ListWithEntries {
+	var out []ListWithEntries
+	for _, l := range m.Lists {
+		if (l.Role != store.RoleNone && len(l.Entries) > 0) || l.referencedByRule(m) {
+			out = append(out, l)
+		}
 	}
-	if len(mgmt6) > 0 {
-		b.WriteString("\t\tip6 saddr @mgmt6 accept comment \"nftably:baseline management\"\n")
+	return out
+}
+
+// referencedByRule reports whether an enabled rule in a rendered chain
+// sources from this list.
+func (l ListWithEntries) referencedByRule(m Model) bool {
+	for _, r := range m.Rules {
+		if !r.Enabled || r.SrcListID != l.ID {
+			continue
+		}
+		if chainOf(r) == "forward" && m.FW.WANIface == "" {
+			continue // the forward chain is not rendered
+		}
+		return true
 	}
-	if len(block4) > 0 {
-		b.WriteString("\t\tip saddr @block4 drop comment \"nftably:baseline blacklist\"\n")
+	return false
+}
+
+func chainOf(r store.Rule) string {
+	if r.Chain == "" {
+		return "input"
 	}
-	if len(block6) > 0 {
-		b.WriteString("\t\tip6 saddr @block6 drop comment \"nftably:baseline blacklist\"\n")
+	return r.Chain
+}
+
+// writeRoleLines emits the allow-accept lines, then the block-drop lines, in
+// list order — allow wins over block by coming first.
+func (m Model) writeRoleLines(b *strings.Builder) {
+	for _, role := range []string{store.RoleAllow, store.RoleBlock} {
+		verdict := "accept"
+		if role == store.RoleBlock {
+			verdict = "drop"
+		}
+		for _, l := range m.Lists {
+			if l.Role != role || len(l.Entries) == 0 {
+				continue
+			}
+			v4, v6 := splitFamilies(l.Entries)
+			if len(v4) > 0 {
+				fmt.Fprintf(b, "\t\tip saddr @%s4 %s comment \"nftably:list %s\"\n", l.Name, verdict, l.Name)
+			}
+			if len(v6) > 0 {
+				fmt.Fprintf(b, "\t\tip6 saddr @%s6 %s comment \"nftably:list %s\"\n", l.Name, verdict, l.Name)
+			}
+		}
 	}
 }
 
@@ -211,19 +274,12 @@ func policyOrDrop(p string) string {
 
 // writeRules emits the enabled rules belonging to chain, in model order. Rows
 // written before M4 have an empty chain and belong to input.
-func writeRules(b *strings.Builder, rules []store.Rule, chain string) {
-	for _, r := range rules {
-		if !r.Enabled {
+func (m Model) writeRules(b *strings.Builder, chain string) {
+	for _, r := range m.Rules {
+		if !r.Enabled || chainOf(r) != chain {
 			continue
 		}
-		rc := r.Chain
-		if rc == "" {
-			rc = "input"
-		}
-		if rc != chain {
-			continue
-		}
-		for _, line := range RuleLines(r) {
+		for _, line := range m.RuleLines(r) {
 			b.WriteString("\t\t")
 			b.WriteString(line)
 			b.WriteString("\n")
@@ -257,12 +313,24 @@ func PortForwardLine(wanIface string, p store.PortForward) string {
 // RuleLines renders one model rule to nft rule syntax (without indentation).
 // A rule whose sources mix address families becomes two lines, because in the
 // inet family `ip saddr` matches only IPv4 packets and `ip6 saddr` only IPv6 —
-// a single line could not match both.
+// a single line could not match both. A rule sourcing from a named list
+// references the list's sets the same way; a dangling list reference renders
+// nothing (and lint says so).
 //
 // Set elements are emitted in nft's own canonical order (numeric, ascending):
 // the kernel stores sets unordered and `nft list` prints them sorted, so
 // rendering any other order would make every post-apply diff noisy.
-func RuleLines(r store.Rule) []string {
+func (m Model) RuleLines(r store.Rule) []string {
+	if r.SrcListID != 0 {
+		l := m.list(r.SrcListID)
+		if l == nil {
+			return nil
+		}
+		return []string{
+			ruleLine(r, "ip saddr @"+l.Name+"4"),
+			ruleLine(r, "ip6 saddr @"+l.Name+"6"),
+		}
+	}
 	prefixes, _ := store.ParseSources(r.SAddrs)
 	sort.Slice(prefixes, func(i, j int) bool {
 		if c := prefixes[i].Addr().Compare(prefixes[j].Addr()); c != 0 {
@@ -282,13 +350,13 @@ func RuleLines(r store.Rule) []string {
 	var out []string
 	switch {
 	case len(v4) == 0 && len(v6) == 0:
-		out = append(out, ruleLine(r, "", nil))
+		out = append(out, ruleLine(r, ""))
 	default:
 		if len(v4) > 0 {
-			out = append(out, ruleLine(r, "ip saddr", v4))
+			out = append(out, ruleLine(r, "ip saddr "+setExpr(v4)))
 		}
 		if len(v6) > 0 {
-			out = append(out, ruleLine(r, "ip6 saddr", v6))
+			out = append(out, ruleLine(r, "ip6 saddr "+setExpr(v6)))
 		}
 	}
 	return out
@@ -303,13 +371,15 @@ func prefixStr(p netip.Prefix) string {
 	return p.String()
 }
 
-func ruleLine(r store.Rule, saddrKey string, saddrs []string) string {
+// ruleLine assembles one rule line; srcExpr is the ready-made source match
+// ("ip saddr 10.0.0.0/8", "ip6 saddr @office6") or empty for any source.
+func ruleLine(r store.Rule, srcExpr string) string {
 	var parts []string
 	if r.IIf != "" {
 		parts = append(parts, fmt.Sprintf("iifname %q", r.IIf))
 	}
-	if saddrKey != "" {
-		parts = append(parts, saddrKey+" "+setExpr(saddrs))
+	if srcExpr != "" {
+		parts = append(parts, srcExpr)
 	}
 
 	ports, _ := store.ParsePorts(r.DPorts)

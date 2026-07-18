@@ -1,0 +1,6 @@
+{{if .Err}}
+<div class="card-body"><div class="field-error">{{.Err}}</div></div>
+{{else}}
+{{range .Warns}}<div class="lint-warn">{{template "icon-alert"}} {{.}}</div>{{end}}
+<pre class="code-block mono setup-preview-code">{{.Config}}</pre>
+{{end}}

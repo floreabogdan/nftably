@@ -74,7 +74,7 @@ func TestRuleLines(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		got := RuleLines(c.r)
+		got := Model{}.RuleLines(c.r)
 		if len(got) != len(c.want) {
 			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
 			continue
@@ -170,66 +170,89 @@ func TestConfigForwarding(t *testing.T) {
 }
 
 func TestConfigLists(t *testing.T) {
-	// Empty lists change nothing: no sets, no list rules.
-	out := Config(Model{FW: store.Firewall{InputPolicy: "drop"}})
-	for _, absent := range []string{"set mgmt", "set block", "@mgmt", "@block"} {
-		if strings.Contains(out, absent) {
-			t.Errorf("lists rendered while empty (%q):\n%s", absent, out)
-		}
+	// Role lists without entries and unreferenced plain lists render nothing
+	// — a fresh install's seeded (empty) lists leave the config untouched.
+	out := Config(Model{FW: store.Firewall{InputPolicy: "drop"}, Lists: []ListWithEntries{
+		{IPList: store.IPList{ID: 1, Name: "management", Role: store.RoleAllow}},
+		{IPList: store.IPList{ID: 2, Name: "blacklist", Role: store.RoleBlock}},
+		{IPList: store.IPList{ID: 3, Name: "office"}, Entries: []store.ListEntry{{CIDR: "10.9.0.0/24"}}},
+	}})
+	if strings.Contains(out, "set ") || strings.Contains(out, "@") {
+		t.Errorf("empty/unreferenced lists rendered:\n%s", out)
 	}
 
 	m := Model{
 		FW: store.Firewall{InputPolicy: "drop", WANIface: "eth0"},
-		Mgmt: []store.ListEntry{
-			{CIDR: "10.0.0.0/24"}, {CIDR: "2001:db8::5"},
+		Lists: []ListWithEntries{
+			{IPList: store.IPList{ID: 1, Name: "mgmt", Role: store.RoleAllow},
+				Entries: []store.ListEntry{{CIDR: "10.0.0.0/24"}, {CIDR: "2001:db8::5"}}},
+			{IPList: store.IPList{ID: 2, Name: "badguys", Role: store.RoleBlock},
+				// Added out of order: the set must print numerically
+				// ascending, the way nft lists it back.
+				Entries: []store.ListEntry{{CIDR: "203.0.113.9"}, {CIDR: "198.51.100.0/24"}, {CIDR: "203.0.113.1"}}},
+			{IPList: store.IPList{ID: 3, Name: "office"},
+				Entries: []store.ListEntry{{CIDR: "10.9.0.0/24"}}},
 		},
-		Block: []store.ListEntry{
-			// Added out of order: the set must print numerically ascending,
-			// the way nft lists it back.
-			{CIDR: "203.0.113.9"}, {CIDR: "198.51.100.0/24"}, {CIDR: "203.0.113.1"},
+		Rules: []store.Rule{
+			{Name: "ssh office", Action: "accept", Proto: "tcp", DPorts: "22", SrcListID: 3, Enabled: true},
 		},
 	}
 	out = Config(m)
 
 	// Exact canonical set block, verified against nft 1.0.9 output: elements
 	// two per line, continuations aligned under the opening brace.
-	wantBlock4 := "\tset block4 {\n" +
+	wantBlock4 := "\tset badguys4 {\n" +
 		"\t\ttype ipv4_addr\n" +
 		"\t\tflags interval\n" +
 		"\t\telements = { 198.51.100.0/24, 203.0.113.1,\n" +
 		"\t\t\t     203.0.113.9 }\n" +
 		"\t}\n\n"
 	if !strings.Contains(out, wantBlock4) {
-		t.Errorf("block4 set not canonical:\n%s", out)
+		t.Errorf("badguys4 set not canonical:\n%s", out)
 	}
 	for _, want := range []string{
 		"\tset mgmt4 {\n\t\ttype ipv4_addr\n\t\tflags interval\n\t\telements = { 10.0.0.0/24 }\n\t}\n",
 		"\tset mgmt6 {\n\t\ttype ipv6_addr\n\t\tflags interval\n\t\telements = { 2001:db8::5 }\n\t}\n",
-		`ip saddr @mgmt4 accept comment "nftably:baseline management"`,
-		`ip6 saddr @mgmt6 accept comment "nftably:baseline management"`,
-		`ip saddr @block4 drop comment "nftably:baseline blacklist"`,
+		`ip saddr @mgmt4 accept comment "nftably:list mgmt"`,
+		`ip6 saddr @mgmt6 accept comment "nftably:list mgmt"`,
+		`ip saddr @badguys4 drop comment "nftably:list badguys"`,
+		// The plain list renders through the rule that uses it — both
+		// families, referencing its sets.
+		`ip saddr @office4 tcp dport 22 accept comment "nftably: ssh office"`,
+		`ip6 saddr @office6 tcp dport 22 accept comment "nftably: ssh office"`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("lists config missing %q:\n%s", want, out)
 		}
 	}
-	if strings.Contains(out, "set block6") || strings.Contains(out, "@block6") {
-		t.Error("block6 rendered with no v6 entries")
+	// A referenced list declares both family sets, even the empty one.
+	if !strings.Contains(out, "\tset office6 {\n\t\ttype ipv6_addr\n\t\tflags interval\n\t}\n") {
+		t.Errorf("office6 empty set not declared:\n%s", out)
+	}
+	// A block list with no v6 entries and no referencing rule has no v6 set.
+	if strings.Contains(out, "set badguys6") || strings.Contains(out, "@badguys6") {
+		t.Error("badguys6 rendered with no v6 entries")
 	}
 
-	// Ordering inside input: mgmt accept before block drop, block drop
+	// Ordering inside input: allow accept before block drop, block drop
 	// before the established accept (so blocking cuts live connections).
 	input := out[strings.Index(out, "chain input"):strings.Index(out, "chain forward")]
 	iMgmt := strings.Index(input, "@mgmt4 accept")
-	iBlock := strings.Index(input, "@block4 drop")
+	iBlock := strings.Index(input, "@badguys4 drop")
 	iEst := strings.Index(input, "established,related accept")
 	if iMgmt >= iBlock || iBlock >= iEst {
 		t.Errorf("list rule order wrong (mgmt=%d block=%d est=%d):\n%s", iMgmt, iBlock, iEst, input)
 	}
-	// And the forward chain carries the same list rules.
+	// And the forward chain carries the same role lines.
 	forward := out[strings.Index(out, "chain forward"):]
-	if !strings.Contains(forward, "@mgmt4 accept") || !strings.Contains(forward, "@block4 drop") {
+	if !strings.Contains(forward, "@mgmt4 accept") || !strings.Contains(forward, "@badguys4 drop") {
 		t.Errorf("forward chain missing list rules:\n%s", forward)
+	}
+
+	// A dangling source list renders nothing (lint reports it).
+	dangling := Model{Rules: []store.Rule{{Name: "ghost", Action: "accept", Proto: "tcp", DPorts: "1", SrcListID: 99, Enabled: true}}}
+	if got := Config(dangling); strings.Contains(got, "ghost") {
+		t.Errorf("dangling list reference rendered:\n%s", got)
 	}
 }
 
