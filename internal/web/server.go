@@ -53,6 +53,9 @@ type Server struct {
 	applyMu      sync.Mutex
 	pendingTimer *time.Timer
 
+	// geo caches the optional MaxMind reader for the connections view.
+	geo geoDB
+
 	// accessMu guards accessList, the parsed access whitelist cached from
 	// settings so the per-request gate never hits the database.
 	accessMu   sync.RWMutex
@@ -198,6 +201,16 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /apply/confirm", s.requireAuth(s.handleApplyConfirm))
 	s.mux.Handle("POST /apply/rollback", s.requireAuth(s.handleApplyRollback))
 
+	// M6 connections: the live conntrack view with one-click block.
+	s.mux.Handle("GET /connections", s.requireAuth(s.handleConnections))
+
+	// M6 lists: the management allow list and the blacklist, plus the
+	// one-click block endpoint the connections view posts to.
+	s.mux.Handle("GET /lists", s.requireAuth(s.handleLists))
+	s.mux.Handle("POST /lists/add", s.requireAuth(s.handleListAdd))
+	s.mux.Handle("POST /lists/{id}/delete", s.requireAuth(s.handleListDelete))
+	s.mux.Handle("POST /lists/block", s.requireAuth(s.handleQuickBlock))
+
 	// M5 rule library: curated, explained rules and one-click hardening.
 	s.mux.Handle("GET /library", s.requireAuth(s.handleLibrary))
 	s.mux.Handle("POST /library/add", s.requireAuth(s.handleLibraryAdd))
@@ -211,6 +224,7 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /settings", s.requireAuth(s.handleSettingsPage))
 	s.mux.Handle("POST /settings/identity", s.requireAuth(s.handleSettingsIdentity))
 	s.mux.Handle("POST /settings/access", s.requireAuth(s.handleSettingsAccess))
+	s.mux.Handle("POST /settings/geoip", s.requireAuth(s.handleSettingsGeoIP))
 
 	s.mux.Handle("GET /profile", s.requireAuth(s.handleProfilePage))
 	s.mux.Handle("POST /profile/identity", s.requireAuth(s.handleProfileIdentity))

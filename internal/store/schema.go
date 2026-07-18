@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS settings (
 	-- list means no restriction, so it defaults open and cannot lock out an SSH
 	-- tunnel.
 	access_whitelist TEXT NOT NULL DEFAULT '',
+	-- Optional path to a MaxMind GeoLite2/GeoIP2 Country database; empty
+	-- means the connections view shows no countries.
+	geoip_db         TEXT NOT NULL DEFAULT '',
 	created_at       TEXT NOT NULL,
 	updated_at       TEXT NOT NULL
 );
@@ -103,6 +106,22 @@ CREATE TABLE IF NOT EXISTS config_versions (
 	status     TEXT NOT NULL,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
+);
+
+-- M6 block/allow lists, rendered as named sets. list "mgmt" is the
+-- management allow list (accepted before everything, even the blacklist);
+-- list "block" is the blacklist (dropped before established, so blocking an
+-- address also cuts its live connections). cidr is stored normalized: a bare
+-- IP for single hosts, a masked prefix otherwise — exactly how nft echoes
+-- set elements back.
+CREATE TABLE IF NOT EXISTS list_entries (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	list       TEXT NOT NULL,             -- mgmt | block
+	cidr       TEXT NOT NULL,
+	note       TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	UNIQUE(list, cidr)
 );
 
 -- Advisor suggestions the operator waved away, by stable suggestion key. A

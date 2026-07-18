@@ -16,11 +16,14 @@ import (
 //
 // The baseline rules already guarantee loopback, established/related and
 // essential ICMP — so the checks here are about what a drop policy does to NEW
-// connections the operator depends on.
-func Lint(fw store.Firewall, rules []store.Rule, pfs []store.PortForward, listenAddr string) []string {
+// connections the operator depends on. A non-empty management list is treated
+// as a way in: those sources are accepted before everything, so the lockout
+// warnings stand down.
+func Lint(m Model, listenAddr string) []string {
+	fw, rules, pfs := m.FW, m.Rules, m.Forwards
 	var warns []string
 
-	if fw.InputPolicy == "drop" || fw.InputPolicy == "" {
+	if (fw.InputPolicy == "drop" || fw.InputPolicy == "") && len(m.Mgmt) == 0 {
 		if port := listenPort(listenAddr); port > 0 && !InputAccepts(rules, port) {
 			warns = append(warns, fmt.Sprintf(
 				"No rule accepts new connections to nftably's own port (tcp %d). Your current session survives on established/related, but a reconnect would be dropped — the auto-revert would save you, and then you'd add this rule anyway.", port))

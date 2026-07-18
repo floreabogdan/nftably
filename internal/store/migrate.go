@@ -13,7 +13,7 @@ import (
 //
 // nftably's database is a single file the user can snapshot and restore, so
 // migrations must be forward-only and safe to re-run.
-const schemaVersion = 2
+const schemaVersion = 3
 
 func migrate(db *sql.DB) error {
 	var version int
@@ -36,11 +36,13 @@ func migrate(db *sql.DB) error {
 	// version < 2 (M4): forwarding fields on firewall, the chain column on
 	// fw_rules. A fresh database created these via schema.go already, so each
 	// column is added only if missing.
+	// version < 3 (M6): the optional GeoIP database path on settings.
 	adds := []struct{ table, column, ddl string }{
 		{"firewall", "forward_policy", `TEXT NOT NULL DEFAULT 'drop'`},
 		{"firewall", "wan_iface", `TEXT NOT NULL DEFAULT ''`},
 		{"firewall", "masquerade", `INTEGER NOT NULL DEFAULT 0`},
 		{"fw_rules", "chain", `TEXT NOT NULL DEFAULT 'input'`},
+		{"settings", "geoip_db", `TEXT NOT NULL DEFAULT ''`},
 	}
 	for _, a := range adds {
 		if err := addColumnIfMissing(tx, a.table, a.column, a.ddl); err != nil {

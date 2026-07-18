@@ -629,6 +629,10 @@ td.num, th.num { text-align: right; }
 .chip-primary { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); border-color: color-mix(in srgb, var(--primary) 40%, transparent); color: var(--primary-deep); }
 .chip-warning { background: color-mix(in srgb, var(--warning) 12%, var(--surface)); border-color: color-mix(in srgb, var(--warning) 40%, transparent); color: var(--warning-deep); }
 
+.inline-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.inline-add input[name="cidr"] { flex: 1 1 220px; }
+.inline-add input[name="note"] { flex: 1 1 180px; }
+
 .lib-entry { border-top: 1px solid var(--border); }
 .lib-entry:first-of-type { border-top: 0; }
 .lib-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }

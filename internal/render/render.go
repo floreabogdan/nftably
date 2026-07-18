@@ -21,8 +21,22 @@ import (
 // `table inet nftably`; tables it does not own are never touched.
 const TableName = "nftably"
 
-// Config renders the full managed table: chain declarations, the always-on
-// baseline rules, then the operator's enabled rules in order.
+// Model is everything Config renders: the chain-wide settings, the ordered
+// rules, the port-forwards and the two lists.
+type Model struct {
+	FW       store.Firewall
+	Rules    []store.Rule
+	Forwards []store.PortForward
+	// Mgmt is the management allow list: sources accepted before everything,
+	// even the blacklist. Block is the blacklist: sources dropped before
+	// established/related, so a block also cuts already-open connections.
+	Mgmt  []store.ListEntry
+	Block []store.ListEntry
+}
+
+// Config renders the full managed table: named sets for the lists, chain
+// declarations, the always-on baseline rules, then the operator's enabled
+// rules in order.
 //
 // The input baseline encodes the footgun protection: loopback and
 // established/related always accepted (a policy-drop table that drops the
@@ -33,22 +47,34 @@ const TableName = "nftably"
 // only once fw.WANIface names the upstream interface. On a plain host nothing
 // changes: an unasked-for policy-drop forward chain would silently break
 // Docker/Incus/VM networking, so its absence is the feature.
-func Config(fw store.Firewall, rules []store.Rule, pfs []store.PortForward) string {
+func Config(m Model) string {
+	fw := m.FW
 	var b strings.Builder
 	fmt.Fprintf(&b, "table inet %s {\n", TableName)
+
+	mgmt4, mgmt6 := splitFamilies(m.Mgmt)
+	block4, block6 := splitFamilies(m.Block)
+	writeSet(&b, "mgmt4", "ipv4_addr", mgmt4)
+	writeSet(&b, "mgmt6", "ipv6_addr", mgmt6)
+	writeSet(&b, "block4", "ipv4_addr", block4)
+	writeSet(&b, "block6", "ipv6_addr", block6)
 
 	b.WriteString("\tchain input {\n")
 	fmt.Fprintf(&b, "\t\ttype filter hook input priority filter; policy %s;\n", policyOrDrop(fw.InputPolicy))
 
-	// Baseline: order matters — invalid is dropped before established/related
-	// is accepted, and both come before any operator rule.
+	// Baseline: order matters — invalid is dropped first; the management list
+	// is accepted before the blacklist (management wins); the blacklist is
+	// dropped before established/related, so blocking an address also cuts
+	// its connections that are already open; everything precedes operator
+	// rules.
 	b.WriteString("\t\tiif \"lo\" accept comment \"nftably:baseline loopback\"\n")
 	b.WriteString("\t\tct state invalid drop comment \"nftably:baseline invalid\"\n")
+	writeListRules(&b, mgmt4, mgmt6, block4, block6)
 	b.WriteString("\t\tct state established,related accept comment \"nftably:baseline conntrack\"\n")
 	b.WriteString("\t\ticmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, echo-request, echo-reply, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept comment \"nftably:baseline icmpv6\"\n")
 	b.WriteString("\t\ticmp type { echo-reply, destination-unreachable, echo-request, time-exceeded, parameter-problem } accept comment \"nftably:baseline icmp\"\n")
 
-	writeRules(&b, rules, "input")
+	writeRules(&b, m.Rules, "input")
 	b.WriteString("\t}\n")
 
 	if fw.WANIface != "" {
@@ -58,20 +84,23 @@ func Config(fw store.Firewall, rules []store.Rule, pfs []store.PortForward) stri
 		// post-apply diff quiet.
 		b.WriteString("\n\tchain forward {\n")
 		fmt.Fprintf(&b, "\t\ttype filter hook forward priority filter; policy %s;\n", policyOrDrop(fw.ForwardPolicy))
-		// The forward baseline mirrors the input one, plus the two lines that
-		// make a drop policy usable on a router: DNAT'ed flows (port-forwards,
-		// whether ours or e.g. Docker's) pass, and inside→outside is open. The
+		// The forward baseline mirrors the input one — the lists apply to
+		// routed traffic too (management reaches the LAN through the router,
+		// blocked sources do not) — plus the two lines that make a drop
+		// policy usable on a router: DNAT'ed flows (port-forwards, whether
+		// ours or e.g. Docker's) pass, and inside→outside is open. The
 		// lan-wan accept comes AFTER operator rules so a drop rule above it
 		// can still cut a specific LAN host or port off from the internet.
 		b.WriteString("\t\tct state invalid drop comment \"nftably:baseline invalid\"\n")
+		writeListRules(&b, mgmt4, mgmt6, block4, block6)
 		b.WriteString("\t\tct state established,related accept comment \"nftably:baseline conntrack\"\n")
 		b.WriteString("\t\tct status dnat accept comment \"nftably:baseline port-forwards\"\n")
-		writeRules(&b, rules, "forward")
+		writeRules(&b, m.Rules, "forward")
 		fmt.Fprintf(&b, "\t\tiifname != %s oifname %s accept comment \"nftably:baseline lan-wan\"\n", wan, wan)
 		b.WriteString("\t}\n")
 
 		var enabled []store.PortForward
-		for _, p := range pfs {
+		for _, p := range m.Forwards {
 			if p.Enabled {
 				enabled = append(enabled, p)
 			}
@@ -97,6 +126,80 @@ func Config(fw store.Firewall, rules []store.Rule, pfs []store.PortForward) stri
 
 	b.WriteString("}\n")
 	return b.String()
+}
+
+// splitFamilies sorts a list's entries into v4 and v6 element strings, each
+// in nft's listing order (ascending by address). Unparsable rows are skipped
+// — they cannot render into anything nft would accept.
+func splitFamilies(entries []store.ListEntry) (v4, v6 []string) {
+	type el struct {
+		addr netip.Addr
+		s    string
+	}
+	var e4, e6 []el
+	for _, e := range entries {
+		p, err := store.EntryPrefix(e.CIDR)
+		if err != nil {
+			continue
+		}
+		if p.Addr().Is4() {
+			e4 = append(e4, el{p.Addr(), e.CIDR})
+		} else {
+			e6 = append(e6, el{p.Addr(), e.CIDR})
+		}
+	}
+	for _, s := range [][]el{e4, e6} {
+		sort.Slice(s, func(i, j int) bool { return s[i].addr.Compare(s[j].addr) < 0 })
+	}
+	for _, e := range e4 {
+		v4 = append(v4, e.s)
+	}
+	for _, e := range e6 {
+		v6 = append(v6, e.s)
+	}
+	return v4, v6
+}
+
+// writeSet emits one named set followed by a blank line, in nft's canonical
+// listing format: elements two per line, continuations aligned under the
+// opening brace. Empty sets are not declared at all.
+func writeSet(b *strings.Builder, name, typ string, elements []string) {
+	if len(elements) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "\tset %s {\n", name)
+	fmt.Fprintf(b, "\t\ttype %s\n", typ)
+	b.WriteString("\t\tflags interval\n")
+	b.WriteString("\t\telements = { ")
+	for i, e := range elements {
+		if i > 0 {
+			if i%2 == 0 {
+				b.WriteString(",\n\t\t\t     ")
+			} else {
+				b.WriteString(", ")
+			}
+		}
+		b.WriteString(e)
+	}
+	b.WriteString(" }\n")
+	b.WriteString("\t}\n\n")
+}
+
+// writeListRules emits the mgmt-accept and block-drop lines for whichever
+// sets exist, in that order — management wins over the blacklist.
+func writeListRules(b *strings.Builder, mgmt4, mgmt6, block4, block6 []string) {
+	if len(mgmt4) > 0 {
+		b.WriteString("\t\tip saddr @mgmt4 accept comment \"nftably:baseline management\"\n")
+	}
+	if len(mgmt6) > 0 {
+		b.WriteString("\t\tip6 saddr @mgmt6 accept comment \"nftably:baseline management\"\n")
+	}
+	if len(block4) > 0 {
+		b.WriteString("\t\tip saddr @block4 drop comment \"nftably:baseline blacklist\"\n")
+	}
+	if len(block6) > 0 {
+		b.WriteString("\t\tip6 saddr @block6 drop comment \"nftably:baseline blacklist\"\n")
+	}
 }
 
 func policyOrDrop(p string) string {

@@ -1,0 +1,87 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Manage</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Lists</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>Block &amp; allow lists</h1>
+		<div class="page-sub">Two lists checked before everything else. Management wins over the blacklist, the blacklist wins over established connections. Changes are model-only until you <a href="/changes">apply</a>.</div>
+	</div>
+</div>
+
+{{if .Saved}}<div class="card card-success"><div class="card-body">Saved. Review and apply under <a href="/changes">Changes</a> — a new blacklist entry cuts that address's live connections when applied.</div></div>{{end}}
+{{if .Err}}<div class="card card-danger"><div class="card-body">{{.Err}}</div></div>{{end}}
+
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-shield"}}Management allow list</span>
+		<span class="text-muted">{{len .Mgmt}} entr{{if eq (len .Mgmt) 1}}y{{else}}ies{{end}}</span>
+	</div>
+	<div class="card-body">
+		<p class="text-muted">Sources here are <strong>accepted before everything</strong> — before the blacklist, before your rules, on the input chain and (when forwarding is on) through the router too. Put your management network or VPN range here and it can never be locked out, whatever the rest of the config does. While this list has entries, the lockout warnings on Changes stand down.</p>
+		<form method="post" action="/lists/add" class="inline-add">
+			<input type="hidden" name="list" value="mgmt">
+			<input type="text" name="cidr" class="mono" placeholder="10.0.0.0/24 or 2001:db8::5" autocomplete="off" required>
+			<input type="text" name="note" placeholder="note (optional)" autocomplete="off">
+			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-plus"}}Allow</button>
+		</form>
+	</div>
+	{{if .Mgmt}}
+	<div class="table-scroll">
+		<table>
+			<thead><tr><th>Address / range</th><th>Note</th><th></th></tr></thead>
+			<tbody>
+				{{range .Mgmt}}
+				<tr>
+					<td class="mono">{{.CIDR}}</td>
+					<td>{{if .Note}}{{.Note}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>
+					<td class="row-actions">
+						<form method="post" action="/lists/{{.ID}}/delete" data-confirm="Remove {{.CIDR}} from the management list?">
+							<button type="submit" class="icon-action a-danger" title="Remove" aria-label="Remove entry">{{template "icon-trash"}}</button>
+						</form>
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	</div>
+	{{end}}
+</div>
+
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-ban"}}Blacklist</span>
+		<span class="text-muted">{{len .Block}} entr{{if eq (len .Block) 1}}y{{else}}ies{{end}}</span>
+	</div>
+	<div class="card-body">
+		<p class="text-muted">Sources here are <strong>dropped before established connections are accepted</strong>, so blocking an address also cuts sessions it already has open the moment you apply. It applies to traffic to this box and, with forwarding on, to traffic routed through it. Only the management list outranks it. One-click blocking on the <a href="/connections">Connections</a> page lands entries here.</p>
+		<form method="post" action="/lists/add" class="inline-add">
+			<input type="hidden" name="list" value="block">
+			<input type="text" name="cidr" class="mono" placeholder="203.0.113.9 or 198.51.100.0/24" autocomplete="off" required>
+			<input type="text" name="note" placeholder="note (optional)" autocomplete="off">
+			<button type="submit" class="btn btn-sm btn-danger">{{template "icon-ban"}}Block</button>
+		</form>
+	</div>
+	{{if .Block}}
+	<div class="table-scroll">
+		<table data-search-target>
+			<thead><tr><th>Address / range</th><th>Note</th><th></th></tr></thead>
+			<tbody>
+				{{range .Block}}
+				<tr>
+					<td class="mono">{{.CIDR}}</td>
+					<td>{{if .Note}}{{.Note}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>
+					<td class="row-actions">
+						<form method="post" action="/lists/{{.ID}}/delete" data-confirm="Unblock {{.CIDR}}?">
+							<button type="submit" class="icon-action a-danger" title="Remove" aria-label="Remove entry">{{template "icon-trash"}}</button>
+						</form>
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	</div>
+	{{end}}
+</div>
+{{template "shell-close" .}}

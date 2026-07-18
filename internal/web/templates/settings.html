@@ -52,4 +52,19 @@
 		</form>
 	</div>
 </div>
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-activity"}}GeoIP database</span></div>
+	<div class="card-body">
+		{{if eq .Saved "geoip"}}<div class="field-hint" style="color:var(--success)">Saved.</div>{{end}}
+		<form method="post" action="/settings/geoip">
+			<div class="field">
+				<label for="geoip_db">Country database path (.mmdb)</label>
+				<input type="text" id="geoip_db" name="geoip_db" value="{{.Settings.GeoIPDB}}" class="mono" placeholder="/var/lib/GeoIP/GeoLite2-Country.mmdb" autocomplete="off">
+				<div class="field-hint text-muted">Optional. Point this at a MaxMind GeoLite2-Country (or GeoIP2) file and the <a href="/connections">Connections</a> view shows a country next to each remote address. Lookups are entirely offline; leave empty to disable.</div>
+			</div>
+			<div class="form-actions"><button type="submit" class="btn btn-primary">Save GeoIP path</button></div>
+		</form>
+	</div>
+</div>
 {{template "shell-close" .}}

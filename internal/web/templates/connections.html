@@ -1,0 +1,98 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Observe</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Connections</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>Connections</h1>
+		<div class="page-sub">The kernel's live connection table: traffic to this box, from it, and — on a router — through it. Blocking here adds the address to the <a href="/lists">blacklist</a>; nothing changes until you apply.</div>
+	</div>
+	<div class="page-header-actions">
+		<label class="check-label"><input type="checkbox" id="auto-refresh"> Auto-refresh</label>
+		<a class="btn btn-sm" href="/connections">{{template "icon-search"}}Refresh</a>
+	</div>
+</div>
+
+{{if .Saved}}<div class="card card-success"><div class="card-body">Blacklisted. The block takes effect — and cuts that address's open connections — when you <a href="/changes">apply</a>.</div></div>{{end}}
+{{if .Err}}<div class="card card-danger"><div class="card-body">{{.Err}}</div></div>{{end}}
+{{if .Note}}<div class="card card-warning"><div class="card-body">{{.Note}}</div></div>{{end}}
+
+{{if .Top}}
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-activity"}}Top remote addresses</span>
+		<span class="text-muted">{{.Total}} tracked flow{{if ne .Total 1}}s{{end}}</span>
+	</div>
+	<div class="table-scroll">
+		<table>
+			<thead><tr><th>Address</th>{{if .GeoOn}}<th>Country</th>{{end}}<th>Flows</th><th></th></tr></thead>
+			<tbody>
+				{{range .Top}}
+				<tr>
+					<td class="mono">{{.Addr}}</td>
+					{{if $.GeoOn}}<td>{{if .Country}}{{.Country}}{{if .Name}} <span class="text-muted">{{.Name}}</span>{{end}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>{{end}}
+					<td class="mono">{{.Count}}</td>
+					<td class="row-actions">
+						{{if .Blocked}}<span class="badge badge-danger">blocked</span>
+						{{else}}
+						<form method="post" action="/lists/block">
+							<input type="hidden" name="ip" value="{{.Addr}}">
+							<input type="hidden" name="back" value="/connections">
+							<button type="submit" class="btn btn-sm btn-danger">{{template "icon-ban"}}Block</button>
+						</form>
+						{{end}}
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	</div>
+</div>
+{{end}}
+
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-list"}}Flows</span>
+		<span class="text-muted">{{if lt .Shown .Total}}showing {{.Shown}} of {{.Total}}{{else}}{{.Total}} flow{{if ne .Total 1}}s{{end}}{{end}}</span>
+	</div>
+	{{if .Rows}}
+	<div class="table-scroll">
+		<table data-search-target>
+			<thead><tr><th>Dir</th><th>Proto</th><th>State</th><th>Source</th><th>Destination</th>{{if .GeoOn}}<th>Country</th>{{end}}<th></th></tr></thead>
+			<tbody>
+				{{range .Rows}}
+				<tr>
+					<td>{{if eq .Dir "in"}}<span class="badge badge-info">in</span>{{else if eq .Dir "out"}}<span class="badge">out</span>{{else}}<span class="badge badge-warning">routed</span>{{end}}</td>
+					<td class="mono">{{.Proto}}</td>
+					<td class="mono">{{if .State}}{{.State}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>
+					<td class="mono">{{.Src}}</td>
+					<td class="mono">{{.Dst}}</td>
+					{{if $.GeoOn}}<td>{{if .Country}}{{.Country}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>{{end}}
+					<td class="row-actions">
+						{{if .Blocked}}<span class="badge badge-danger">blocked</span>
+						{{else}}
+						<form method="post" action="/lists/block">
+							<input type="hidden" name="ip" value="{{.Remote}}">
+							<input type="hidden" name="back" value="/connections">
+							<button type="submit" class="icon-action a-danger" title="Block {{.Remote}}" aria-label="Block {{.Remote}}">{{template "icon-ban"}}</button>
+						</form>
+						{{end}}
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	</div>
+	{{else}}
+	<div class="card-body"><div class="empty">No tracked flows{{if .Note}} (see the note above){{end}} — a quiet box, or conntrack has nothing yet. Traffic appears here as soon as it flows.</div></div>
+	{{end}}
+</div>
+
+{{if not .GeoOn}}
+<div class="card">
+	<div class="card-body"><p class="text-muted">Want countries next to addresses? Point <a href="/settings">Settings &rarr; GeoIP database</a> at a MaxMind GeoLite2-Country <span class="mono">.mmdb</span> file (free with a MaxMind account, updated weekly). The lookup is fully offline — nftably never calls out.</p></div>
+</div>
+{{end}}
+<script src="/static/connections.js" defer></script>
+{{template "shell-close" .}}

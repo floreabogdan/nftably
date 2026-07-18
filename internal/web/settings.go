@@ -55,6 +55,19 @@ func (s *Server) handleSettingsIdentity(w http.ResponseWriter, r *http.Request) 
 	s.renderSettings(w, r, "identity", nil)
 }
 
+func (s *Server) handleSettingsGeoIP(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	if err := s.store.SaveGeoIPDB(strings.TrimSpace(r.FormValue("geoip_db"))); err != nil {
+		s.serverError(w, "save geoip db", err)
+		return
+	}
+	_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventSettings, "updated GeoIP database path")
+	s.renderSettings(w, r, "geoip", nil)
+}
+
 func (s *Server) handleSettingsAccess(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)

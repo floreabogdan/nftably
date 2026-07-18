@@ -62,28 +62,18 @@ func (s *Server) renderChangesError(w http.ResponseWriter, r *http.Request, msg 
 }
 
 func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changesVM, bool) {
-	rules, err := s.store.ListRules()
+	m, err := s.loadModel()
 	if err != nil {
-		s.serverError(w, "list rules", err)
-		return changesVM{}, false
-	}
-	fw, err := s.store.GetFirewall()
-	if err != nil {
-		s.serverError(w, "get firewall", err)
-		return changesVM{}, false
-	}
-	pfs, err := s.store.ListPortForwards()
-	if err != nil {
-		s.serverError(w, "list port forwards", err)
+		s.serverError(w, "load model", err)
 		return changesVM{}, false
 	}
 
 	vm := changesVM{
 		nav:       s.navFor(r, "changes"),
-		Candidate: nftconf.Config(fw, rules, pfs),
-		LintWarns: nftconf.Lint(fw, rules, pfs, s.listenAddr),
+		Candidate: nftconf.Config(m),
+		LintWarns: nftconf.Lint(m, s.listenAddr),
 	}
-	for _, rule := range rules {
+	for _, rule := range m.Rules {
 		if rule.Enabled {
 			vm.RuleCount++
 		}

@@ -10,11 +10,12 @@ It's a single Go binary backed by SQLite. No agent, no cloud, no external
 dependencies at runtime beyond `nft` itself. Install the package, run
 `nftably init`, and go.
 
-> **Status: M4.** nftably now does routing: name the WAN interface and it
-> renders a forward chain, NAT (masquerade) and port-forwards alongside the
-> input rules — all applied through the same atomic transaction with the armed
-> auto-revert. On a plain host nothing changes: forwarding stays entirely out
-> of the config until the WAN interface is named.
+> **Status: M6.** nftably now watches and reacts: a live connections view
+> (with optional GeoIP countries and one-click block), a blacklist that beats
+> established connections, a management allow list that can never be locked
+> out, a curated rule library with the reasoning attached, and one-click
+> hardening for the accept→drop switch — all still applied through the same
+> atomic transaction with the armed auto-revert.
 
 ---
 
@@ -40,6 +41,17 @@ on a remote router **safe to make**:
   baseline (replies, DNAT'ed flows and LAN→WAN pass; the policy decides the
   rest), masquerade is one checkbox, and port-forwards are DNAT rules that work
   under a drop policy without extra accepts.
+- **See, then act.** The Connections page shows every flow conntrack knows
+  about — to, from and through the box, with countries when you point nftably
+  at a GeoIP database — and every remote address has a Block button. Blocks
+  land on a blacklist that is checked *before* established connections, so
+  applying one also cuts sessions that are already open. Its counterpart is
+  the management allow list: sources accepted before everything, so your
+  management network can never be locked out.
+- **Explained, not just configured.** The rule library ships the common rules
+  (SSH, VPNs, web, DNS, mail, …) with the why attached — including why
+  databases are deliberately absent — and one-click hardening flips the
+  default policy to drop only after making sure a way in exists.
 
 ## Roadmap
 
@@ -50,8 +62,9 @@ on a remote router **safe to make**:
 | **M3** | Apply + commit-confirmed auto-revert + lint guardrails | ✅ |
 | — | Advisor: detect installed software & listeners, advise rules | ✅ |
 | **M4** | Forward filtering / NAT / port-forwards | ✅ |
-| **M5** | Rule library ("pick rules") + one-click hardening | ✅ this release |
-| **M6** | Live connections, top IPs, block/allow lists | in progress |
+| **M5** | Rule library ("pick rules") + one-click hardening | ✅ |
+| **M6** | Live connections + top IPs (GeoIP), blacklist / management allow list, one-click block | ✅ this release |
+| **M7** | Drop logging + viewer, rate limiting / brute-force protection, country blocking | planned |
 
 ## Quick start
 
@@ -115,9 +128,13 @@ cmd/nftably/       CLI: init · doctor · detect · server
 internal/nft/      shell out to nft (-j JSON for structure, -a text for rule wording);
                    backend detection; iptables coexistence probe + translate preview
 internal/store/    SQLite: settings, users, sessions, events, the rule model,
-                   port-forwards, config versions + the persisted pending apply
-internal/render/   model → `table inet nftably` config text (input/forward/nat
-                   chains); apply/revert transactions; lockout lint; unified diff
+                   port-forwards, block/allow lists, config versions + the
+                   persisted pending apply
+internal/render/   model → `table inet nftably` config text (sets + input/
+                   forward/nat chains); apply/revert transactions; lockout
+                   lint; unified diff
+internal/conntrack/ read the kernel's live connection table (procfs, or the
+                   conntrack tool where the kernel hides procfs)
 internal/advisor/  detect installed software + listening sockets, suggest rules
 internal/doctor/   preflight checks
 internal/web/      server-rendered UI (html/template), auth, access control
@@ -125,7 +142,9 @@ internal/web/      server-rendered UI (html/template), auth, access control
 
 The live ruleset is **always read fresh from `nft`** — never cached in the
 database. The database holds nftably's own state (login, settings, events) and
-the model: rules, forwarding settings, port-forwards, config versions.
+the model: rules, forwarding settings, port-forwards, lists, config versions.
+GeoIP lookups (optional, Settings → GeoIP) run against a local MaxMind file —
+nftably never phones anywhere.
 
 ## Development
 
