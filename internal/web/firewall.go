@@ -85,7 +85,14 @@ func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
 			vm.Preset = p.Name
 		}
 	}
-	counters := s.readCounters(r.Context(), m)
+	// Live counters come from the kernel and line up with the model by position —
+	// which only holds when the model still renders to exactly what's applied.
+	// Reading them for a model with unapplied edits (a reorder in particular)
+	// would attach the running config's counts to the wrong rows, so gate on sync.
+	var counters map[string]map[string][]nft.RuleCounter
+	if s.modelInSyncWithApplied(m) {
+		counters = s.readCounters(r.Context(), m)
+	}
 	for _, t := range m.Tables {
 		ft := fwTable{Table: t.Table}
 		tblCounters := counters[t.Family+"/"+t.Name]
@@ -126,6 +133,17 @@ func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
 		vm.Tables = append(vm.Tables, ft)
 	}
 	render(w, s.log, "firewall.html", vm)
+}
+
+// modelInSyncWithApplied reports whether the current model renders to exactly the
+// config nftably last loaded into the kernel — the condition under which the live
+// per-rule counters line up with the model by position.
+func (s *Server) modelInSyncWithApplied(m nftconf.Model) bool {
+	applied, ok, err := s.store.LatestAppliedConfig()
+	if err != nil || !ok {
+		return false
+	}
+	return applied == nftconf.Config(m)
 }
 
 // readCounters reads the live per-rule counters for every owned table, keyed by

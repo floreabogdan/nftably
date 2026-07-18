@@ -84,6 +84,23 @@ func (s *Store) ListConfigVersions(limit int) ([]ConfigVersion, error) {
 	return out, rows.Err()
 }
 
+// LatestAppliedConfig returns the config text nftably most recently loaded into
+// the kernel — the newest confirmed or pending version — and whether one exists.
+// It is how the Firewall page decides its live counters still line up with the
+// model: only when the model renders to exactly this text.
+func (s *Store) LatestAppliedConfig() (config string, ok bool, err error) {
+	row := s.db.QueryRow(`SELECT config FROM config_versions
+		WHERE status IN ('confirmed', 'pending') ORDER BY id DESC LIMIT 1`)
+	switch err := row.Scan(&config); err {
+	case nil:
+		return config, true, nil
+	case sql.ErrNoRows:
+		return "", false, nil
+	default:
+		return "", false, fmt.Errorf("store: latest applied config: %w", err)
+	}
+}
+
 // TableRef identifies one owned table.
 type TableRef struct {
 	Family string `json:"family"`
