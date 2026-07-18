@@ -24,6 +24,7 @@
 {{define "icon-down"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>{{end}}
 {{define "icon-changes"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><polyline points="8 8 4 12 8 16"/><polyline points="16 8 20 12 16 16"/></svg>{{end}}
 {{define "icon-bulb"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>{{end}}
+{{define "icon-book"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>{{end}}
 {{define "icon-route"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M5 17V9a3 3 0 0 1 3-3h6"/><polyline points="11 3 14 6 11 9"/><path d="M19 7v8a3 3 0 0 1-3 3h-6"/></svg>{{end}}
 {{define "icon-menu"}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>{{end}}
 
@@ -39,6 +40,7 @@
 		<div class="nav-label">Manage</div>
 		<a href="/rules" class="{{if eq .Active "rules"}}active{{end}}">{{template "icon-shield"}}Rules</a>
 		<a href="/forwarding" class="{{if eq .Active "forwarding"}}active{{end}}">{{template "icon-route"}}Forwarding</a>
+		<a href="/library" class="{{if eq .Active "library"}}active{{end}}">{{template "icon-book"}}Library</a>
 		<a href="/changes" class="{{if eq .Active "changes"}}active{{end}}">{{template "icon-changes"}}Changes</a>
 		<a href="/advisor" class="{{if eq .Active "advisor"}}active{{end}}">{{template "icon-bulb"}}Advisor</a>
 		<a href="/import" class="{{if eq .Active "import"}}active{{end}}">{{template "icon-import"}}Import iptables</a>

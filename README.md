@@ -49,8 +49,9 @@ on a remote router **safe to make**:
 | **M2** | Rule model → render → diff → preview (no apply) | ✅ |
 | **M3** | Apply + commit-confirmed auto-revert + lint guardrails | ✅ |
 | — | Advisor: detect installed software & listeners, advise rules | ✅ |
-| **M4** | Forward filtering / NAT / port-forwards | ✅ this release |
-| **M5** | Rule library ("pick rules") + one-click hardening | planned |
+| **M4** | Forward filtering / NAT / port-forwards | ✅ |
+| **M5** | Rule library ("pick rules") + one-click hardening | ✅ this release |
+| **M6** | Live connections, top IPs, block/allow lists | in progress |
 
 ## Quick start
 

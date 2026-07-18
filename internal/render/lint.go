@@ -21,11 +21,11 @@ func Lint(fw store.Firewall, rules []store.Rule, pfs []store.PortForward, listen
 	var warns []string
 
 	if fw.InputPolicy == "drop" || fw.InputPolicy == "" {
-		if port := listenPort(listenAddr); port > 0 && !accepts(rules, port) {
+		if port := listenPort(listenAddr); port > 0 && !InputAccepts(rules, port) {
 			warns = append(warns, fmt.Sprintf(
 				"No rule accepts new connections to nftably's own port (tcp %d). Your current session survives on established/related, but a reconnect would be dropped — the auto-revert would save you, and then you'd add this rule anyway.", port))
 		}
-		if !accepts(rules, 22) {
+		if !InputAccepts(rules, 22) {
 			warns = append(warns,
 				"No rule accepts new SSH connections (tcp 22). Existing sessions survive, new ones will be dropped. Skip this warning only if you reach the box another way.")
 		}
@@ -67,11 +67,11 @@ func enabledChainRules(rules []store.Rule, chain string) int {
 	return n
 }
 
-// accepts reports whether any enabled input-chain accept rule matches a new
-// TCP connection to port. Source or interface restrictions still count — the
+// InputAccepts reports whether any enabled input-chain accept rule matches a
+// new TCP connection to port. Source or interface restrictions still count — the
 // operator knows their management network; what matters is that some path to
 // the port exists.
-func accepts(rules []store.Rule, port int) bool {
+func InputAccepts(rules []store.Rule, port int) bool {
 	for _, r := range rules {
 		if !r.Enabled || r.Action != "accept" || (r.Chain != "" && r.Chain != "input") {
 			continue

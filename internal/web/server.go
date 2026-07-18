@@ -198,6 +198,11 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /apply/confirm", s.requireAuth(s.handleApplyConfirm))
 	s.mux.Handle("POST /apply/rollback", s.requireAuth(s.handleApplyRollback))
 
+	// M5 rule library: curated, explained rules and one-click hardening.
+	s.mux.Handle("GET /library", s.requireAuth(s.handleLibrary))
+	s.mux.Handle("POST /library/add", s.requireAuth(s.handleLibraryAdd))
+	s.mux.Handle("POST /library/harden", s.requireAuth(s.handleLibraryHarden))
+
 	// The advisor: detect what runs on the box, suggest rules for it.
 	s.mux.Handle("GET /advisor", s.requireAuth(s.handleAdvisor))
 	s.mux.Handle("POST /advisor/dismiss", s.requireAuth(s.handleAdvisorDismiss))
