@@ -126,6 +126,17 @@ typed, explained control instead of a fixed form.
 
 ### Fixed
 
+- **The Live ruleset viewer showed "expression not rendered" for every rule** on
+  real nft: the handle-text parser only recognised a table/chain opener when the
+  line ended in `{`, but nft annotates openers with `# handle N` too. It now
+  strips that before the check, so each rule's canonical wording is recovered.
+- **Live per-rule counters are shown only when the model matches what's applied**
+  — an unapplied reorder no longer misattributes the running config's counts to
+  the wrong rows.
+- **`ingress`/`egress` base chains now render their required `device`** (an
+  interface). Previously the editor offered these hooks but produced a config nft
+  rejects; they now work on a netdev-capable kernel (and the chain form asks for
+  the device only when it applies).
 - **Simulator verdicts corrected.** A negated match (`!=`) no longer wrongly fires
   on a wrong-family/protocol packet (nft negates only the value, not the implicit
   family/proto gate), and a rule in an `ip6`-only table no longer matches IPv4
