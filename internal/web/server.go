@@ -303,9 +303,9 @@ func clientAddr(r *http.Request) netip.Addr {
 
 // setSecurityHeaders hardens every response. nftably serves only its own
 // embedded assets and is never framed, so the policy can be tight: no external
-// resource loads, no framing, forms post only to nftably itself, and scripts
-// must be loaded from embedded static assets. Styles retain inline support
-// because a few compact layout values are data-driven style attributes.
+// resource loads, no framing, forms post only to nftably itself, and both styles
+// and scripts must come from embedded static assets — no inline anything. The
+// templates carry zero inline style attributes, so 'unsafe-inline' is not needed.
 func setSecurityHeaders(w http.ResponseWriter) {
 	h := w.Header()
 	h.Set("X-Frame-Options", "DENY")
@@ -317,7 +317,7 @@ func setSecurityHeaders(w http.ResponseWriter) {
 	h.Set("Content-Security-Policy",
 		"default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "+
 			"frame-ancestors 'none'; img-src 'self' data:; "+
-			"style-src 'self' 'unsafe-inline'; script-src 'self'")
+			"style-src 'self'; script-src 'self'")
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {

@@ -169,6 +169,13 @@ h1, h2, h3 { font-weight: 700; color: var(--text); margin: 0; }
 
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
+/* ---------- small utilities (kept as classes so the CSP needs no inline styles) ---------- */
+.pre-scroll { white-space: pre; overflow: auto; }
+.btn-block { width: 100%; }
+.hint-ok { color: var(--success-deep); }
+.mt-sm { margin-top: 12px; }
+.mt-md { margin-top: 16px; }
+
 /* ---------- accessibility helpers ---------- */
 /* Visible only to assistive tech (skip-link targets, live-region text). */
 .visually-hidden {

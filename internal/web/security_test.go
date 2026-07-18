@@ -55,6 +55,11 @@ func TestSecurityHeaders(t *testing.T) {
 	if strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
 		t.Errorf("CSP still permits inline scripts: %q", csp)
 	}
+	// The templates carry no inline style attributes, so the policy must not
+	// permit them either — a regression that reintroduces style="…" should fail.
+	if strings.Contains(csp, "'unsafe-inline'") {
+		t.Errorf("CSP still permits inline styles: %q", csp)
+	}
 }
 
 // Authenticated pages carry them too.

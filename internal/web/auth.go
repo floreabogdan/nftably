@@ -116,12 +116,18 @@ func clientIP(r *http.Request) string {
 // username, matters: a username lockout would let anyone lock the real admin out
 // by failing logins on purpose. An attacker only ever locks out themselves.
 type loginLimiter struct {
-	mu      sync.Mutex
-	byIP    map[string]*attemptRecord
-	max     int           // failures allowed before a lockout
-	window  time.Duration // failures older than this are forgotten
-	lockout time.Duration // how long a locked-out IP stays out
+	mu        sync.Mutex
+	byIP      map[string]*attemptRecord
+	max       int           // failures allowed before a lockout
+	window    time.Duration // failures older than this are forgotten
+	lockout   time.Duration // how long a locked-out IP stays out
+	lastPrune time.Time     // when the full expiry sweep last ran
 }
+
+// limiterSweepInterval bounds how often the O(n) expiry sweep runs. Between
+// sweeps the limiter's per-attempt cost is O(1), so a botnet cycling source
+// addresses cannot turn every login into a full-map walk.
+const limiterSweepInterval = time.Minute
 
 type attemptRecord struct {
 	count int
@@ -137,23 +143,41 @@ func newLoginLimiter() *loginLimiter {
 // addresses must not grow the map without limit.
 const maxLoginLimiterEntries = 4096
 
+// prune sweeps expired records. The sweep is O(n), so it runs at most once per
+// limiterSweepInterval; the hard entry cap is enforced separately, at insert
+// time, so memory stays bounded between sweeps too.
 func (l *loginLimiter) prune(now time.Time) {
+	if now.Sub(l.lastPrune) < limiterSweepInterval {
+		return
+	}
+	l.lastPrune = now
 	for ip, rec := range l.byIP {
 		if now.Sub(rec.first) > l.window && !now.Before(rec.until) {
 			delete(l.byIP, ip)
 		}
 	}
+}
+
+// evictIfFull makes room for a new IP when the map is at capacity — a
+// bounded-memory backstop under a source-cycling flood. It drops the first entry
+// it encounters (preferring an expired one); forgetting a single best-effort
+// lockout early is acceptable, and this stays O(1) rather than scanning for the
+// true oldest on every attempt.
+func (l *loginLimiter) evictIfFull(newIP string, now time.Time) {
 	if len(l.byIP) < maxLoginLimiterEntries {
 		return
 	}
-	var oldestIP string
-	var oldest time.Time
-	for ip, rec := range l.byIP {
-		if oldestIP == "" || rec.first.Before(oldest) {
-			oldestIP, oldest = ip, rec.first
-		}
+	if _, exists := l.byIP[newIP]; exists {
+		return // replacing an existing key — no growth
 	}
-	delete(l.byIP, oldestIP)
+	for ip, rec := range l.byIP {
+		if now.Sub(rec.first) > l.window && !now.Before(rec.until) {
+			delete(l.byIP, ip) // an expired entry: the ideal victim
+			return
+		}
+		delete(l.byIP, ip) // otherwise drop the first arbitrary entry
+		return
+	}
 }
 
 // blocked reports whether this IP is currently locked out.
@@ -173,6 +197,7 @@ func (l *loginLimiter) fail(ip string) {
 	l.prune(now)
 	rec := l.byIP[ip]
 	if rec == nil || now.Sub(rec.first) > l.window {
+		l.evictIfFull(ip, now)
 		rec = &attemptRecord{first: now}
 		l.byIP[ip] = rec
 	}

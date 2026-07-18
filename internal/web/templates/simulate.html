@@ -88,7 +88,7 @@
 			</div>
 		</div>
 		{{if .Trace.Uncertain}}
-		<div class="lint-warn" style="margin-top:12px">{{template "icon-alert"}} One or more rules use a condition the simulator can't evaluate (marks, tcp flags, icmp types…). If such a rule could have matched first, the real verdict may differ — the uncertain rules are marked below.</div>
+		<div class="lint-warn mt-sm">{{template "icon-alert"}} One or more rules use a condition the simulator can't evaluate (marks, tcp flags, icmp types…). If such a rule could have matched first, the real verdict may differ — the uncertain rules are marked below.</div>
 		{{end}}
 	</div>
 </div>

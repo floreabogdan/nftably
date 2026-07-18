@@ -77,6 +77,13 @@ typed, explained control instead of a fixed form.
 - **The apply's kernel operations run on a background context**, so an apply that
   cuts off your own connection can't cancel the `nft` transaction mid-flight.
 - **Lockout lint covers `output` and `forward` chains**, not just `input`.
+- **Tighter Content-Security-Policy.** The templates now carry no inline style
+  attributes, so `style-src` drops `'unsafe-inline'` — inline styles are blocked
+  as strictly as inline scripts already were (asserted by a test).
+- **The login limiter's hot path is O(1).** The expiry sweep runs at most once a
+  minute and the entry cap is enforced by an O(1) eviction on insert, so a botnet
+  cycling source addresses can no longer turn every login attempt into a full-map
+  walk.
 
 ### Fixed
 

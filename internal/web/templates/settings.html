@@ -56,8 +56,8 @@
 <div class="card">
 	<div class="card-header"><span class="card-title">{{template "icon-activity"}}GeoIP database</span></div>
 	<div class="card-body">
-		{{if eq .Saved "geoip"}}<div class="field-hint" style="color:var(--success)">Saved.</div>{{end}}
-		{{if eq .Saved "geoip-download"}}<div class="field-hint" style="color:var(--success)">Downloaded and enabled. The <a href="/connections">Connections</a> view now shows countries.</div>{{end}}
+		{{if eq .Saved "geoip"}}<div class="field-hint hint-ok">Saved.</div>{{end}}
+		{{if eq .Saved "geoip-download"}}<div class="field-hint hint-ok">Downloaded and enabled. The <a href="/connections">Connections</a> view now shows countries.</div>{{end}}
 		{{if .GeoIPErr}}<div class="field-error">{{.GeoIPErr}}</div>{{end}}
 
 		<p class="field-hint text-muted">A country database lets the <a href="/connections">Connections</a> view show a flag and
@@ -78,9 +78,9 @@
 			</div>
 		</div>
 
-		<form method="post" action="/settings/geoip" style="margin-top:16px">
+		<form method="post" action="/settings/geoip" class="mt-md">
 			<label class="check-label"><input type="checkbox" name="geoip_autoupdate"{{if .Settings.GeoIPAutoUpdate}} checked{{end}}> Keep the downloaded database updated automatically (checks at startup, refreshes when it's over a month old)</label>
-			<div class="field" style="margin-top:12px">
+			<div class="field mt-sm">
 				<label for="geoip_db">Or point at your own database (.mmdb)</label>
 				<input type="text" id="geoip_db" name="geoip_db" value="{{.Settings.GeoIPDB}}" class="mono" placeholder="/var/lib/GeoIP/GeoLite2-Country.mmdb" autocomplete="off">
 				<div class="field-hint text-muted">For a MaxMind GeoLite2/GeoIP2 file you already have. Leave empty to disable countries. (The download above fills this in for you.)</div>
