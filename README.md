@@ -54,6 +54,11 @@ make** and **easy to get right**:
   window, the previous ruleset is restored, even if your SSH session drops, and even
   if nftably itself is restarted mid-window (the revert snapshot is persisted). A
   lint pass warns before an apply that would leave no way back in.
+- **Know before you apply.** A built-in **packet simulator**: describe a packet —
+  protocol, source, port, interface, connection state — and get a step-by-step
+  trace of exactly which rule decides it, ending in accept, drop or reject. It
+  evaluates your model the way netfilter would, touching nothing, so you can answer
+  *"will my SSH still get in?"* before you commit.
 - **Named sets.** A named set is a group of IPs/ranges. Point rules at one
   (`ip saddr @office`) and edit the set later — every rule that references it
   follows. Referenced sets are rendered into the tables that use them automatically.
@@ -62,7 +67,14 @@ make** and **easy to get right**:
   rules and editable named sets for you, each explaining what it adds and why.
 - **See, then act.** The Connections page shows every flow conntrack knows about —
   to, from and through the box, with countries when you point nftably at a GeoIP
-  database. The live ruleset viewer shows exactly what the kernel is running.
+  database. The live ruleset viewer shows exactly what the kernel is running, and a
+  rule with a *Count* action shows its live packet/byte total right on the Firewall
+  page — build a rule, apply it, and watch it catch traffic.
+- **An advisor that's grounded, not generic.** It scans what's actually listening
+  on the box and runs each service through the simulator against your model, telling
+  you what your firewall really does about it — *"PostgreSQL is reachable from the
+  internet"* or *"sshd is listening but a connection from outside would be dropped"* —
+  each with a one-click fix and a link to the full trace.
 
 ## The BGP edge router preset
 
@@ -131,8 +143,9 @@ you about this until you narrow it. Ways to close it down:
 
 The blocked-client path closes the TCP connection outright, so a scanner can't even
 tell there's a service on the port. Every response carries hardening headers (a strict
-CSP with no inline scripts, no framing, no cross-origin reads), cross-origin POSTs are
-rejected server-side, failed logins are rate-limited per IP, and operator actions are
+CSP with no inline scripts or styles, no framing, no cross-origin reads), cross-origin
+POSTs are rejected server-side, session tokens are stored only as hashes, failed logins
+are rate-limited per IP, and operator actions are
 recorded on the event timeline.
 
 Found a vulnerability? See [SECURITY.md](SECURITY.md).
@@ -150,6 +163,10 @@ internal/nftcat/   the knob catalogue: every match and statement as an explained
                    typed spec — the single source both the editor and renderer use
 internal/render/   model → nft config text (generic over tables/chains/rules/sets);
                    multi-table apply/revert transactions; lockout lint; unified diff
+internal/simulate/ trace a packet through the model (accept/drop/reject) — powers
+                   the simulator page and the advisor's verdicts; pure Go, no kernel
+internal/advisor/  scan the box's listeners, run each through the simulator, and
+                   report what the firewall actually does about each exposure
 internal/conntrack/ read the kernel's live connection table
 internal/web/      server-rendered UI (html/template), auth, access control, presets
 ```
