@@ -6,7 +6,7 @@
 <div class="page-header">
 	<div>
 		<h1>Address lists</h1>
-		<div class="page-sub">Named groups of IPs and ranges, rendered as nftables sets. A rule can point at a set as its source or destination so you edit the addresses in one place. Create as many as you need. <span class="text-muted">(Referencing sets from the new rule editor lands next.)</span></div>
+		<div class="page-sub">Named groups of IPs and ranges, rendered as nftables sets. A rule can point at a set as its source or destination so you edit the addresses in one place. Fill a set by hand, or have it built from <strong>a country</strong> (GeoIP) or a <strong>remote feed</strong> and kept refreshed.</div>
 	</div>
 </div>
 
@@ -16,15 +16,48 @@
 <div class="card">
 	<div class="card-header"><span class="card-title">{{template "icon-plus"}}New list</span></div>
 	<div class="card-body">
-		<form method="post" action="/lists/create" class="inline-add">
-			<input type="text" name="name" class="mono" placeholder="office, cameras, partners…" autocomplete="off" required>
-			<select name="role">
-				<option value="">address group — rules use it as a source</option>
-				<option value="allow">always allow — accepted before everything</option>
-				<option value="block">always block — dropped, cuts live connections</option>
-			</select>
-			<input type="text" name="note" placeholder="note (optional)" autocomplete="off">
-			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-plus"}}Create</button>
+		<form method="post" action="/lists/create">
+			<div class="field-row">
+				<div class="field">
+					<label for="l-name">Name</label>
+					<input id="l-name" type="text" name="name" class="mono" placeholder="office, partners…" autocomplete="off" required>
+				</div>
+				<div class="field">
+					<label for="l-role">Behaviour</label>
+					<select id="l-role" name="role">
+						<option value="">address group — rules use it as a source</option>
+						<option value="allow">always allow — accepted before everything</option>
+						<option value="block">always block — dropped, cuts live connections</option>
+					</select>
+				</div>
+				<div class="field">
+					<label for="l-source">Addresses come from</label>
+					<select id="l-source" name="source" data-source-select>
+						<option value="manual">Manual — you add them</option>
+						<option value="geoip">A country (GeoIP)</option>
+						<option value="url">A remote feed (URL)</option>
+					</select>
+				</div>
+			</div>
+			<div class="field source-field" data-source-field="geoip" hidden>
+				<label for="l-country">Country code</label>
+				<input id="l-country" type="text" name="country" class="mono" placeholder="DE" list="country-codes" maxlength="2" autocomplete="off">
+				<div class="field-hint">2-letter ISO code (DE, CN, US, RU…). Builds the set from a <a href="/settings">GeoIP database</a> — configure one first.</div>
+				<datalist id="country-codes"><option value="US"><option value="CN"><option value="RU"><option value="DE"><option value="GB"><option value="FR"><option value="NL"><option value="BR"><option value="IN"><option value="JP"></datalist>
+			</div>
+			<div class="field source-field" data-source-field="url" hidden>
+				<label for="l-url">Feed URL</label>
+				<input id="l-url" type="text" name="feed_url" class="mono" placeholder="https://example.com/blocklist.txt" autocomplete="off">
+				<div class="field-hint">A text feed of IPs/CIDRs, one per line (<span class="mono">#</span>/<span class="mono">;</span> comments tolerated).</div>
+			</div>
+			<div class="field-row">
+				<div class="field">
+					<label for="l-note">Note <span class="text-muted">(optional)</span></label>
+					<input id="l-note" type="text" name="note" placeholder="what this list is for" autocomplete="off">
+				</div>
+				<label class="check source-field" data-source-field="geoip url" hidden><input type="checkbox" name="auto_refresh"> Keep it refreshed automatically</label>
+			</div>
+			<div class="form-actions"><button type="submit" class="btn btn-primary">{{template "icon-plus"}}Create list</button></div>
 		</form>
 		<div class="field-hint text-muted">The name becomes the nft set name (<span class="mono">@name4</span> / <span class="mono">@name6</span>) — lowercase letters, digits, underscore. Order of behaviour: <strong>allow lists beat block lists</strong>, and block lists beat established connections.</div>
 	</div>
@@ -45,7 +78,9 @@
 						{{else if eq .Role "block"}}<span class="badge badge-danger">always block</span>
 						{{else}}<span class="badge">address group</span>{{end}}
 					</td>
-					<td class="mono">{{.Entries}}{{if .FirstCIDR}} <span class="text-muted">({{.FirstCIDR}}{{if gt .Entries 1}}, &hellip;{{end}})</span>{{end}}</td>
+					<td class="mono">{{.Entries}}{{if .FirstCIDR}} <span class="text-muted">({{.FirstCIDR}}{{if gt .Entries 1}}, &hellip;{{end}})</span>{{end}}
+						{{if eq .Source "geoip"}}<span class="badge badge-info" title="Populated from GeoIP: {{.SourceArg}}">GeoIP {{.SourceArg}}</span>{{else if eq .Source "url"}}<span class="badge badge-info" title="Fetched from {{.SourceArg}}">feed</span>{{end}}
+					</td>
 					<td class="mono">{{if .UsedBy}}{{.UsedBy}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>
 					<td>{{if .Note}}{{.Note}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>
 					<td class="row-actions">

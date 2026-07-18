@@ -126,6 +126,15 @@ CREATE TABLE IF NOT EXISTS ip_lists (
 	role       TEXT NOT NULL DEFAULT '',  -- '' | allow | block
 	note       TEXT NOT NULL DEFAULT '',
 	position   INTEGER NOT NULL,
+	-- Where the entries come from: 'manual' (hand-edited), 'geoip' (a country's
+	-- CIDRs from the GeoIP database, source_arg = ISO code) or 'url' (fetched from
+	-- a remote feed, source_arg = the URL). Sourced lists are refreshed, not
+	-- hand-edited. auto_refresh opts into the periodic background refresh.
+	source       TEXT NOT NULL DEFAULT 'manual',
+	source_arg   TEXT NOT NULL DEFAULT '',
+	auto_refresh INTEGER NOT NULL DEFAULT 0,
+	last_refresh TEXT NOT NULL DEFAULT '',  -- RFC3339 of the last successful refresh
+	refresh_note TEXT NOT NULL DEFAULT '',  -- last refresh result or error, for the UI
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 );

@@ -52,6 +52,24 @@
 	});
 })();
 
+// Source-specific fields: a [data-source-select] shows only the
+// [data-source-field] groups whose space-separated value list includes the
+// selected option (e.g. the country field for "geoip", the URL field for "url").
+(function () {
+	function sync(sel) {
+		var val = sel.value;
+		var scope = sel.closest("form") || document;
+		scope.querySelectorAll("[data-source-field]").forEach(function (el) {
+			el.hidden = el.getAttribute("data-source-field").split(" ").indexOf(val) === -1;
+		});
+	}
+	document.addEventListener("change", function (e) {
+		if (e.target.matches && e.target.matches("[data-source-select]")) sync(e.target);
+	});
+	// Run once now (this script is deferred, so the DOM is ready).
+	document.querySelectorAll("[data-source-select]").forEach(sync);
+})();
+
 // Delegated modal open/close: [data-modal-open="id"] opens that modal;
 // [data-modal-close], a click on the backdrop, or Escape closes the open one.
 (function () {

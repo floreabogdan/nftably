@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/floreabogdan/nftably/internal/store"
 )
@@ -70,9 +72,12 @@ func (s *Server) handleListCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	l := store.IPList{
-		Name: strings.TrimSpace(r.FormValue("name")),
-		Role: r.FormValue("role"),
-		Note: strings.TrimSpace(r.FormValue("note")),
+		Name:        strings.TrimSpace(r.FormValue("name")),
+		Role:        r.FormValue("role"),
+		Note:        strings.TrimSpace(r.FormValue("note")),
+		Source:      r.FormValue("source"),
+		SourceArg:   sourceArgFromForm(r),
+		AutoRefresh: r.FormValue("auto_refresh") == "on",
 	}
 	id, err := s.store.CreateList(l)
 	if err != nil {
@@ -80,17 +85,74 @@ func (s *Server) handleListCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, fmt.Sprintf("created list %q (%s)", l.Name, roleLabel(l.Role)))
+	// A sourced list is empty until its first refresh — do it now so the operator
+	// lands on a populated page (or a clear error).
+	if l.Source == store.SourceGeoIP || l.Source == store.SourceURL {
+		s.doRefresh(r.Context(), id)
+	}
 	http.Redirect(w, r, "/lists/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+}
+
+// sourceArgFromForm reads the source argument for the chosen source: the country
+// code for GeoIP, the URL for a feed, nothing for a manual list.
+func sourceArgFromForm(r *http.Request) string {
+	switch r.FormValue("source") {
+	case store.SourceGeoIP:
+		return strings.TrimSpace(r.FormValue("country"))
+	case store.SourceURL:
+		return strings.TrimSpace(r.FormValue("feed_url"))
+	}
+	return ""
+}
+
+// doRefresh regenerates a sourced list's entries and records the result. Safe to
+// call on any list; a manual list simply gets an error note.
+func (s *Server) doRefresh(ctx context.Context, listID int64) {
+	l, err := s.store.GetList(listID)
+	if err != nil {
+		return
+	}
+	n, err := s.refreshList(ctx, l)
+	if err != nil {
+		_ = s.store.SetListRefreshNote(listID, "refresh failed: "+err.Error())
+		return
+	}
+	_ = s.store.SetListRefreshed(listID, refreshNote(n))
+}
+
+// handleListRefresh regenerates a sourced list's entries on demand.
+func (s *Server) handleListRefresh(w http.ResponseWriter, r *http.Request) {
+	l, ok := s.listFromPath(w, r)
+	if !ok {
+		return
+	}
+	back := fmt.Sprintf("/lists/%d", l.ID)
+	if !l.IsSourced() {
+		redirectMsg(w, r, back, "err", "This list is hand-edited — there's no source to refresh.")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+	defer cancel()
+	n, err := s.refreshList(ctx, l)
+	if err != nil {
+		_ = s.store.SetListRefreshNote(l.ID, "refresh failed: "+err.Error())
+		redirectMsg(w, r, back, "err", "Refresh failed: "+err.Error())
+		return
+	}
+	_ = s.store.SetListRefreshed(l.ID, refreshNote(n))
+	s.audit(r, fmt.Sprintf("refreshed list %q (%d entries)", l.Name, n))
+	redirectMsg(w, r, back, "saved", "1")
 }
 
 // listDetailVM is one list's page: entries, and the rules sourcing from it.
 type listDetailVM struct {
 	nav
-	List    store.IPList
-	Entries []store.ListEntry
-	Rules   []store.Rule
-	Saved   bool
-	Err     string
+	List        store.IPList
+	Entries     []store.ListEntry
+	Rules       []store.Rule
+	LastRefresh time.Time // parsed List.LastRefresh, zero if never
+	Saved       bool
+	Err         string
 }
 
 func (s *Server) handleListDetail(w http.ResponseWriter, r *http.Request) {
@@ -108,13 +170,18 @@ func (s *Server) handleListDetail(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, "rules using list", err)
 		return
 	}
+	var lastRefresh time.Time
+	if l.LastRefresh != "" {
+		lastRefresh, _ = time.Parse(time.RFC3339Nano, l.LastRefresh)
+	}
 	render(w, s.log, "list_detail.html", listDetailVM{
-		nav:     s.navFor(r, "lists"),
-		List:    l,
-		Entries: entries,
-		Rules:   rules,
-		Saved:   r.URL.Query().Get("saved") == "1",
-		Err:     r.URL.Query().Get("err"),
+		nav:         s.navFor(r, "lists"),
+		List:        l,
+		Entries:     entries,
+		Rules:       rules,
+		LastRefresh: lastRefresh,
+		Saved:       r.URL.Query().Get("saved") == "1",
+		Err:         r.URL.Query().Get("err"),
 	})
 }
 
@@ -131,6 +198,9 @@ func (s *Server) handleListUpdate(w http.ResponseWriter, r *http.Request) {
 	l.Name = strings.TrimSpace(r.FormValue("name"))
 	l.Role = r.FormValue("role")
 	l.Note = strings.TrimSpace(r.FormValue("note"))
+	l.Source = r.FormValue("source")
+	l.SourceArg = sourceArgFromForm(r)
+	l.AutoRefresh = r.FormValue("auto_refresh") == "on"
 	if err := s.store.UpdateList(l); err != nil {
 		redirectMsg(w, r, back, "err", err.Error())
 		return
@@ -162,6 +232,10 @@ func (s *Server) handleListEntryAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	back := fmt.Sprintf("/lists/%d", l.ID)
+	if l.IsSourced() {
+		redirectMsg(w, r, back, "err", "This list's addresses come from its source — refresh it instead of editing by hand.")
+		return
+	}
 	cidr := r.FormValue("cidr")
 	if l.Role == store.RoleBlock {
 		if msg := s.refuseSelfBlock(r, cidr); msg != "" {

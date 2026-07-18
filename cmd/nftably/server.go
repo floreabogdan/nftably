@@ -93,6 +93,10 @@ Fix it with:
 	// database in the background. Does nothing unless they turned it on.
 	srv.RefreshGeoIPIfStale()
 
+	// Keep GeoIP/feed-sourced named sets that opted into auto-refresh up to date:
+	// once at startup, then periodically. Does nothing without such a list.
+	srv.StartListRefresh()
+
 	// Said once, at startup: nftably binds every interface by default, so an
 	// allow-all access list means anyone who finds the port reaches the login —
 	// and without TLS, the login crosses the network in the clear.

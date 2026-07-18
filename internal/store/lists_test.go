@@ -160,3 +160,53 @@ func TestListEntriesCRUDAndOverlap(t *testing.T) {
 		t.Fatalf("mgmt entries: %+v", mgmtEntries)
 	}
 }
+
+func TestDedupePrefixes(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"exact duplicate", []string{"10.0.0.0/8", "10.0.0.0/8"}, []string{"10.0.0.0/8"}},
+		{"containment drops child", []string{"10.0.0.0/8", "10.5.0.0/16"}, []string{"10.0.0.0/8"}},
+		{"disjoint siblings kept", []string{"10.128.0.0/9", "10.0.0.0/9"}, []string{"10.0.0.0/9", "10.128.0.0/9"}},
+		{"single host to bare", []string{"1.2.3.4/32"}, []string{"1.2.3.4"}},
+		{"invalid skipped", []string{"nonsense", "1.1.1.0/24"}, []string{"1.1.1.0/24"}},
+		{"v4 and v6 both kept", []string{"2001:db8::/32", "10.0.0.0/8"}, []string{"10.0.0.0/8", "2001:db8::/32"}},
+		{"nested three levels", []string{"10.0.0.0/24", "10.0.0.0/8", "10.0.0.0/16"}, []string{"10.0.0.0/8"}},
+	}
+	for _, c := range cases {
+		got := dedupePrefixes(c.in)
+		if len(got) != len(c.want) {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+				break
+			}
+		}
+	}
+}
+
+func TestReplaceListEntries(t *testing.T) {
+	s := testStore(t)
+	id, err := s.CreateList(IPList{Name: "feedset", Source: SourceURL, SourceArg: "https://example.com/f.txt"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	n, err := s.ReplaceListEntries(id, []string{"1.1.1.0/24", "2.2.2.2", "1.1.1.0/24"}) // one dup
+	if err != nil || n != 2 {
+		t.Fatalf("first replace: n=%d err=%v", n, err)
+	}
+	// A second replace fully supersedes the first.
+	n, err = s.ReplaceListEntries(id, []string{"9.9.9.0/24"})
+	if err != nil || n != 1 {
+		t.Fatalf("second replace: n=%d err=%v", n, err)
+	}
+	entries, _ := s.ListEntries(id)
+	if len(entries) != 1 || entries[0].CIDR != "9.9.9.0/24" {
+		t.Fatalf("entries after replace = %+v", entries)
+	}
+}

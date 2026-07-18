@@ -196,6 +196,14 @@ h1, h2, h3 { font-weight: 700; color: var(--text); margin: 0; }
 }
 .skip-link:focus { top: 8px; text-decoration: none; }
 
+/* Guarantee [hidden] wins over any element's own display (source-specific
+   fields on the lists form are toggled by the hidden attribute). */
+[hidden] { display: none !important; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
+.source-field { margin-top: 4px; }
+.source-panel { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.source-desc { font-size: 0.8125rem; }
+
 /* ---------- advisor findings ---------- */
 .finding { border-left: 3px solid var(--border); padding: 10px 0 10px 14px; border-top: 1px solid var(--border); }
 .finding:first-child { border-top: none; }

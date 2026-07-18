@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/netip"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -18,6 +19,14 @@ const (
 	RoleBlock = "block" // dropped before established — blacklists
 )
 
+// List sources. A manual list is hand-edited; a sourced list's entries are
+// (re)generated from an external source and are read-only in the UI.
+const (
+	SourceManual = "manual" // hand-edited entries
+	SourceGeoIP  = "geoip"  // a country's CIDRs; SourceArg is the ISO 3166 code
+	SourceURL    = "url"    // a remote feed of CIDRs; SourceArg is the URL
+)
+
 // IPList is one named address list. Name doubles as the nft set name
 // (<name>4 / <name>6 in the rendered config), so it is set-safe.
 type IPList struct {
@@ -26,7 +35,19 @@ type IPList struct {
 	Role     string
 	Note     string
 	Position int
+	// Source and its argument: how the entries are populated. SourceManual (the
+	// default) means the operator edits them; SourceGeoIP/SourceURL means they are
+	// refreshed from SourceArg (a country ISO code, or a feed URL).
+	Source      string
+	SourceArg   string
+	AutoRefresh bool
+	LastRefresh string // RFC3339 of the last successful refresh, "" if never
+	RefreshNote string // last refresh result or error, for the UI
 }
+
+// IsSourced reports whether this list's entries come from an external source
+// (and so are refreshed, not hand-edited).
+func (l IPList) IsSourced() bool { return l.Source == SourceGeoIP || l.Source == SourceURL }
 
 // ListEntry is one address or range on a list.
 type ListEntry struct {
@@ -47,15 +68,39 @@ var ErrOverlap = errors.New("overlaps an existing entry")
 var listNameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,23}$`)
 
 var listRoles = map[string]bool{RoleNone: true, RoleAllow: true, RoleBlock: true}
+var listSources = map[string]bool{SourceManual: true, SourceGeoIP: true, SourceURL: true}
+
+// isoCountryRe is a 2-letter country code (the GeoIP source argument).
+var isoCountryRe = regexp.MustCompile(`^[A-Za-z]{2}$`)
 
 func validateList(l *IPList) error {
 	l.Name = strings.TrimSpace(l.Name)
 	l.Note = strings.TrimSpace(l.Note)
+	l.SourceArg = strings.TrimSpace(l.SourceArg)
+	if l.Source == "" {
+		l.Source = SourceManual
+	}
 	if !listNameRe.MatchString(l.Name) {
 		return fmt.Errorf("list name %q must be lowercase letters, digits or _ (max 24, starting with a letter) — it becomes the nft set name", l.Name)
 	}
 	if !listRoles[l.Role] {
 		return fmt.Errorf("role %q is not one of allow, block, or empty", l.Role)
+	}
+	if !listSources[l.Source] {
+		return fmt.Errorf("source %q is not one of manual, geoip, or url", l.Source)
+	}
+	switch l.Source {
+	case SourceGeoIP:
+		if !isoCountryRe.MatchString(l.SourceArg) {
+			return errors.New("a GeoIP list needs a 2-letter country code (e.g. DE, CN, US)")
+		}
+		l.SourceArg = strings.ToUpper(l.SourceArg)
+	case SourceURL:
+		if !strings.HasPrefix(l.SourceArg, "https://") && !strings.HasPrefix(l.SourceArg, "http://") {
+			return errors.New("a feed list needs an http(s):// URL to fetch the addresses from")
+		}
+	default:
+		l.SourceArg, l.AutoRefresh = "", false // manual lists carry no source
 	}
 	if len(l.Note) > 200 {
 		return errors.New("note must be 200 characters or fewer")
@@ -70,9 +115,9 @@ func (s *Store) CreateList(l IPList) (int64, error) {
 	}
 	ts := now()
 	res, err := s.db.Exec(`
-		INSERT INTO ip_lists (name, role, note, position, created_at, updated_at)
-		VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM ip_lists), ?, ?)`,
-		l.Name, l.Role, l.Note, ts, ts)
+		INSERT INTO ip_lists (name, role, note, source, source_arg, auto_refresh, position, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM ip_lists), ?, ?)`,
+		l.Name, l.Role, l.Note, l.Source, l.SourceArg, l.AutoRefresh, ts, ts)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return 0, fmt.Errorf("a list named %q already exists", l.Name)
@@ -87,8 +132,8 @@ func (s *Store) UpdateList(l IPList) error {
 	if err := validateList(&l); err != nil {
 		return err
 	}
-	res, err := s.db.Exec(`UPDATE ip_lists SET name = ?, role = ?, note = ?, updated_at = ? WHERE id = ?`,
-		l.Name, l.Role, l.Note, now(), l.ID)
+	res, err := s.db.Exec(`UPDATE ip_lists SET name = ?, role = ?, note = ?, source = ?, source_arg = ?, auto_refresh = ?, updated_at = ? WHERE id = ?`,
+		l.Name, l.Role, l.Note, l.Source, l.SourceArg, l.AutoRefresh, now(), l.ID)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return fmt.Errorf("a list named %q already exists", l.Name)
@@ -98,17 +143,26 @@ func (s *Store) UpdateList(l IPList) error {
 	return notFoundIfZero(res)
 }
 
+// listColumns is the full column list for a list row, in scanList order.
+const listColumns = `id, name, role, note, position, source, source_arg, auto_refresh, last_refresh, refresh_note`
+
+func scanList(sc interface{ Scan(...any) error }) (IPList, error) {
+	var l IPList
+	err := sc.Scan(&l.ID, &l.Name, &l.Role, &l.Note, &l.Position, &l.Source, &l.SourceArg, &l.AutoRefresh, &l.LastRefresh, &l.RefreshNote)
+	return l, err
+}
+
 // ListLists returns every list in order.
 func (s *Store) ListLists() ([]IPList, error) {
-	rows, err := s.db.Query(`SELECT id, name, role, note, position FROM ip_lists ORDER BY position, id`)
+	rows, err := s.db.Query(`SELECT ` + listColumns + ` FROM ip_lists ORDER BY position, id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list lists: %w", err)
 	}
 	defer rows.Close()
 	var out []IPList
 	for rows.Next() {
-		var l IPList
-		if err := rows.Scan(&l.ID, &l.Name, &l.Role, &l.Note, &l.Position); err != nil {
+		l, err := scanList(rows)
+		if err != nil {
 			return nil, fmt.Errorf("store: scan list: %w", err)
 		}
 		out = append(out, l)
@@ -118,9 +172,7 @@ func (s *Store) ListLists() ([]IPList, error) {
 
 // GetList returns one list, or ErrNotFound.
 func (s *Store) GetList(id int64) (IPList, error) {
-	var l IPList
-	err := s.db.QueryRow(`SELECT id, name, role, note, position FROM ip_lists WHERE id = ?`, id).
-		Scan(&l.ID, &l.Name, &l.Role, &l.Note, &l.Position)
+	l, err := scanList(s.db.QueryRow(`SELECT `+listColumns+` FROM ip_lists WHERE id = ?`, id))
 	if err == sql.ErrNoRows {
 		return IPList{}, ErrNotFound
 	}
@@ -132,9 +184,7 @@ func (s *Store) GetList(id int64) (IPList, error) {
 
 // GetListByName returns the first list with name, or ErrNotFound.
 func (s *Store) GetListByName(name string) (IPList, error) {
-	var l IPList
-	err := s.db.QueryRow(`SELECT id, name, role, note, position FROM ip_lists WHERE name = ?`, name).
-		Scan(&l.ID, &l.Name, &l.Role, &l.Note, &l.Position)
+	l, err := scanList(s.db.QueryRow(`SELECT `+listColumns+` FROM ip_lists WHERE name = ?`, name))
 	if err == sql.ErrNoRows {
 		return IPList{}, ErrNotFound
 	}
@@ -297,6 +347,117 @@ func (s *Store) AddListEntry(listID int64, cidr, note string) error {
 		return fmt.Errorf("store: add list entry: %w", err)
 	}
 	return nil
+}
+
+// ReplaceListEntries replaces all of a list's entries with cidrs, in one
+// transaction — the write path a GeoIP/feed refresh uses. The input is
+// normalized and de-overlapped (masked CIDRs are always disjoint or nested, so
+// dropping any prefix contained in a kept one yields a set nft accepts).
+// Returns the number of entries written.
+func (s *Store) ReplaceListEntries(listID int64, cidrs []string) (int, error) {
+	entries := dedupePrefixes(cidrs)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM list_entries WHERE list_id = ?`, listID); err != nil {
+		return 0, fmt.Errorf("store: clear list entries: %w", err)
+	}
+	stmt, err := tx.Prepare(`INSERT INTO list_entries (list, list_id, cidr, note, created_at, updated_at) VALUES (?, ?, ?, '', ?, ?)`)
+	if err != nil {
+		return 0, err
+	}
+	defer stmt.Close()
+	ts := now()
+	listCol := strconv.FormatInt(listID, 10)
+	for _, e := range entries {
+		if _, err := stmt.Exec(listCol, listID, e, ts, ts); err != nil {
+			return 0, fmt.Errorf("store: insert list entry: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return len(entries), nil
+}
+
+// SetListRefreshed records the outcome of a refresh: the time and a note (an
+// entry count on success, or an error message).
+func (s *Store) SetListRefreshed(listID int64, note string) error {
+	_, err := s.db.Exec(`UPDATE ip_lists SET last_refresh = ?, refresh_note = ?, updated_at = ? WHERE id = ?`,
+		now(), note, now(), listID)
+	if err != nil {
+		return fmt.Errorf("store: set list refreshed: %w", err)
+	}
+	return nil
+}
+
+// SetListRefreshNote records a refresh outcome without stamping a success time —
+// used when a refresh failed, so "last successful refresh" stays honest.
+func (s *Store) SetListRefreshNote(listID int64, note string) error {
+	_, err := s.db.Exec(`UPDATE ip_lists SET refresh_note = ?, updated_at = ? WHERE id = ?`, note, now(), listID)
+	if err != nil {
+		return fmt.Errorf("store: set list refresh note: %w", err)
+	}
+	return nil
+}
+
+// AutoRefreshLists returns the sourced lists that opted into periodic refresh.
+func (s *Store) AutoRefreshLists() ([]IPList, error) {
+	all, err := s.ListLists()
+	if err != nil {
+		return nil, err
+	}
+	var out []IPList
+	for _, l := range all {
+		if l.AutoRefresh && l.IsSourced() {
+			out = append(out, l)
+		}
+	}
+	return out, nil
+}
+
+// dedupePrefixes normalizes cidrs to canonical masked strings, sorts them
+// (address then prefix length), and drops any prefix contained in one already
+// kept. Because masked prefixes never partially overlap, a single running
+// "cover" prefix is enough to catch all containment in one pass.
+func dedupePrefixes(cidrs []string) []string {
+	pfx := make([]netip.Prefix, 0, len(cidrs))
+	for _, c := range cidrs {
+		p, err := EntryPrefix(strings.TrimSpace(c))
+		if err != nil {
+			continue
+		}
+		pfx = append(pfx, p.Masked())
+	}
+	sort.Slice(pfx, func(i, j int) bool {
+		if pfx[i].Addr() != pfx[j].Addr() {
+			return pfx[i].Addr().Less(pfx[j].Addr())
+		}
+		return pfx[i].Bits() < pfx[j].Bits()
+	})
+	var out []string
+	var cover netip.Prefix
+	haveCover := false
+	for _, p := range pfx {
+		if haveCover && cover.Contains(p.Addr()) && cover.Bits() <= p.Bits() {
+			continue // p is inside the current cover — a duplicate or a subnet
+		}
+		out = append(out, prefixString(p))
+		cover, haveCover = p, true
+	}
+	return out
+}
+
+// prefixString renders a prefix the way nft echoes set elements: a bare address
+// for a single host, a masked prefix otherwise.
+func prefixString(p netip.Prefix) string {
+	if p.Bits() == p.Addr().BitLen() {
+		return p.Addr().String()
+	}
+	return p.String()
 }
 
 // DeleteListEntry removes an entry by id.

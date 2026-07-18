@@ -13,7 +13,7 @@ import (
 //
 // nftably's database is a single file the user can snapshot and restore, so
 // migrations must be forward-only and safe to re-run.
-const schemaVersion = 7
+const schemaVersion = 8
 
 func migrate(db *sql.DB) error {
 	var version int
@@ -52,6 +52,12 @@ func migrate(db *sql.DB) error {
 		{"pending_apply", "prev_tables", `TEXT NOT NULL DEFAULT '[]'`},
 		// version < 6: opt-in monthly GeoIP auto-update.
 		{"settings", "geoip_autoupdate", `INTEGER NOT NULL DEFAULT 0`},
+		// version < 8: named-set sources (GeoIP country / remote feed) + refresh.
+		{"ip_lists", "source", `TEXT NOT NULL DEFAULT 'manual'`},
+		{"ip_lists", "source_arg", `TEXT NOT NULL DEFAULT ''`},
+		{"ip_lists", "auto_refresh", `INTEGER NOT NULL DEFAULT 0`},
+		{"ip_lists", "last_refresh", `TEXT NOT NULL DEFAULT ''`},
+		{"ip_lists", "refresh_note", `TEXT NOT NULL DEFAULT ''`},
 	}
 	for _, a := range adds {
 		if err := addColumnIfMissing(tx, a.table, a.column, a.ddl); err != nil {

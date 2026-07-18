@@ -37,6 +37,14 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **Sourced named sets — GeoIP countries and remote feeds.** A named set can now
+  be populated automatically instead of by hand: from **a country's CIDRs** (built
+  from the GeoIP database you already load — so a rule can `ip saddr @country_cn
+  drop` or allow SSH only from `@country_de`), or from a **remote feed** of
+  addresses (a threat-intel blocklist), fetched and de-overlapped into a set nft
+  accepts. Refresh on demand or let it refresh automatically in the background.
+  Sourced sets are read-only in the UI; a cap keeps a runaway source bounded and
+  says so when it's hit.
 - **Packet-path simulator** (`/simulate`). Describe a packet — hook, protocol,
   source/destination, ports, interfaces, connection state — and see a step-by-step
   trace of which rule decides it, ending in ACCEPT/DROP/REJECT. It walks the

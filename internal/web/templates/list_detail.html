@@ -23,11 +23,21 @@
 <div class="card">
 	<div class="card-header"><span class="card-title">{{template "icon-ban"}}Entries</span><span class="text-muted">{{len .Entries}} entr{{if eq (len .Entries) 1}}y{{else}}ies{{end}} &middot; renders as <span class="mono">@{{.List.Name}}4</span> / <span class="mono">@{{.List.Name}}6</span></span></div>
 	<div class="card-body">
+		{{if .List.IsSourced}}
+		<div class="source-panel">
+			<div class="source-desc">
+				{{if eq .List.Source "geoip"}}Populated from the <a href="/settings">GeoIP database</a> for country <span class="mono">{{.List.SourceArg}}</span>.{{else}}Fetched from <span class="mono">{{.List.SourceArg}}</span>.{{end}}
+				{{if not .LastRefresh.IsZero}}<span class="text-muted">Last refreshed <span data-ts="{{isotime .LastRefresh}}">{{fmttime .LastRefresh}}</span> — {{.List.RefreshNote}}.</span>{{else if .List.RefreshNote}}<span class="text-muted">{{.List.RefreshNote}}</span>{{else}}<span class="text-muted">Not refreshed yet.</span>{{end}}
+			</div>
+			<form method="post" action="/lists/{{.List.ID}}/refresh"><button type="submit" class="btn btn-sm btn-primary">{{template "icon-route"}}Refresh now</button></form>
+		</div>
+		{{else}}
 		<form method="post" action="/lists/{{.List.ID}}/entries" class="inline-add">
 			<input type="text" name="cidr" class="mono" placeholder="203.0.113.9 or 10.0.0.0/24 or 2001:db8::/32" autocomplete="off" required>
 			<input type="text" name="note" placeholder="note (optional)" autocomplete="off">
 			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-plus"}}Add</button>
 		</form>
+		{{end}}
 	</div>
 	{{if .Entries}}
 	<div class="table-scroll">
@@ -39,9 +49,11 @@
 					<td class="mono">{{.CIDR}}</td>
 					<td>{{if .Note}}{{.Note}}{{else}}<span class="text-muted">&mdash;</span>{{end}}</td>
 					<td class="row-actions">
+						{{if not $.List.IsSourced}}
 						<form method="post" action="/lists/entries/{{.ID}}/delete" data-confirm="Remove {{.CIDR}} from {{$.List.Name}}?">
 							<button type="submit" class="icon-action a-danger" title="Remove" aria-label="Remove entry">{{template "icon-trash"}}</button>
 						</form>
+						{{end}}
 					</td>
 				</tr>
 				{{end}}
@@ -98,6 +110,24 @@
 				<label for="note">Note</label>
 				<input type="text" id="note" name="note" value="{{.List.Note}}" autocomplete="off">
 			</div>
+			<div class="field">
+				<label for="source">Addresses come from</label>
+				<select id="source" name="source" data-source-select>
+					<option value="manual" {{if not .List.IsSourced}}selected{{end}}>Manual — you add them</option>
+					<option value="geoip" {{if eq .List.Source "geoip"}}selected{{end}}>A country (GeoIP)</option>
+					<option value="url" {{if eq .List.Source "url"}}selected{{end}}>A remote feed (URL)</option>
+				</select>
+				<div class="field-hint text-muted">Switching to a source replaces the entries on the next refresh; switching to manual keeps whatever is there now.</div>
+			</div>
+			<div class="field source-field" data-source-field="geoip"{{if ne .List.Source "geoip"}} hidden{{end}}>
+				<label for="country">Country code</label>
+				<input type="text" id="country" name="country" class="mono" maxlength="2" value="{{if eq .List.Source "geoip"}}{{.List.SourceArg}}{{end}}" placeholder="DE" autocomplete="off">
+			</div>
+			<div class="field source-field" data-source-field="url"{{if ne .List.Source "url"}} hidden{{end}}>
+				<label for="feed_url">Feed URL</label>
+				<input type="text" id="feed_url" name="feed_url" class="mono" value="{{if eq .List.Source "url"}}{{.List.SourceArg}}{{end}}" placeholder="https://example.com/blocklist.txt" autocomplete="off">
+			</div>
+			<label class="check source-field" data-source-field="geoip url"{{if not .List.IsSourced}} hidden{{end}}><input type="checkbox" name="auto_refresh" {{if .List.AutoRefresh}}checked{{end}}> Keep it refreshed automatically</label>
 			<div class="form-actions">
 				<button type="submit" class="btn btn-primary">Save</button>
 			</div>

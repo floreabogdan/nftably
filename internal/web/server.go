@@ -225,6 +225,7 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /lists/{id}", s.requireAuth(s.handleListDetail))
 	s.mux.Handle("POST /lists/{id}/update", s.requireAuth(s.handleListUpdate))
 	s.mux.Handle("POST /lists/{id}/delete", s.requireAuth(s.handleListDelete))
+	s.mux.Handle("POST /lists/{id}/refresh", s.requireAuth(s.handleListRefresh))
 	s.mux.Handle("POST /lists/{id}/entries", s.requireAuth(s.handleListEntryAdd))
 	s.mux.Handle("POST /lists/entries/{id}/delete", s.requireAuth(s.handleListEntryDelete))
 	s.mux.Handle("POST /lists/block", s.requireAuth(s.handleQuickBlock))

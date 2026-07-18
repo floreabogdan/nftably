@@ -59,9 +59,12 @@ make** and **easy to get right**:
   trace of exactly which rule decides it, ending in accept, drop or reject. It
   evaluates your model the way netfilter would, touching nothing, so you can answer
   *"will my SSH still get in?"* before you commit.
-- **Named sets.** A named set is a group of IPs/ranges. Point rules at one
-  (`ip saddr @office`) and edit the set later — every rule that references it
-  follows. Referenced sets are rendered into the tables that use them automatically.
+- **Named sets, static or living.** A named set is a group of IPs/ranges. Point
+  rules at one (`ip saddr @office`) and edit the set later — every rule that
+  references it follows. Fill a set by hand, or have it **built from a country**
+  (GeoIP) or a **remote feed** (a threat-intel blocklist) and kept refreshed on a
+  schedule — so you can `drop` an entire country or subscribe to a blocklist and
+  let it maintain itself. Referenced sets render into the tables that use them.
 - **Presets to start from.** One-click, best-practice starting points — a hardened
   **BGP edge router**, a **basic secure server** — that scaffold the tables, chains,
   rules and editable named sets for you, each explaining what it adds and why.
