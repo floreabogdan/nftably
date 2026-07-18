@@ -16,14 +16,16 @@ const sampleJSON = `{
 }`
 
 // The matching `nft -a list ruleset` text — the source of the per-rule wording.
-const sampleText = `table inet filter {
-	chain input {
+// The table and chain openers carry a "# handle N" comment, exactly as real nft
+// emits them (that annotation is what the opener detection must tolerate).
+const sampleText = `table inet filter { # handle 1
+	chain input { # handle 1
 		type filter hook input priority filter; policy drop;
 		ct state established,related accept # handle 4
 		tcp dport 22 accept comment "ssh" # handle 5
 	}
 
-	chain forward {
+	chain forward { # handle 2
 		type filter hook forward priority filter; policy drop;
 	}
 }`

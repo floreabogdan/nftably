@@ -126,10 +126,11 @@ func handleKey(family, table string, handle int) string {
 // is (family, table, handle). Only lines inside a `chain { … }` block are
 // considered, so a handle on a set element is never mistaken for a rule.
 //
-// The annotated output looks like:
+// The annotated output looks like this — note the table and chain openers carry
+// a "# handle N" comment too, so they do not end in "{":
 //
-//	table inet filter {
-//		chain input {
+//	table inet filter { # handle 1
+//		chain input { # handle 2
 //			type filter hook input priority 0; policy drop;
 //			ct state established,related accept # handle 4
 //		}
@@ -159,9 +160,17 @@ func parseHandleText(text string) map[string]string {
 			}
 			continue
 		}
-		// A block opener ends in "{". Classify it by its first token.
-		if strings.HasSuffix(line, "{") {
-			fields := strings.Fields(line)
+		// A block opener ends in "{" — but `nft -a` annotates the table/chain
+		// opener with a "# handle N" comment too (`table inet filter { # handle 1`),
+		// so strip that before the check. A rule line never ends in "{" even after
+		// stripping (an anonymous set closes with "}"), so this can't misfire on a
+		// rule.
+		code := line
+		if idx := strings.LastIndex(code, "# handle "); idx >= 0 {
+			code = strings.TrimSpace(code[:idx])
+		}
+		if strings.HasSuffix(code, "{") {
+			fields := strings.Fields(code)
 			switch {
 			case len(fields) >= 3 && fields[0] == "table":
 				family, table = fields[1], fields[2]
