@@ -33,6 +33,13 @@
 	// text content, scoped to whatever's on the current page (sessions table,
 	// timeline entries, looking-glass results).
 	var input = document.getElementById("topbar-search-input");
+	if (input && !document.querySelector("[data-search-target]")) {
+		// Nothing on this page is filterable — hide the box rather than leave a
+		// control that does nothing.
+		var wrap = input.closest(".topbar-search");
+		if (wrap) wrap.style.display = "none";
+		input = null;
+	}
 	if (input) {
 		var applyFilter = function () {
 			var q = input.value.trim().toLowerCase();

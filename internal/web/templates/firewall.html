@@ -77,7 +77,7 @@
 				{{if $ch.Rules}}
 				<div class="table-scroll">
 				<table class="rule-table">
-					<tbody>
+					<tbody data-search-target>
 					{{range $ch.Rules}}
 					<tr class="{{if not .Enabled}}row-disabled{{end}}">
 						<td class="rule-preview">
