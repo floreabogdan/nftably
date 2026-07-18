@@ -71,9 +71,15 @@ func parseNetfilterLine(line string, boot time.Time) (Entry, bool) {
 	}
 
 	// The netfilter LOG format always carries an "IN=" field; the operator's
-	// prefix is whatever precedes it.
-	in := strings.Index(line, "IN=")
-	if in < 0 {
+	// prefix is whatever precedes it. Prefer the space-delimited " IN=" so a
+	// prefix that itself contains "IN=" (e.g. "WIN= ") isn't split mid-word; fall
+	// back to a leading "IN=" for a prefix with no trailing space.
+	in := -1
+	if i := strings.Index(line, " IN="); i >= 0 {
+		in = i + 1
+	} else if strings.HasPrefix(line, "IN=") {
+		in = 0
+	} else {
 		return Entry{}, false
 	}
 	prefix := strings.TrimRight(line[:in], " ")

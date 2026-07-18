@@ -169,7 +169,55 @@ func TestNamedSetMembership(t *testing.T) {
 
 func TestNoChainOnHookAcceptsByDefault(t *testing.T) {
 	tr := Simulate(inputModel("drop"), "output", Packet{Proto: "tcp", Dst: addr("8.8.8.8"), DPort: 53})
-	if tr.Final != "accept" && tr.Final != "ACCEPT" {
+	if tr.Final != "ACCEPT" {
 		t.Fatalf("a hook with no base chain should default-accept, got %s", tr.Final)
+	}
+}
+
+func TestNegatedPortDoesNotMatchWrongProto(t *testing.T) {
+	// `tcp dport != 22 drop` must NOT drop a UDP packet — the tcp gate isn't negated.
+	m := inputModel("accept", rule([]store.RuleMatch{{Key: "tcp.dport", Op: "!=", Value: "22"}}, "drop"))
+	if tr := Simulate(m, "input", Packet{Proto: "udp", Dst: addr("10.0.0.1"), DPort: 53}); tr.Final != "ACCEPT" {
+		t.Fatalf("udp/53 must not match `tcp dport != 22`, got %s (%s)", tr.Final, tr.DecidedBy)
+	}
+	// A TCP packet to a non-22 port DOES match the negated rule.
+	if tr := Simulate(m, "input", Packet{Proto: "tcp", Dst: addr("10.0.0.1"), DPort: 80}); tr.Final != "DROP" {
+		t.Fatalf("tcp/80 should match `tcp dport != 22`, got %s (%s)", tr.Final, tr.DecidedBy)
+	}
+	// A TCP packet to 22 does not.
+	if tr := Simulate(m, "input", Packet{Proto: "tcp", Dst: addr("10.0.0.1"), DPort: 22}); tr.Final != "ACCEPT" {
+		t.Fatalf("tcp/22 should not match `tcp dport != 22`, got %s", tr.Final)
+	}
+}
+
+func TestNegatedAddrDoesNotMatchWrongFamily(t *testing.T) {
+	// `ip saddr != 10.0.0.0/8 drop` must NOT drop a v6 packet — the ip family gate
+	// isn't negated.
+	m := inputModel("accept", rule([]store.RuleMatch{{Key: "ip.saddr", Op: "!=", Value: "10.0.0.0/8"}}, "drop"))
+	if tr := Simulate(m, "input", Packet{Proto: "tcp", Src: addr("2001:db8::9"), Dst: addr("2001:db8::1"), DPort: 22}); tr.Final != "ACCEPT" {
+		t.Fatalf("v6 packet must not match `ip saddr != 10/8`, got %s (%s)", tr.Final, tr.DecidedBy)
+	}
+	// A v4 packet outside 10/8 does match.
+	if tr := Simulate(m, "input", Packet{Proto: "tcp", Src: addr("8.8.8.8"), Dst: addr("10.0.0.1"), DPort: 22}); tr.Final != "DROP" {
+		t.Fatalf("v4 8.8.8.8 should match `ip saddr != 10/8`, got %s", tr.Final)
+	}
+}
+
+func TestWrongFamilyTableIgnored(t *testing.T) {
+	// An ip6-only table with `tcp dport 22 drop` must not affect a v4 packet.
+	m := nftconf.Model{Tables: []nftconf.TableTree{{
+		Table: store.Table{Family: "ip6", Name: "six"},
+		Chains: []nftconf.ChainTree{{
+			Chain: store.Chain{Name: "input", Kind: "base", Hook: "input", ChainType: "filter", Priority: "filter", Policy: "drop"},
+			Rules: []store.ChainRule{rule([]store.RuleMatch{{Key: "tcp.dport", Op: "==", Value: "22"}}, "drop")},
+		}},
+	}}}
+	// v4 packet: the ip6 table doesn't apply → no base chain on hook → default accept.
+	if tr := Simulate(m, "input", Packet{Proto: "tcp", Src: addr("8.8.8.8"), Dst: addr("192.0.2.1"), DPort: 22}); tr.Final != "ACCEPT" {
+		t.Fatalf("v4 packet should ignore an ip6 table, got %s (%s)", tr.Final, tr.DecidedBy)
+	}
+	// v6 packet: the table applies → DROP.
+	if tr := Simulate(m, "input", Packet{Proto: "tcp", Src: addr("2001:db8::9"), Dst: addr("2001:db8::1"), DPort: 22}); tr.Final != "DROP" {
+		t.Fatalf("v6 packet should be dropped by the ip6 table, got %s", tr.Final)
 	}
 }

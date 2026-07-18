@@ -54,8 +54,16 @@ func (s *Server) handleBlockCountry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
-		s.doRefresh(ctx, id)
+		n, rerr := s.doRefresh(ctx, id)
 		cancel()
+		if rerr != nil || n == 0 {
+			msg := fmt.Sprintf("The GeoIP database has no addresses for %s — nothing was blocked.", iso)
+			if rerr != nil {
+				msg = "Could not build the set for " + iso + ": " + rerr.Error()
+			}
+			redirectMsg(w, r, back, "err", msg)
+			return
+		}
 		list, _ = s.store.GetList(id)
 	} else if err != nil {
 		s.serverError(w, "get country list", err)

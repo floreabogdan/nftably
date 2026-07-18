@@ -239,3 +239,17 @@ func TestSetReferencesObjectModel(t *testing.T) {
 		t.Fatal("deleted a list still referenced by an object-model rule")
 	}
 }
+
+func TestDedupeRejectsDefaultRoute(t *testing.T) {
+	// A stray 0.0.0.0/0 (or ::/0, loopback, multicast) must not collapse the set.
+	got := dedupePrefixes([]string{"0.0.0.0/0", "10.0.0.0/8", "::/0", "2001:db8::/32", "127.0.0.1", "224.0.0.1"})
+	want := map[string]bool{"10.0.0.0/8": true, "2001:db8::/32": true}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want the two real prefixes", got)
+	}
+	for _, g := range got {
+		if !want[g] {
+			t.Fatalf("unexpected entry %q in %v", g, got)
+		}
+	}
+}

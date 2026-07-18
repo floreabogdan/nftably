@@ -531,7 +531,15 @@ func dedupePrefixes(cidrs []string) []string {
 		if err != nil {
 			continue
 		}
-		pfx = append(pfx, p.Masked())
+		mp := p.Masked()
+		// Reject the default route and non-listable addresses (a stray 0.0.0.0/0
+		// in a feed would otherwise become the "cover" and collapse the whole
+		// family to "all addresses"). This mirrors what NormalizeCIDR enforces on
+		// hand-added entries.
+		if mp.Bits() == 0 || !listableAddr(mp.Addr()) {
+			continue
+		}
+		pfx = append(pfx, mp)
 	}
 	sort.Slice(pfx, func(i, j int) bool {
 		if pfx[i].Addr() != pfx[j].Addr() {
@@ -550,6 +558,13 @@ func dedupePrefixes(cidrs []string) []string {
 		cover, haveCover = p, true
 	}
 	return out
+}
+
+// listableAddr reports whether an address may appear in a set — the same
+// exclusions NormalizeCIDR applies to hand-added entries (loopback is always
+// accepted anyway; unspecified and multicast make no sense in a source/dest set).
+func listableAddr(a netip.Addr) bool {
+	return !a.IsLoopback() && !a.IsUnspecified() && !a.IsMulticast()
 }
 
 // prefixString renders a prefix the way nft echoes set elements: a bare address

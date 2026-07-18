@@ -101,19 +101,21 @@ func sourceArgFromForm(r *http.Request) string {
 	return ""
 }
 
-// doRefresh regenerates a sourced list's entries and records the result. Safe to
-// call on any list; a manual list simply gets an error note.
-func (s *Server) doRefresh(ctx context.Context, listID int64) {
+// doRefresh regenerates a sourced list's entries and records the result,
+// returning the entry count. Safe to call on any list; a manual list simply gets
+// an error note.
+func (s *Server) doRefresh(ctx context.Context, listID int64) (int, error) {
 	l, err := s.store.GetList(listID)
 	if err != nil {
-		return
+		return 0, err
 	}
 	n, err := s.refreshList(ctx, l)
 	if err != nil {
 		_ = s.store.SetListRefreshNote(listID, "refresh failed: "+err.Error())
-		return
+		return 0, err
 	}
 	_ = s.store.SetListRefreshed(listID, refreshNote(n))
+	return n, nil
 }
 
 // handleListRefresh regenerates a sourced list's entries on demand.

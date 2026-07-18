@@ -75,73 +75,93 @@ func jumpTarget(params string) string {
 }
 
 // matchOne evaluates a single condition against the packet, three-valued.
+//
+// Crucially, the implicit family/protocol dependency of an L3/L4 match is a HARD
+// gate, never negated: nft compiles `ip saddr != X` to a non-negated "this is an
+// IPv4 packet" test plus a negated value test, and `tcp dport != 22` to a
+// non-negated "this is TCP" test plus a negated port test. So a wrong-family or
+// wrong-proto packet fails the gate outright, regardless of `!=`.
 func (e *eval) matchOne(m store.RuleMatch) matchResult {
 	p := e.pkt
 	neg := m.Op == "!="
-	// affirm turns a raw "does the value contain this" into the match result,
-	// honouring negation.
-	affirm := func(hit matchResult) matchResult {
-		if hit == unknown || !neg {
-			return hit
-		}
-		if hit == yes {
-			return no
-		}
-		return yes
-	}
 
 	switch m.Key {
 	case "meta.iifname":
 		if p.Iif == "" {
 			return unknown
 		}
-		return affirm(ifaceIn(p.Iif, m.Value))
+		return applyNeg(ifaceIn(p.Iif, m.Value), neg)
 	case "meta.oifname":
 		if p.Oif == "" {
 			return unknown
 		}
-		return affirm(ifaceIn(p.Oif, m.Value))
+		return applyNeg(ifaceIn(p.Oif, m.Value), neg)
 	case "ip.saddr":
-		return affirm(addrIn(p.Src, false, m.Value, e.table))
+		return e.addrMatch(p.Src, false, m)
 	case "ip.daddr":
-		return affirm(addrIn(p.Dst, false, m.Value, e.table))
+		return e.addrMatch(p.Dst, false, m)
 	case "ip6.saddr":
-		return affirm(addrIn(p.Src, true, m.Value, e.table))
+		return e.addrMatch(p.Src, true, m)
 	case "ip6.daddr":
-		return affirm(addrIn(p.Dst, true, m.Value, e.table))
+		return e.addrMatch(p.Dst, true, m)
 	case "meta.l4proto":
 		if p.Proto == "" {
 			return unknown
 		}
-		return affirm(tokenIn(p.Proto, m.Value))
+		return applyNeg(tokenIn(p.Proto, m.Value), neg)
 	case "tcp.dport":
-		return affirm(portMatch(p.Proto, "tcp", p.DPort, m))
+		return portMatch(p.Proto, "tcp", p.DPort, m)
 	case "tcp.sport":
-		return affirm(portMatch(p.Proto, "tcp", p.SPort, m))
+		return portMatch(p.Proto, "tcp", p.SPort, m)
 	case "udp.dport":
-		return affirm(portMatch(p.Proto, "udp", p.DPort, m))
+		return portMatch(p.Proto, "udp", p.DPort, m)
 	case "udp.sport":
-		return affirm(portMatch(p.Proto, "udp", p.SPort, m))
+		return portMatch(p.Proto, "udp", p.SPort, m)
 	case "ct.state":
 		if p.CtState == "" {
 			return unknown
 		}
-		return affirm(tokenIn(p.CtState, m.Value))
+		return applyNeg(tokenIn(p.CtState, m.Value), neg)
 	default:
 		return unknown // a condition the simulator does not model
 	}
 }
 
-// portMatch checks a port against a rule, first requiring the packet's protocol
-// to be the one the match implies (a tcp.dport can't match a udp packet).
+// applyNeg flips a value-test result for a `!=` operator; unknown stays unknown.
+func applyNeg(hit matchResult, neg bool) matchResult {
+	if hit == unknown || !neg {
+		return hit
+	}
+	if hit == yes {
+		return no
+	}
+	return yes
+}
+
+// addrMatch applies an ip/ip6 address match: the family is a hard gate (a v4
+// match never fires on a v6 packet), then the value membership is negated for
+// `!=`.
+func (e *eval) addrMatch(addr netip.Addr, want6 bool, m store.RuleMatch) matchResult {
+	if !addr.IsValid() {
+		return unknown
+	}
+	if addr.Is6() != want6 {
+		return no // family gate — not subject to negation
+	}
+	return applyNeg(addrInValue(addr, m.Value, e.table), m.Op == "!=")
+}
+
+// portMatch applies a tcp/udp port match: the protocol is a hard gate (a
+// tcp.dport never fires on a udp packet), then the value test — a comparison, or
+// a membership that `!=` negates.
 func portMatch(pktProto, matchProto string, port int, m store.RuleMatch) matchResult {
 	if pktProto == "" || port == 0 {
 		return unknown
 	}
 	if pktProto != matchProto {
-		return no
+		return no // protocol gate — not subject to negation
 	}
-	// Comparison operators on a single numeric value.
+	// Comparison operators on a single numeric value (never combined with !=).
 	switch m.Op {
 	case "<", ">", "<=", ">=":
 		n, err := strconv.Atoi(strings.TrimSpace(m.Value))
@@ -159,22 +179,13 @@ func portMatch(pktProto, matchProto string, port int, m store.RuleMatch) matchRe
 			return boolMR(port >= n)
 		}
 	}
-	// == / != membership; the caller's affirm() applies any negation, so report
-	// the plain "is the port in the value" result here.
-	return portInValue(m.Value, port)
+	return applyNeg(portInValue(m.Value, port), m.Op == "!=")
 }
 
-// addrIn reports whether addr is in a value that is a single address, a CIDR, a
-// range, a comma list, or an @set reference resolved from the table's sets. want6
-// selects the family the match applies to (an ip match never matches a v6
-// packet, and vice-versa).
-func addrIn(addr netip.Addr, want6 bool, value string, table nftconf.TableTree) matchResult {
-	if !addr.IsValid() {
-		return unknown
-	}
-	if addr.Is6() != want6 {
-		return no // family mismatch: an ip match on a v6 packet cannot hold
-	}
+// addrInValue reports whether addr is in a value that is a single address, a
+// CIDR, a range, a comma list, or an @set reference resolved from the table's
+// sets. The caller has already applied the family gate.
+func addrInValue(addr netip.Addr, value string, table nftconf.TableTree) matchResult {
 	for _, tok := range splitTokens(value) {
 		if name, ok := strings.CutPrefix(tok, "@"); ok {
 			switch setContains(table, name, addr) {

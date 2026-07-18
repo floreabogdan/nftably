@@ -93,9 +93,9 @@ const (
 func Simulate(m nftconf.Model, hook string, pkt Packet) Trace {
 	tr := Trace{Hook: hook}
 
-	chains := baseChainsOnHook(m, hook)
+	chains := baseChainsOnHook(m, hook, pkt)
 	if len(chains) == 0 {
-		tr.Final = Accept
+		tr.Final = "ACCEPT"
 		tr.DecidedBy = "no base chain hooks " + hook + " — nftables lets the packet through by default"
 		return tr
 	}
@@ -152,10 +152,14 @@ type baseChain struct {
 }
 
 // baseChainsOnHook returns the filter base chains on a hook, lowest priority
-// first (the order netfilter runs them).
-func baseChainsOnHook(m nftconf.Model, hook string) []baseChain {
+// first (the order netfilter runs them) — skipping tables whose family can't
+// carry the packet (an ip6 table never sees an IPv4 packet, and vice-versa).
+func baseChainsOnHook(m nftconf.Model, hook string, pkt Packet) []baseChain {
 	var out []baseChain
 	for _, t := range m.Tables {
+		if !tableHandlesPacket(t.Family, pkt) {
+			continue
+		}
 		for _, c := range t.Chains {
 			if c.IsBase() && c.Hook == hook && c.ChainType != "nat" {
 				out = append(out, baseChain{table: t, chain: c})
@@ -166,6 +170,36 @@ func baseChainsOnHook(m nftconf.Model, hook string) []baseChain {
 		return priorityValue(out[i].chain.Priority) < priorityValue(out[j].chain.Priority)
 	})
 	return out
+}
+
+// tableHandlesPacket reports whether a table of the given family would ever see
+// this packet: an ip table only IPv4, ip6 only IPv6, inet/bridge/netdev both,
+// arp never (the simulator models IP packets). When the packet's family is
+// unspecified (no addresses given), every IP-capable family is kept.
+func tableHandlesPacket(family string, pkt Packet) bool {
+	is6, known := packetIsV6(pkt)
+	switch family {
+	case "ip":
+		return !known || !is6
+	case "ip6":
+		return !known || is6
+	case "arp":
+		return false
+	default: // inet, bridge, netdev
+		return true
+	}
+}
+
+// packetIsV6 reports the packet's address family, preferring the destination.
+// known is false when neither address is set.
+func packetIsV6(pkt Packet) (is6, known bool) {
+	if pkt.Dst.IsValid() {
+		return pkt.Dst.Is6(), true
+	}
+	if pkt.Src.IsValid() {
+		return pkt.Src.Is6(), true
+	}
+	return false, false
 }
 
 // eval carries the per-simulation state as chains are walked (jump/goto recurse).
