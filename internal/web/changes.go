@@ -120,7 +120,7 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 	vm := changesVM{
 		nav:       s.navFor(r, "changes"),
 		Candidate: nftconf.Config(m),
-		LintWarns: nftconf.Lint(m, s.listenAddr),
+		LintWarns: append(nftconf.Lint(m, s.listenAddr), s.simulatedLockoutWarnings(r, m)...),
 		SetupDone: r.URL.Query().Get("setup") == "1",
 	}
 	for _, t := range m.Tables {

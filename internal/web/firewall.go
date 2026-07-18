@@ -78,7 +78,7 @@ func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
 		Families:  []string{"inet", "ip", "ip6", "arp", "bridge", "netdev"},
 		Saved:     r.URL.Query().Get("saved") == "1",
 		Err:       r.URL.Query().Get("err"),
-		LintWarns: nftconf.Lint(m, s.listenAddr),
+		LintWarns: append(nftconf.Lint(m, s.listenAddr), s.simulatedLockoutWarnings(r, m)...),
 	}
 	if key := r.URL.Query().Get("preset"); key != "" {
 		if p, ok := s.presetByKey(key); ok {
