@@ -285,7 +285,7 @@ var statements = []Statement{
 			}
 			return b.String(), nil
 		}},
-	{Key: "counter", Label: "Count", Group: "Observe", Help: "Tally the packets and bytes that match this rule (visible in the live ruleset).", Example: "counter",
+	{Key: "counter", Label: "Count", Group: "Observe", Help: "Tally the packets and bytes that match this rule. Once applied, the running total shows next to the rule on the Firewall page.", Example: "counter",
 		render: func(_ map[string]string, _ Ctx) (string, error) { return "counter", nil }},
 
 	// Rate limiting

@@ -1,14 +1,18 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"net"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/floreabogdan/nftably/internal/nft"
 	"github.com/floreabogdan/nftably/internal/nftcat"
 	nftconf "github.com/floreabogdan/nftably/internal/render"
 	"github.com/floreabogdan/nftably/internal/store"
@@ -56,6 +60,11 @@ type fwRule struct {
 	store.ChainRule
 	Preview   string
 	RenderErr string
+	// Live counters, present when the rule carries a `counter` action, nft is
+	// reachable, and the applied ruleset lines up with the model.
+	HasCounter bool
+	Packets    string
+	Bytes      string
 }
 
 func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
@@ -76,16 +85,39 @@ func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
 			vm.Preset = p.Name
 		}
 	}
+	counters := s.readCounters(r.Context(), m)
 	for _, t := range m.Tables {
 		ft := fwTable{Table: t.Table}
+		tblCounters := counters[t.Family+"/"+t.Name]
 		for _, c := range t.Chains {
 			fc := fwChain{Chain: c.Chain, HookLine: hookLine(c.Chain)}
+			// The kernel holds only enabled rules, in model order, so counters
+			// line up with the enabled model rules by position — but only when the
+			// counts match (i.e. the model has not drifted from what's applied).
+			chainCounters := tblCounters[c.Name]
+			enabled := 0
+			for _, rr := range c.Rules {
+				if rr.Enabled {
+					enabled++
+				}
+			}
+			aligned := chainCounters != nil && len(chainCounters) == enabled
+			ei := 0
 			for _, rule := range c.Rules {
 				fr := fwRule{ChainRule: rule}
 				if line, err := nftconf.RenderRule(t.Family, rule); err != nil {
 					fr.RenderErr = err.Error()
 				} else {
 					fr.Preview = line
+				}
+				if rule.Enabled {
+					if aligned && ei < len(chainCounters) && chainCounters[ei].Present {
+						rc := chainCounters[ei]
+						fr.HasCounter = true
+						fr.Packets = humanCount(rc.Packets)
+						fr.Bytes = humanBytes(rc.Bytes)
+					}
+					ei++
 				}
 				fc.Rules = append(fc.Rules, fr)
 			}
@@ -94,6 +126,59 @@ func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
 		vm.Tables = append(vm.Tables, ft)
 	}
 	render(w, s.log, "firewall.html", vm)
+}
+
+// readCounters reads the live per-rule counters for every owned table, keyed by
+// "family/name" → chain → ordered counters. It is best-effort: no nft, a table
+// not yet applied, or a read error simply yields no counters for that table, and
+// the page renders without them.
+func (s *Server) readCounters(ctx context.Context, m nftconf.Model) map[string]map[string][]nft.RuleCounter {
+	if !s.nft.Available() {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out := map[string]map[string][]nft.RuleCounter{}
+	for _, t := range m.Tables {
+		if cc, exists, err := s.nft.TableCounters(ctx, t.Family, t.Name); err == nil && exists {
+			out[t.Family+"/"+t.Name] = cc
+		}
+	}
+	return out
+}
+
+// humanCount formats a packet count with thousands separators.
+func humanCount(n uint64) string {
+	s := strconv.FormatUint(n, 10)
+	if len(s) <= 3 {
+		return s
+	}
+	var b strings.Builder
+	pre := len(s) % 3
+	if pre > 0 {
+		b.WriteString(s[:pre])
+	}
+	for i := pre; i < len(s); i += 3 {
+		if b.Len() > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(s[i : i+3])
+	}
+	return b.String()
+}
+
+// humanBytes formats a byte count in binary units (B, KiB→"KB", …).
+func humanBytes(n uint64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := uint64(unit), 0
+	for x := n / unit; x >= unit; x /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 // hookLine is the human summary shown under a base chain's name.

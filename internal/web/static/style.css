@@ -196,6 +196,17 @@ h1, h2, h3 { font-weight: 700; color: var(--text); margin: 0; }
 }
 .skip-link:focus { top: 8px; text-decoration: none; }
 
+/* ---------- live per-rule counters ---------- */
+.rule-counter {
+	display: inline-flex; align-items: center; gap: 5px; margin-top: 4px;
+	font-size: 0.72rem; font-variant-numeric: tabular-nums;
+	color: var(--success-deep);
+	background: color-mix(in srgb, var(--success) 12%, var(--surface));
+	border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+	border-radius: 999px; padding: 1px 9px;
+}
+.rule-counter svg { width: 12px; height: 12px; }
+
 /* ---------- apply summary outline ---------- */
 .apply-summary { display: flex; flex-direction: column; gap: 10px; }
 .apply-tbl { border: 1px solid var(--border); border-radius: var(--radius-control); padding: 10px 12px; }

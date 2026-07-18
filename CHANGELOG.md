@@ -48,6 +48,12 @@ typed, explained control instead of a fixed form.
 - **Live rule preview.** The editor's "renders as" panel now updates as you type
   (debounced, server-rendered so it can't drift from what applies) and shows the
   rule inside its chain — `chain input { … <your rule> … }`.
+- **Live per-rule hit counters.** A rule that carries a *Count* action now shows
+  its running packet/byte total next to it on the Firewall page, read live from
+  the kernel — build a rule, apply it, and watch it catch traffic. Counters are
+  read best-effort (blank when `nft` is unreachable or the table isn't applied
+  yet) and are aligned to model rules by position, only when the applied ruleset
+  matches the model, so a count is never shown against the wrong rule.
 - **Closing the build → apply loop.** Lockout warnings now also appear on the
   Firewall page, one screen before Review & apply, with a link to simulate the
   concern. Review & apply gained a scannable "What this applies" outline (tables,
