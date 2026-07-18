@@ -58,6 +58,42 @@ func TestRenderStatement(t *testing.T) {
 	}
 }
 
+// TestRejectsInjection verifies that structural nft characters and out-of-grammar
+// values cannot survive into rendered config — the defence against a stored value
+// closing its chain/table and injecting foreign nft objects.
+func TestRejectsInjection(t *testing.T) {
+	matchCases := []struct{ key, value string }{
+		{"ip.saddr", "1.1.1.1\n\t}\n}\ntable inet evil {"}, // newline + brace escape
+		{"tcp.dport", "22; drop"},                          // statement separator
+		{"ip.saddr", "1.1.1.1 # comment out the rest"},     // comment marker
+		{"ct.mark", "0x1}"},                                // brace
+	}
+	for _, c := range matchCases {
+		if _, err := RenderMatch(c.key, "==", c.value, Ctx{Family: "inet"}); err == nil {
+			t.Errorf("RenderMatch(%s, %q) accepted an unsafe value", c.key, c.value)
+		}
+	}
+
+	stmtCases := []struct {
+		key    string
+		params map[string]string
+	}{
+		{"jump", map[string]string{"target": "evil\n\t}\n}"}},       // non-identifier target
+		{"jump", map[string]string{"target": "a; drop"}},            // separator in target
+		{"meta.mark.set", map[string]string{"value": "0x1\n drop"}}, // non-number mark
+		{"ct.mark.set", map[string]string{"value": "}"}},            // brace mark
+		{"log", map[string]string{"level": "info\n drop"}},          // bogus level
+		{"limit", map[string]string{"rate": "10", "per": "minute\n drop"}},
+		{"dnat", map[string]string{"addr": "1.1.1.1\n drop"}}, // non-address target
+		{"redirect", map[string]string{"port": "80\n drop"}},  // non-port
+	}
+	for _, c := range stmtCases {
+		if _, err := RenderStatement(c.key, c.params, Ctx{Family: "inet"}); err == nil {
+			t.Errorf("RenderStatement(%s, %v) accepted an unsafe param", c.key, c.params)
+		}
+	}
+}
+
 func TestCatalogueJSONValid(t *testing.T) {
 	if s := CatalogueJSON(); len(s) < 2 || s[0] != '{' {
 		t.Fatalf("catalogue JSON looks wrong: %q", s)

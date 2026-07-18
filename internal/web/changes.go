@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -105,6 +106,25 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 		}
 		vm.Hunks = nftconf.Diff(live.String(), vm.Candidate, 3)
 		vm.Added, vm.Removed = nftconf.Stat(vm.Hunks)
+
+		// Adoption warning: a table nftably is about to replace that already
+		// exists in the kernel but is absent from the applied ledger was created
+		// by someone else — a hand-written /etc/nftables.conf, another tool. The
+		// apply replaces it atomically, wiping its current contents, and a confirm
+		// makes that permanent. Flag it before the operator commits (the ordinary
+		// diff shows the change, but not that the table was not nftably's).
+		if ledger, lerr := s.store.GetAppliedTables(); lerr == nil {
+			owned := make(map[store.TableRef]bool, len(ledger))
+			for _, ref := range ledger {
+				owned[ref] = true
+			}
+			for _, sn := range snaps {
+				if sn.Exists && !owned[store.TableRef{Family: sn.Family, Name: sn.Name}] {
+					vm.LintWarns = append(vm.LintWarns, fmt.Sprintf(
+						"The table %s %s already exists in the kernel and was not created by nftably — applying replaces its current contents. If a hand-written config or another tool manages it, review the diff carefully before you apply and confirm.", sn.Family, sn.Name))
+				}
+			}
+		}
 	}
 
 	if p, pending, err := s.store.GetPendingApply(); err != nil {

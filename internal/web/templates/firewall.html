@@ -33,18 +33,18 @@
 	<div class="card-header">
 		<div class="card-title">{{template "icon-shield"}} <span class="mono">{{$t.Family}} {{$t.Name}}</span></div>
 		<div class="row-actions">
-			<form method="post" action="/firewall/tables/{{$t.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up">{{template "icon-up"}}</button></form>
-			<form method="post" action="/firewall/tables/{{$t.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down">{{template "icon-down"}}</button></form>
-			<form method="post" action="/firewall/tables/{{$t.ID}}/delete" data-confirm="Delete this whole table, its chains and rules?"><button class="icon-action a-danger" title="Delete table">{{template "icon-trash"}}</button></form>
+			<form method="post" action="/firewall/tables/{{$t.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up" aria-label="Move table {{$t.Name}} up">{{template "icon-up"}}</button></form>
+			<form method="post" action="/firewall/tables/{{$t.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down" aria-label="Move table {{$t.Name}} down">{{template "icon-down"}}</button></form>
+			<form method="post" action="/firewall/tables/{{$t.ID}}/delete" data-confirm="Delete this whole table, its chains and rules?"><button class="icon-action a-danger" title="Delete table" aria-label="Delete table {{$t.Name}}">{{template "icon-trash"}}</button></form>
 		</div>
 	</div>
 	<div class="card-body">
 		{{if $t.Comment}}<p class="text-muted">{{$t.Comment}}</p>{{end}}
 		{{if $t.Chains}}
 		<div class="chain-group" data-table="{{$t.ID}}">
-			<div class="chain-tabs" role="tablist">
+			<div class="chain-tabs" role="tablist" aria-label="Chains in table {{$t.Name}}">
 				{{range $ci, $ch := $t.Chains}}
-				<button type="button" class="chain-tab{{if eq $ci 0}} active{{end}}" data-panel="t{{$t.ID}}c{{$ch.ID}}">
+				<button type="button" role="tab" id="tab-t{{$t.ID}}c{{$ch.ID}}" aria-controls="t{{$t.ID}}c{{$ch.ID}}" aria-selected="{{if eq $ci 0}}true{{else}}false{{end}}" tabindex="{{if eq $ci 0}}0{{else}}-1{{end}}" class="chain-tab{{if eq $ci 0}} active{{end}}" data-panel="t{{$t.ID}}c{{$ch.ID}}">
 					chain {{$ch.Name}}
 					{{if $ch.IsBase}}<span class="tab-hook">{{$ch.Hook}}</span>{{else}}<span class="tab-hook">regular</span>{{end}}
 					<span class="tab-count">{{len $ch.Rules}}</span>
@@ -53,15 +53,15 @@
 				<a class="btn btn-sm btn-ghost chain-add" href="/firewall/tables/{{$t.ID}}/chains/new">{{template "icon-plus"}} Add chain</a>
 			</div>
 			{{range $ci, $ch := $t.Chains}}
-			<div class="chain-panel{{if eq $ci 0}} active{{end}}" id="t{{$t.ID}}c{{$ch.ID}}" role="tabpanel">
+			<div class="chain-panel{{if eq $ci 0}} active{{end}}" id="t{{$t.ID}}c{{$ch.ID}}" role="tabpanel" aria-labelledby="tab-t{{$t.ID}}c{{$ch.ID}}" tabindex="0">
 				<div class="chain-head">
 					<div><span class="hint">{{$ch.HookLine}}</span></div>
 					<div class="row-actions">
 						<a class="btn btn-sm btn-primary" href="/firewall/chains/{{$ch.ID}}/rules/new">{{template "icon-plus"}} Add rule</a>
-						<a class="icon-action a-primary" title="Edit chain" href="/firewall/chains/{{$ch.ID}}/edit">{{template "icon-edit"}}</a>
-						<form method="post" action="/firewall/chains/{{$ch.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up">{{template "icon-up"}}</button></form>
-						<form method="post" action="/firewall/chains/{{$ch.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down">{{template "icon-down"}}</button></form>
-						<form method="post" action="/firewall/chains/{{$ch.ID}}/delete" data-confirm="Delete this chain and its rules?"><button class="icon-action a-danger" title="Delete chain">{{template "icon-trash"}}</button></form>
+						<a class="icon-action a-primary" title="Edit chain" aria-label="Edit chain {{$ch.Name}}" href="/firewall/chains/{{$ch.ID}}/edit">{{template "icon-edit"}}</a>
+						<form method="post" action="/firewall/chains/{{$ch.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up" aria-label="Move chain {{$ch.Name}} up">{{template "icon-up"}}</button></form>
+						<form method="post" action="/firewall/chains/{{$ch.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down" aria-label="Move chain {{$ch.Name}} down">{{template "icon-down"}}</button></form>
+						<form method="post" action="/firewall/chains/{{$ch.ID}}/delete" data-confirm="Delete this chain and its rules?"><button class="icon-action a-danger" title="Delete chain" aria-label="Delete chain {{$ch.Name}}">{{template "icon-trash"}}</button></form>
 					</div>
 				</div>
 				{{if $ch.Rules}}
@@ -76,11 +76,11 @@
 						</td>
 						<td class="rule-actions">
 							<div class="row-actions">
-								<form method="post" action="/firewall/rules/{{.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up">{{template "icon-up"}}</button></form>
-								<form method="post" action="/firewall/rules/{{.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down">{{template "icon-down"}}</button></form>
-								<form method="post" action="/firewall/rules/{{.ID}}/toggle"><button class="icon-action" title="{{if .Enabled}}Disable{{else}}Enable{{end}}">{{template "icon-power"}}</button></form>
-								<a class="icon-action a-primary" title="Edit rule" href="/firewall/rules/{{.ID}}/edit">{{template "icon-edit"}}</a>
-								<form method="post" action="/firewall/rules/{{.ID}}/delete" data-confirm="Delete this rule?"><button class="icon-action a-danger" title="Delete rule">{{template "icon-trash"}}</button></form>
+								<form method="post" action="/firewall/rules/{{.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up" aria-label="Move rule up">{{template "icon-up"}}</button></form>
+								<form method="post" action="/firewall/rules/{{.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down" aria-label="Move rule down">{{template "icon-down"}}</button></form>
+								<form method="post" action="/firewall/rules/{{.ID}}/toggle"><button class="icon-action" title="{{if .Enabled}}Disable{{else}}Enable{{end}}" aria-label="{{if .Enabled}}Disable{{else}}Enable{{end}} rule">{{template "icon-power"}}</button></form>
+								<a class="icon-action a-primary" title="Edit rule" aria-label="Edit rule" href="/firewall/rules/{{.ID}}/edit">{{template "icon-edit"}}</a>
+								<form method="post" action="/firewall/rules/{{.ID}}/delete" data-confirm="Delete this rule?"><button class="icon-action a-danger" title="Delete rule" aria-label="Delete rule">{{template "icon-trash"}}</button></form>
 							</div>
 						</td>
 					</tr>

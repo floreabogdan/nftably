@@ -38,8 +38,9 @@ Some properties are documented and by design, not vulnerabilities:
   the allow-list does nothing about that — it governs who may connect, not what is readable on
   the wire. Put nftably on a management network you trust, or on loopback behind an SSH tunnel.
   Operator actions are recorded in an audit trail on the event timeline.
-- **The database file is sensitive.** It holds the admin password hash and live session tokens;
-  protect it like any credential store on the router.
+- **The database file is sensitive.** It holds the admin password hash (bcrypt) and session
+  tokens (stored only as SHA-256 hashes, so a read does not hand over usable cookies); protect it
+  like any credential store on the router.
 
 Reports that amount to "you can do damage if you already have the nftably database, the login
 cookie, or root on the router" are out of scope — those are equivalent to already controlling

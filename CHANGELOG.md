@@ -46,6 +46,44 @@ typed, explained control instead of a fixed form.
   makes nftably reach the network, and only when you ask.
 - Catalogue knobs for BGP GTSM (`ip ttl` / `ip6 hoplimit`) and connection marks.
 
+### Security
+
+- **Rule values are validated before they render.** Match values and statement
+  params are checked against nft's structural characters (and, where the grammar
+  is known, typed: jump/goto targets must be chain identifiers, marks numeric,
+  NAT targets real addresses, log levels and rate units against fixed sets). This
+  closes a path by which an authenticated admin could inject nft that escaped the
+  owned-table model — and so escaped the pre-apply snapshot and the auto-revert.
+- **Session tokens are hashed (SHA-256) at rest**, so a database read no longer
+  yields usable bearer tokens. Changing your password now evicts every other
+  session, and the login path always runs bcrypt so an unknown username can't be
+  told apart from a wrong password by timing.
+- **Adoption warning.** Review & apply now flags a kernel table you are about to
+  replace that nftably did not create (a hand-written `nftables.conf`, another
+  tool), before you overwrite it.
+- **The apply's kernel operations run on a background context**, so an apply that
+  cuts off your own connection can't cancel the `nft` transaction mid-flight.
+- **Lockout lint covers `output` and `forward` chains**, not just `input`.
+
+### Fixed
+
+- Fetching a single rule (or one chain) no longer scans every match/statement in
+  the database; added the object-model foreign-key indexes.
+- The starter table/lists are seeded only on a genuinely new database, so a schema
+  upgrade never resurrects objects you deleted. Dropped an unused `events` index.
+- GeoIP lookups run under a read lock (they no longer serialize), and the SQLite
+  connection pool is bounded.
+
+### Changed — accessibility & UX
+
+- The armed-apply countdown is now the visual centrepiece — a large numeral and a
+  depleting bar that warms as it nears zero — announced to assistive tech, with
+  focus moved to Confirm when it appears.
+- WCAG AA contrast for muted explanatory text; accessible names on icon-only
+  controls; a skip link and `main` landmark; a complete, keyboard-navigable chain
+  tab pattern; modal focus trap/restore; a stateful theme toggle. The apply page
+  is now consistently named **Review & apply**.
+
 ### Removed
 
 - The opinionated pages `/rules`, `/forwarding`, `/setup` and `/library`, folded

@@ -76,5 +76,15 @@ func (s *Server) handleProfilePassword(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, "set password", err)
 		return
 	}
+	// Evict every other session for this user: a change of password should end
+	// any session opened under the old one (a shared machine, a leaked cookie),
+	// while keeping the operator making the change signed in.
+	keep := ""
+	if c, err := r.Cookie(sessionCookieName); err == nil {
+		keep = c.Value
+	}
+	if err := s.store.DeleteUserSessionsExcept(user.ID, keep); err != nil {
+		s.log.Warn("could not evict other sessions after password change", "error", err)
+	}
 	s.renderProfile(w, r, "password", "")
 }

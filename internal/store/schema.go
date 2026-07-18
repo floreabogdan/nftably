@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS events (
 	message    TEXT NOT NULL,
 	created_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts DESC);
+-- The timeline paginates by id (a monotonic proxy for time), so events(id) —
+-- the primary key — is the only index it needs; no separate ts index.
 
 -- The M2 rule model: an ordered list of filter rules on the managed chains
 -- (input since M2, forward since M4). What nftably renders (and, from M3,
@@ -242,4 +243,12 @@ CREATE TABLE IF NOT EXISTS applied_state (
 	id     INTEGER PRIMARY KEY CHECK (id = 1),
 	tables TEXT NOT NULL DEFAULT '[]'   -- JSON [{family,name}]
 );
+
+-- Indexes for the object-model foreign keys: every rule-editor and render read
+-- filters children by their parent id, so index those columns to keep a
+-- single-rule/single-chain fetch from scanning the whole child table.
+CREATE INDEX IF NOT EXISTS idx_nft_chains_table ON nft_chains(table_id);
+CREATE INDEX IF NOT EXISTS idx_nft_rules_chain ON nft_rules(chain_id);
+CREATE INDEX IF NOT EXISTS idx_nft_rule_matches_rule ON nft_rule_matches(rule_id);
+CREATE INDEX IF NOT EXISTS idx_nft_rule_statements_rule ON nft_rule_statements(rule_id);
 `

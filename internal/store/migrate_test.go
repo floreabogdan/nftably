@@ -6,6 +6,44 @@ import (
 	"testing"
 )
 
+// TestStarterNotResurrectedOnVersionBump verifies that once the object model
+// exists (version ≥ 5), a later schema bump does not re-seed the starter table
+// the operator deliberately deleted.
+func TestStarterNotResurrectedOnVersionBump(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bump.db")
+
+	// Fresh install: seeds the starter, lands at the current version.
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	tables, err := s.ListTables()
+	if err != nil || len(tables) == 0 {
+		t.Fatalf("fresh install should seed a starter table: %d tables, err=%v", len(tables), err)
+	}
+	// Operator deletes every table, then we simulate an older on-disk version so
+	// the next Open re-enters migrate().
+	for _, tbl := range tables {
+		if err := s.DeleteTable(tbl.ID); err != nil {
+			t.Fatalf("delete table: %v", err)
+		}
+	}
+	if _, err := s.db.Exec(`PRAGMA user_version = 6`); err != nil {
+		t.Fatalf("set version: %v", err)
+	}
+	s.Close()
+
+	// Re-open: migrate runs (6 < current) but must NOT resurrect the starter.
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer s2.Close()
+	if tables, err := s2.ListTables(); err != nil || len(tables) != 0 {
+		t.Errorf("version bump resurrected the starter: %d tables, err=%v", len(tables), err)
+	}
+}
+
 // TestMigrateFromV1 builds a database exactly as an M3-era build left it —
 // firewall without the forwarding columns, fw_rules without chain,
 // user_version 1 — and checks that Open migrates it in place without losing

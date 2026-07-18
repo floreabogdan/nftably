@@ -13,7 +13,7 @@ import (
 //
 // nftably's database is a single file the user can snapshot and restore, so
 // migrations must be forward-only and safe to re-run.
-const schemaVersion = 6
+const schemaVersion = 7
 
 func migrate(db *sql.DB) error {
 	var version int
@@ -61,57 +61,69 @@ func migrate(db *sql.DB) error {
 
 	ts := now()
 
-	// Seed a neutral starter object model on a database that has never had one:
-	// an inet "filter" table with the three usual base chains, all policy accept
-	// (a blank canvas that cannot lock anyone out). It shows the structure on a
-	// fresh install; the opinionated safe setups live in the presets, not here.
-	// One-time only — guarded on there being no owned tables at all, so deleting
-	// the starter does not resurrect it.
-	if _, err := tx.Exec(`
-		INSERT INTO nft_tables (family, name, comment, position, created_at, updated_at)
-		SELECT 'inet', 'filter', 'Starter table — rename or delete freely', 1, ?, ?
-		WHERE NOT EXISTS (SELECT 1 FROM nft_tables)`, ts, ts); err != nil {
-		return fmt.Errorf("seed starter table: %w", err)
-	}
-	for i, ch := range []struct{ name, hook, policy string }{
-		{"input", "input", "accept"},
-		{"forward", "forward", "accept"},
-		{"output", "output", "accept"},
-	} {
+	// Seed a neutral starter object model, but only on a database that predates
+	// the object model (version < 5) and still has no owned tables — i.e. a fresh
+	// install or a pre-do-over upgrade. Gating on the *starting* version, not just
+	// on emptiness, is what stops a later version bump from resurrecting a starter
+	// the operator deliberately deleted after the object model was already in
+	// place. It shows the structure on a fresh install; the opinionated safe
+	// setups live in the presets, not here.
+	if version < 5 {
 		if _, err := tx.Exec(`
-			INSERT INTO nft_chains (table_id, name, kind, hook, chain_type, priority, policy, position, created_at, updated_at)
-			SELECT t.id, ?, 'base', ?, 'filter', 'filter', ?, ?, ?, ?
-			FROM nft_tables t
-			WHERE t.family = 'inet' AND t.name = 'filter'
-			  AND NOT EXISTS (SELECT 1 FROM nft_chains c WHERE c.table_id = t.id AND c.name = ?)`,
-			ch.name, ch.hook, ch.policy, i+1, ts, ts, ch.name); err != nil {
-			return fmt.Errorf("seed starter chain %s: %w", ch.name, err)
+			INSERT INTO nft_tables (family, name, comment, position, created_at, updated_at)
+			SELECT 'inet', 'filter', 'Starter table — rename or delete freely', 1, ?, ?
+			WHERE NOT EXISTS (SELECT 1 FROM nft_tables)`, ts, ts); err != nil {
+			return fmt.Errorf("seed starter table: %w", err)
+		}
+		for i, ch := range []struct{ name, hook, policy string }{
+			{"input", "input", "accept"},
+			{"forward", "forward", "accept"},
+			{"output", "output", "accept"},
+		} {
+			if _, err := tx.Exec(`
+				INSERT INTO nft_chains (table_id, name, kind, hook, chain_type, priority, policy, position, created_at, updated_at)
+				SELECT t.id, ?, 'base', ?, 'filter', 'filter', ?, ?, ?, ?
+				FROM nft_tables t
+				WHERE t.family = 'inet' AND t.name = 'filter'
+				  AND NOT EXISTS (SELECT 1 FROM nft_chains c WHERE c.table_id = t.id AND c.name = ?)`,
+				ch.name, ch.hook, ch.policy, i+1, ts, ts, ch.name); err != nil {
+				return fmt.Errorf("seed starter chain %s: %w", ch.name, err)
+			}
 		}
 	}
 
-	// The two opinionated default lists, and the adoption of any entries
-	// written by the two-fixed-lists era ("mgmt"/"block" in the legacy list
-	// column). The legacy column is kept equal to the list id afterwards: on
-	// pre-v4 databases the UNIQUE constraint is (list, cidr) and cannot be
-	// altered, so keeping the column in lockstep preserves per-list
-	// uniqueness there. All idempotent — safe to re-run.
-	for i, seed := range []struct{ name, role, note string }{
-		{"management", "allow", "Accepted before everything — this network can never be locked out."},
-		{"blacklist", "block", "Dropped before established connections — blocking also cuts live sessions."},
-	} {
-		if _, err := tx.Exec(`INSERT OR IGNORE INTO ip_lists (name, role, note, position, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)`, seed.name, seed.role, seed.note, i+1, ts, ts); err != nil {
-			return fmt.Errorf("seed list %s: %w", seed.name, err)
+	// The two opinionated default lists, and the adoption of any entries written
+	// by the two-fixed-lists era ("mgmt"/"block" in the legacy list column). Only
+	// on databases that predate named lists (version < 4): re-running this after
+	// the operator has deleted a default list would resurrect it. The legacy
+	// column is kept equal to the list id afterwards: on pre-v4 databases the
+	// UNIQUE constraint is (list, cidr) and cannot be altered, so keeping the
+	// column in lockstep preserves per-list uniqueness there.
+	if version < 4 {
+		for i, seed := range []struct{ name, role, note string }{
+			{"management", "allow", "Accepted before everything — this network can never be locked out."},
+			{"blacklist", "block", "Dropped before established connections — blocking also cuts live sessions."},
+		} {
+			if _, err := tx.Exec(`INSERT OR IGNORE INTO ip_lists (name, role, note, position, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?)`, seed.name, seed.role, seed.note, i+1, ts, ts); err != nil {
+				return fmt.Errorf("seed list %s: %w", seed.name, err)
+			}
+		}
+		for legacy, name := range map[string]string{"mgmt": "management", "block": "blacklist"} {
+			if _, err := tx.Exec(`UPDATE list_entries SET list_id = (SELECT id FROM ip_lists WHERE name = ?)
+				WHERE list = ? AND list_id = 0`, name, legacy); err != nil {
+				return fmt.Errorf("adopt %s entries: %w", legacy, err)
+			}
+		}
+		if _, err := tx.Exec(`UPDATE list_entries SET list = CAST(list_id AS TEXT) WHERE list_id != 0`); err != nil {
+			return fmt.Errorf("sync legacy list column: %w", err)
 		}
 	}
-	for legacy, name := range map[string]string{"mgmt": "management", "block": "blacklist"} {
-		if _, err := tx.Exec(`UPDATE list_entries SET list_id = (SELECT id FROM ip_lists WHERE name = ?)
-			WHERE list = ? AND list_id = 0`, name, legacy); err != nil {
-			return fmt.Errorf("adopt %s entries: %w", legacy, err)
-		}
-	}
-	if _, err := tx.Exec(`UPDATE list_entries SET list = CAST(list_id AS TEXT) WHERE list_id != 0`); err != nil {
-		return fmt.Errorf("sync legacy list column: %w", err)
+
+	// version < 7: drop the never-used events(ts) index — the timeline paginates
+	// by id, so it only ever cost write time.
+	if _, err := tx.Exec(`DROP INDEX IF EXISTS idx_events_ts`); err != nil {
+		return fmt.Errorf("drop idx_events_ts: %w", err)
 	}
 
 	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {

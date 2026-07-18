@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/netip"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -235,6 +236,9 @@ var statements = []Statement{
 			if t == "" {
 				return "", fmt.Errorf("jump needs a target chain")
 			}
+			if !identRe.MatchString(t) {
+				return "", fmt.Errorf("jump target must be a chain name (letters, digits, underscores)")
+			}
 			return "jump " + t, nil
 		}},
 	{Key: "goto", Label: "Go to chain", Group: "Verdict", Example: "goto my_checks",
@@ -244,6 +248,9 @@ var statements = []Statement{
 			t := strings.TrimSpace(p["target"])
 			if t == "" {
 				return "", fmt.Errorf("goto needs a target chain")
+			}
+			if !identRe.MatchString(t) {
+				return "", fmt.Errorf("goto target must be a chain name (letters, digits, underscores)")
 			}
 			return "goto " + t, nil
 		}},
@@ -271,6 +278,9 @@ var statements = []Statement{
 				fmt.Fprintf(&b, " prefix %q", pre)
 			}
 			if lvl := strings.TrimSpace(p["level"]); lvl != "" {
+				if !logLevels[lvl] {
+					return "", fmt.Errorf("log level %q is not a syslog level", lvl)
+				}
 				b.WriteString(" level " + lvl)
 			}
 			return b.String(), nil
@@ -297,6 +307,9 @@ var statements = []Statement{
 			if per == "" {
 				per = "second"
 			}
+			if !rateUnits[per] {
+				return "", fmt.Errorf("rate limit unit %q is not second/minute/hour/day/week", per)
+			}
 			out := fmt.Sprintf("limit rate %s/%s", rate, per)
 			if burst := strings.TrimSpace(p["burst"]); burst != "" {
 				if _, err := strconv.Atoi(burst); err != nil {
@@ -316,6 +329,9 @@ var statements = []Statement{
 			if v == "" {
 				return "", fmt.Errorf("set packet mark needs a value")
 			}
+			if err := checkNumberOrHex("packet mark", v); err != nil {
+				return "", err
+			}
 			return "meta mark set " + v, nil
 		}},
 	{Key: "ct.mark.set", Label: "Set connection mark", Group: "Marking", Example: "ct mark set 0x1",
@@ -325,6 +341,9 @@ var statements = []Statement{
 			v := strings.TrimSpace(p["value"])
 			if v == "" {
 				return "", fmt.Errorf("set connection mark needs a value")
+			}
+			if err := checkNumberOrHex("connection mark", v); err != nil {
+				return "", err
 			}
 			return "ct mark set " + v, nil
 		}},
@@ -352,6 +371,9 @@ var statements = []Statement{
 		Params: []Param{{Key: "port", Label: "To port", Kind: KindPort, Optional: true, Placeholder: "3128", Help: "The local port to redirect to (blank keeps the original)."}},
 		render: func(p map[string]string, _ Ctx) (string, error) {
 			if port := strings.TrimSpace(p["port"]); port != "" {
+				if err := checkPort("redirect port", port); err != nil {
+					return "", err
+				}
 				return "redirect to :" + port, nil
 			}
 			return "redirect", nil
@@ -437,6 +459,76 @@ func StatementGroups() []StatementGroup {
 	return out
 }
 
+// ── value validation ─────────────────────────────────────────────────────────
+//
+// Match values and statement params are free-form text (addresses, ports,
+// ranges, comma lists, @set references) that the renderer emits into a rule
+// line — a line that lives inside a `table <fam> <name> { chain { … } }` block.
+// nft's structural characters (newlines, the `{}` and `;` that delimit chains
+// and tables, the `#` comment marker) must therefore never survive into that
+// text: a value containing them could close the enclosing chain and table and
+// declare new nft objects, escaping the model nftably tracks — and so escaping
+// the pre-apply snapshot and the armed auto-revert. `nft -c` accepts such input
+// because it is syntactically valid; only rejecting the characters here does.
+// This is a deny-list of structural characters, not a grammar: the many valid
+// value forms stay free-form.
+
+const nftStructuralChars = "\n\r\t{}();#\\\"'`"
+
+// The closed vocabularies a couple of statement params draw from — emitted into
+// config bare, so validated against the exact keyword set rather than only the
+// structural deny-list.
+var (
+	logLevels = map[string]bool{"debug": true, "info": true, "notice": true, "warn": true, "err": true, "crit": true, "alert": true, "emerg": true}
+	rateUnits = map[string]bool{"second": true, "minute": true, "hour": true, "day": true, "week": true}
+)
+
+// identRe matches an nft identifier (a chain or set name) — emittable bare with
+// no way to break out of the token.
+var identRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,63}$`)
+
+// checkSafe rejects a value carrying nft structural characters. label names the
+// field for the message.
+func checkSafe(label, value string) error {
+	if i := strings.IndexAny(value, nftStructuralChars); i >= 0 {
+		return fmt.Errorf("%s must not contain %q", label, string(value[i]))
+	}
+	return nil
+}
+
+// checkNumberOrHex accepts a decimal or 0x-hex whole number (nft mark/number).
+func checkNumberOrHex(label, value string) error {
+	v := strings.TrimSpace(value)
+	if strings.HasPrefix(v, "0x") || strings.HasPrefix(v, "0X") {
+		if _, err := strconv.ParseUint(v[2:], 16, 64); err == nil {
+			return nil
+		}
+	} else if _, err := strconv.ParseUint(v, 10, 64); err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s must be a whole number (decimal or 0x-hex)", label)
+}
+
+// checkPort accepts a single port, an a-b range, or a comma list of those.
+func checkPort(label, value string) error {
+	for _, tok := range strings.Split(value, ",") {
+		tok = strings.TrimSpace(tok)
+		if tok == "" {
+			continue
+		}
+		lo, hi, isRange := strings.Cut(tok, "-")
+		if _, err := strconv.Atoi(strings.TrimSpace(lo)); err != nil {
+			return fmt.Errorf("%s must be a port number or range", label)
+		}
+		if isRange {
+			if _, err := strconv.Atoi(strings.TrimSpace(hi)); err != nil {
+				return fmt.Errorf("%s must be a port number or range", label)
+			}
+		}
+	}
+	return nil
+}
+
 // ── rendering ───────────────────────────────────────────────────────────────
 
 // RenderMatch turns a stored match into an nft expression fragment.
@@ -444,6 +536,9 @@ func RenderMatch(key, op, value string, _ Ctx) (string, error) {
 	m, ok := matchByKey[key]
 	if !ok {
 		return "", fmt.Errorf("unknown match %q", key)
+	}
+	if err := checkSafe(m.Label, value); err != nil {
+		return "", err
 	}
 	val := renderValue(value, m.Quote)
 	if val == "" && m.Kind != KindNone {
@@ -510,19 +605,30 @@ func renderNatTo(verb string, p map[string]string, ctx Ctx) (string, error) {
 		return "", fmt.Errorf("%s needs a target address", verb)
 	}
 	port := strings.TrimSpace(p["port"])
+	if port != "" {
+		if err := checkPort(verb+" port", port); err != nil {
+			return "", err
+		}
+	}
+
+	// The target must be a literal IP address: it is emitted bare into the rule
+	// line, so anything else (a hostname, an expression, injected text) is
+	// rejected rather than passed through.
+	a, err := netip.ParseAddr(addr)
+	if err != nil {
+		return "", fmt.Errorf("%s target must be an IP address", verb)
+	}
 
 	// Decide the family qualifier and address bracketing.
 	qualifier := ""
 	bracket := false
-	if a, err := netip.ParseAddr(addr); err == nil {
-		if a.Is6() {
-			bracket = true
-			if ctx.Family == "inet" {
-				qualifier = "ip6 "
-			}
-		} else if ctx.Family == "inet" {
-			qualifier = "ip "
+	if a.Is6() {
+		bracket = true
+		if ctx.Family == "inet" {
+			qualifier = "ip6 "
 		}
+	} else if ctx.Family == "inet" {
+		qualifier = "ip "
 	}
 	target := addr
 	if bracket && port != "" {

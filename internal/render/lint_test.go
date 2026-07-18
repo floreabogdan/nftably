@@ -50,6 +50,29 @@ func TestLintAcceptPortSatisfies(t *testing.T) {
 	}
 }
 
+func TestLintWarnsOnOutputLockout(t *testing.T) {
+	// A drop-policy output chain with nothing accepting replies drops the return
+	// traffic of the operator's own session — a lockout the input-only check misses.
+	m := Model{Tables: []TableTree{{
+		Table: store.Table{Family: "inet", Name: "filter"},
+		Chains: []ChainTree{{
+			Chain: store.Chain{Name: "output", Kind: "base", Hook: "output", ChainType: "filter", Priority: "filter", Policy: "drop"},
+		}},
+	}}}
+	if warns := Lint(m, "0.0.0.0:8080"); !hasWarnAbout(warns, "output chain drops") {
+		t.Errorf("expected an output-chain lockout warning, got %v", warns)
+	}
+
+	// An established/related accept in the output chain quiets it.
+	m.Tables[0].Chains[0].Rules = []store.ChainRule{rule("replies",
+		[]store.RuleMatch{{Key: "ct.state", Op: "==", Value: "established, related"}},
+		[]store.RuleStatement{{Key: "accept"}},
+	)}
+	if warns := Lint(m, "0.0.0.0:8080"); hasWarnAbout(warns, "output chain drops") {
+		t.Errorf("established/related accept should quiet the output warning, got %v", warns)
+	}
+}
+
 func TestLintFlagsUnknownKnob(t *testing.T) {
 	m := model("accept", rule("bad",
 		[]store.RuleMatch{{Key: "not.a.real.knob", Op: "==", Value: "x"}},

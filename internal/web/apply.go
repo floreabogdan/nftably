@@ -26,6 +26,14 @@ const (
 	defaultApplyTimeout = 60 * time.Second
 	minApplyTimeout     = 10 * time.Second
 	maxApplyTimeout     = 10 * time.Minute
+	// kernelOpTimeout bounds a single nft check/apply invocation. It is
+	// deliberately generous and, crucially, independent of the browser request:
+	// an apply can sever the operator's own connection (that is what the
+	// auto-revert exists for), and if that cancellation propagated into the nft
+	// process it would SIGKILL `nft -f` mid-transaction. Running the kernel ops
+	// on a background context — as the revert path already does — keeps the
+	// transaction atomic regardless of what happens to the socket.
+	kernelOpTimeout = 60 * time.Second
 )
 
 // handleApply renders the model, validates it against the kernel, loads it as
@@ -44,6 +52,12 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 
 	s.applyMu.Lock()
 	defer s.applyMu.Unlock()
+
+	// The kernel operations below (snapshot, check, apply) run on a context
+	// decoupled from the browser request: this apply may cut off the very
+	// connection that issued it, and that must not abort the transaction.
+	kctx, kcancel := context.WithTimeout(context.Background(), kernelOpTimeout)
+	defer kcancel()
 
 	if _, pending, err := s.store.GetPendingApply(); err != nil {
 		s.serverError(w, "get pending apply", err)
@@ -72,7 +86,7 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 
 	// Snapshot every table this apply touches — the ones it will replace and the
 	// ones it will remove — so the revert can restore each exactly.
-	snaps, err := s.snapshotTables(r.Context(), unionRefs(current, ledger))
+	snaps, err := s.snapshotTables(kctx, unionRefs(current, ledger))
 	if err != nil {
 		s.renderChangesError(w, r, "Could not snapshot the live tables before applying: "+err.Error())
 		return
@@ -87,7 +101,7 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 
 	// Kernel-side dry run first: a config nft would reject must never get as
 	// far as recording a version.
-	if err := s.applier.CheckFile(r.Context(), path); err != nil {
+	if err := s.applier.CheckFile(kctx, path); err != nil {
 		s.renderChangesError(w, r, "nft rejected the config in the pre-apply check: "+err.Error())
 		return
 	}
@@ -108,7 +122,7 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.applier.ApplyFile(r.Context(), path); err != nil {
+	if err := s.applier.ApplyFile(kctx, path); err != nil {
 		_ = s.store.ClearPendingApply()
 		_ = s.store.SetConfigVersionStatus(versionID, store.VersionFailed)
 		s.renderChangesError(w, r, "nft rejected the config at apply time: "+err.Error())

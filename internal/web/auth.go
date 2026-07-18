@@ -13,6 +13,11 @@ import (
 
 const sessionTTL = 7 * 24 * time.Hour
 
+// dummyPasswordHash is a valid bcrypt hash the login path compares against when
+// the username does not exist, so an unknown-user attempt costs the same time as
+// a wrong-password one (defeats username enumeration by response timing).
+var dummyPasswordHash, _ = bcrypt.GenerateFromPassword([]byte("nftably-login-timing-equalizer"), bcrypt.DefaultCost)
+
 func (s *Server) handleLoginForm(w http.ResponseWriter, r *http.Request) {
 	// Already logged in? go straight to the dashboard.
 	if cookie, err := r.Cookie(sessionCookieName); err == nil {
@@ -43,7 +48,15 @@ func (s *Server) handleLoginSubmit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if !ok || bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
+	// Always run bcrypt, even when the username is unknown, comparing against a
+	// fixed dummy hash. Skipping the compare for a missing user would make a
+	// bad-username response measurably faster than a bad-password one and leak
+	// which usernames exist.
+	hash := dummyPasswordHash
+	if ok {
+		hash = []byte(user.PasswordHash)
+	}
+	if bcrypt.CompareHashAndPassword(hash, []byte(password)) != nil || !ok {
 		s.login.fail(ip)
 		http.Redirect(w, r, "/login?error=1", http.StatusSeeOther)
 		return

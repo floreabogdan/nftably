@@ -11,6 +11,14 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// maxOpenConns bounds the connection pool. SQLite is single-writer, so a large
+// pool buys nothing on the write side; WAL still lets these connections read
+// concurrently. A small explicit cap keeps a write burst from opening an
+// unbounded number of connections (and racing on the write lock past the
+// busy_timeout), without pinning to 1 — which would deadlock any code path that
+// held a transaction and issued another query on the same goroutine.
+const maxOpenConns = 4
+
 // Store is nftably's SQLite-backed state — settings, users, sessions and the
 // event timeline — and the only thing that touches the database. It holds
 // nftably's own state, not the firewall: the live ruleset is always read fresh
@@ -27,6 +35,7 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store: open: %w", err)
 	}
+	db.SetMaxOpenConns(maxOpenConns)
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("store: apply schema: %w", err)

@@ -50,6 +50,22 @@ func Lint(m Model, listenAddr string) []string {
 		}
 	}
 
+	// The reply path: a base output chain that drops by default cuts off the
+	// return traffic of the operator's own SSH/UI session unless something lets
+	// established/related connections back out. This is just as much of a lockout
+	// as a drop-policy input chain, and easy to miss.
+	if rules, hit := dropChainRules(m, "output"); hit && !acceptsEstablished(rules) {
+		warns = append(warns,
+			"An output chain drops by default and nothing accepts established/related traffic — this would drop the replies to your own SSH/UI session and cut you off. Add an `established, related accept` rule to the output chain.")
+	}
+
+	// A forward chain that drops by default only reaches the operator if they
+	// manage this box through it (a routed management network). Warn softly.
+	if rules, hit := dropChainRules(m, "forward"); hit && !acceptsEstablished(rules) {
+		warns = append(warns,
+			"A forward chain drops by default and nothing accepts established/related traffic — if you reach this box through a routed network, that path could be cut. Add an allow rule if so.")
+	}
+
 	// Rules that reference an unknown knob will silently not render.
 	for _, t := range m.Tables {
 		for _, c := range t.Chains {
@@ -72,6 +88,22 @@ func Lint(m Model, listenAddr string) []string {
 	}
 
 	return warns
+}
+
+// dropChainRules gathers the rules of every base chain on the given hook that
+// filters with a default-drop policy, and reports whether any such chain exists.
+func dropChainRules(m Model, hook string) ([]store.ChainRule, bool) {
+	var rules []store.ChainRule
+	found := false
+	for _, t := range m.Tables {
+		for _, c := range t.Chains {
+			if c.IsBase() && c.Hook == hook && c.ChainType != "nat" && c.Policy == "drop" {
+				found = true
+				rules = append(rules, c.Rules...)
+			}
+		}
+	}
+	return rules, found
 }
 
 // acceptsEstablished reports whether some enabled rule accepts established/

@@ -1,11 +1,11 @@
 {{template "shell-open" .}}
 <div class="page-top">
 	<span class="page-eyebrow">Manage</span>
-	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Changes</span></div>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Review &amp; apply</span></div>
 </div>
 <div class="page-header">
 	<div>
-		<h1>Changes</h1>
+		<h1>Review &amp; apply</h1>
 		<div class="page-sub">What your <a href="/firewall">firewall model</a> renders to, how it differs from the tables live in the kernel right now, and the apply pipeline with its armed auto-revert.</div>
 	</div>
 </div>
@@ -22,15 +22,22 @@
 {{end}}
 
 {{if .Pending}}
-<div class="card card-warning" id="pending-panel" data-deadline="{{.Pending.DeadlineUnix}}">
-	<div class="card-header"><span class="card-title">{{template "icon-alert"}}Applied — waiting for your confirmation</span></div>
+<div class="card card-warning pending-panel" id="pending-panel" data-deadline="{{.Pending.DeadlineUnix}}" role="alertdialog" aria-labelledby="pending-title" aria-describedby="pending-desc">
+	<div class="card-header"><span class="card-title" id="pending-title">{{template "icon-alert"}}Applied — waiting for your confirmation</span></div>
 	<div class="card-body">
-		<p>Config <strong>#{{.Pending.VersionID}}</strong> is live in the kernel right now. If you can still read this page, the new rules did not cut you off — confirm to keep them. Otherwise nftably restores the previous ruleset in
-		<strong class="mono" id="apply-countdown">{{.Pending.SecondsLeft}}s</strong>.</p>
+		<div class="countdown" aria-hidden="true">
+			<div class="countdown-clock">
+				<span class="countdown-num" id="apply-countdown">{{.Pending.SecondsLeft}}</span><span class="countdown-unit">s</span>
+				<span class="countdown-caption">until auto-revert</span>
+			</div>
+			<div class="countdown-bar"><div class="countdown-fill" id="apply-countdown-bar"></div></div>
+		</div>
+		<p id="pending-desc">Config <strong>#{{.Pending.VersionID}}</strong> is live in the kernel right now. If you can still read this page, the new rules did not cut you off — <strong>confirm to keep them</strong>. Otherwise nftably restores the previous ruleset when the timer reaches zero.</p>
 		<div class="form-actions">
-			<form method="post" action="/apply/confirm"><button type="submit" class="btn btn-primary">Confirm — keep this config</button></form>
+			<form method="post" action="/apply/confirm"><button type="submit" class="btn btn-primary" id="confirm-btn">Confirm — keep this config</button></form>
 			<form method="post" action="/apply/rollback"><button type="submit" class="btn btn-danger">Roll back now</button></form>
 		</div>
+		<p class="visually-hidden" id="apply-countdown-live" aria-live="assertive"></p>
 	</div>
 </div>
 <script src="/static/apply.js" defer></script>

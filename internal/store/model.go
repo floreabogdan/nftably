@@ -434,17 +434,22 @@ func scanRules(rows *sql.Rows) ([]ChainRule, error) {
 }
 
 // attachChildren loads the matches and statements for a set of rules in two
-// bulk queries and hangs them off each rule (ordered).
+// bulk queries and hangs them off each rule (ordered). The queries are scoped to
+// the passed-in rule ids, so fetching a single rule (or one chain) does not scan
+// every match/statement in the database.
 func (s *Store) attachChildren(rules []ChainRule) ([]ChainRule, error) {
 	if len(rules) == 0 {
 		return rules, nil
 	}
 	idx := make(map[int64]int, len(rules))
+	ids := make([]any, len(rules))
 	for i := range rules {
 		idx[rules[i].ID] = i
+		ids[i] = rules[i].ID
 	}
+	in := "(" + strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",") + ")"
 
-	mrows, err := s.db.Query(`SELECT id, rule_id, position, key, op, value FROM nft_rule_matches ORDER BY position, id`)
+	mrows, err := s.db.Query(`SELECT id, rule_id, position, key, op, value FROM nft_rule_matches WHERE rule_id IN `+in+` ORDER BY position, id`, ids...)
 	if err != nil {
 		return nil, fmt.Errorf("store: load matches: %w", err)
 	}
@@ -463,7 +468,7 @@ func (s *Store) attachChildren(rules []ChainRule) ([]ChainRule, error) {
 		return nil, err
 	}
 
-	srows, err := s.db.Query(`SELECT id, rule_id, position, key, params FROM nft_rule_statements ORDER BY position, id`)
+	srows, err := s.db.Query(`SELECT id, rule_id, position, key, params FROM nft_rule_statements WHERE rule_id IN `+in+` ORDER BY position, id`, ids...)
 	if err != nil {
 		return nil, fmt.Errorf("store: load statements: %w", err)
 	}

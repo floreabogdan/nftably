@@ -49,7 +49,9 @@
 	--surface-alt: #f6f7f8;
 	--border: #e9ebec;
 	--text: #212529;
-	--text-muted: #878a99;
+	/* ~6:1 on white — the explanatory copy this drives (hints, help, page-subs)
+	   is the product's value, so it must clear WCAG AA for normal text. */
+	--text-muted: #5f636e;
 
 	--primary: #5ea3cb;
 	--primary-deep: #2c6690;
@@ -166,6 +168,63 @@ h1, h2, h3 { font-weight: 700; color: var(--text); margin: 0; }
 .mono { font-family: var(--font-mono); font-variant-ligatures: none; }
 
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ---------- accessibility helpers ---------- */
+/* Visible only to assistive tech (skip-link targets, live-region text). */
+.visually-hidden {
+	position: absolute;
+	width: 1px; height: 1px;
+	margin: -1px; padding: 0; border: 0;
+	overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+	white-space: nowrap;
+}
+/* The skip link reveals itself when focused, so keyboard users can jump past
+   the sidebar's ~11 links straight to the page content. */
+.skip-link {
+	position: absolute; left: 8px; top: -48px; z-index: 100;
+	background: var(--surface); color: var(--text);
+	border: 1px solid var(--border); border-radius: var(--radius-control);
+	padding: 8px 14px; font-weight: 600;
+	transition: top 0.15s ease;
+}
+.skip-link:focus { top: 8px; text-decoration: none; }
+
+/* ---------- pending-apply countdown ---------- */
+/* The armed auto-revert is the highest-stakes moment in the app, so the seconds
+   remaining are the loudest thing on the panel: a large numeral plus a
+   depleting bar that warms as it nears zero. */
+.countdown {
+	display: flex; align-items: center; gap: 16px;
+	margin-bottom: 14px;
+}
+.countdown-clock { display: flex; align-items: baseline; gap: 4px; flex: 0 0 auto; }
+.countdown-num {
+	font-family: var(--font-mono);
+	font-size: 2.75rem; font-weight: 700; line-height: 1;
+	color: var(--warning-deep);
+	font-variant-numeric: tabular-nums;
+	min-width: 2.2ch; text-align: right;
+}
+.countdown-unit { font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; color: var(--warning-deep); }
+.countdown-caption { margin-left: 8px; font-size: 0.8125rem; color: var(--text-muted); align-self: center; }
+.countdown-bar {
+	flex: 1 1 auto; height: 8px;
+	background: color-mix(in srgb, var(--warning) 20%, var(--surface));
+	border-radius: 999px; overflow: hidden;
+}
+.countdown-fill {
+	height: 100%; width: 100%;
+	background: var(--warning);
+	border-radius: 999px;
+	transition: width 0.25s linear, background 0.3s ease;
+}
+/* Final stretch: shift to danger hue so the urgency is unmistakable. */
+.pending-panel.countdown-urgent .countdown-num,
+.pending-panel.countdown-urgent .countdown-unit { color: var(--danger-deep); }
+.pending-panel.countdown-urgent .countdown-fill { background: var(--danger); }
+@media (prefers-reduced-motion: reduce) {
+	.countdown-fill { transition: none; }
+}
 
 /* ---------- app shell: sidebar + top bar ---------- */
 .app-shell { display: flex; min-height: 100vh; }
