@@ -28,6 +28,16 @@
 {{if .Saved}}<div class="flash">Saved to the model. Go to <a href="/changes">Review &amp; apply</a> to make it live.</div>{{end}}
 {{if .Err}}<div class="flash flash-error">{{.Err}}</div>{{end}}
 
+{{if .LintWarns}}
+<div class="card card-warning">
+	<div class="card-header"><span class="card-title">{{template "icon-alert"}}Heads-up before you apply</span></div>
+	<div class="card-body">
+		{{range .LintWarns}}<div class="lint-warn">{{template "icon-alert"}} {{.}}</div>{{end}}
+		<p class="hint">Not sure? <a href="/simulate">Simulate a packet</a> to see exactly what would happen — nothing is applied until you go to <a href="/changes">Review &amp; apply</a>.</p>
+	</div>
+</div>
+{{end}}
+
 {{range $t := .Tables}}
 <div class="card">
 	<div class="card-header">

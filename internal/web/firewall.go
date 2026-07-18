@@ -33,11 +33,12 @@ var paramKeys = []string{"target", "addr", "port", "with", "prefix", "level", "r
 
 type fwVM struct {
 	nav
-	Tables   []fwTable
-	Families []string
-	Saved    bool
-	Err      string
-	Preset   string // name of a just-applied preset, for the confirmation banner
+	Tables    []fwTable
+	Families  []string
+	Saved     bool
+	Err       string
+	Preset    string   // name of a just-applied preset, for the confirmation banner
+	LintWarns []string // lockout/footgun warnings, surfaced here as well as on /changes
 }
 
 type fwTable struct {
@@ -64,10 +65,11 @@ func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vm := fwVM{
-		nav:      s.navFor(r, "firewall"),
-		Families: []string{"inet", "ip", "ip6", "arp", "bridge", "netdev"},
-		Saved:    r.URL.Query().Get("saved") == "1",
-		Err:      r.URL.Query().Get("err"),
+		nav:       s.navFor(r, "firewall"),
+		Families:  []string{"inet", "ip", "ip6", "arp", "bridge", "netdev"},
+		Saved:     r.URL.Query().Get("saved") == "1",
+		Err:       r.URL.Query().Get("err"),
+		LintWarns: nftconf.Lint(m, s.listenAddr),
 	}
 	if key := r.URL.Query().Get("preset"); key != "" {
 		if p, ok := s.presetByKey(key); ok {

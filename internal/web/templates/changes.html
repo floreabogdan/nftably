@@ -50,6 +50,29 @@
 </div></div>
 {{end}}
 
+{{if .Summary}}
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-list"}}What this applies</span></div>
+	<div class="card-body">
+		<div class="apply-summary">
+			{{range .Summary}}
+			<div class="apply-tbl">
+				<div class="apply-tbl-head"><span class="mono">{{.Family}} {{.Name}}</span>{{if .NewInKern}} <span class="badge badge-info">new</span>{{end}}</div>
+				{{range .Chains}}
+				<div class="apply-chain">
+					<span class="mono apply-chain-name">chain {{.Name}}</span>
+					{{if eq .Kind "base"}}<span class="text-muted">hook {{.Hook}}</span> {{policyBadge .Policy}}{{else}}<span class="text-muted">regular</span>{{end}}
+					<span class="apply-rulecount text-muted">{{.RuleCount}} rule{{if ne .RuleCount 1}}s{{end}}</span>
+				</div>
+				{{end}}
+			</div>
+			{{end}}
+		</div>
+		<p class="hint">Want to be sure it behaves? <a href="/simulate">Simulate a packet</a> against it first.</p>
+	</div>
+</div>
+{{end}}
+
 <div class="card">
 	<div class="card-header">
 		<span class="card-title">{{template "icon-changes"}}Diff against the kernel</span>

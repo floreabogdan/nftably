@@ -26,9 +26,10 @@ type changesVM struct {
 	RuleCount   int // enabled rules in the candidate
 
 	// The M3 apply state.
-	CanApply  bool     // nft reachable and no pending apply
-	LintWarns []string // footgun warnings shown next to the apply button
-	ApplyErr  string   // why the last apply attempt failed, if it did
+	CanApply  bool                // nft reachable and no pending apply
+	LintWarns []string            // footgun warnings shown next to the apply button
+	Summary   []applyTableSummary // a scannable outline of the candidate model
+	ApplyErr  string              // why the last apply attempt failed, if it did
 	// Pending is the armed apply awaiting confirmation; nil when none.
 	Pending *pendingVM
 	History []store.ConfigVersion
@@ -41,6 +42,50 @@ type pendingVM struct {
 	Deadline     time.Time
 	DeadlineUnix int64
 	SecondsLeft  int
+}
+
+// applyTableSummary / applyChainSummary are the scannable outline of the
+// candidate model shown above the raw diff: tables, their chains, each chain's
+// hook and default policy (drop is the one that can lock you out) and rule count.
+type applyTableSummary struct {
+	Family    string
+	Name      string
+	Chains    []applyChainSummary
+	NewInKern bool // this table is not in the kernel yet
+}
+
+type applyChainSummary struct {
+	Name      string
+	Kind      string // base | regular
+	Hook      string
+	Policy    string
+	RuleCount int
+}
+
+// summarizeModel turns the loaded model into the outline, counting only enabled
+// rules (those are what render).
+func summarizeModel(m nftconf.Model, existing map[store.TableRef]bool) []applyTableSummary {
+	var out []applyTableSummary
+	for _, t := range m.Tables {
+		ts := applyTableSummary{
+			Family:    t.Family,
+			Name:      t.Name,
+			NewInKern: !existing[store.TableRef{Family: t.Family, Name: t.Name}],
+		}
+		for _, c := range t.Chains {
+			enabled := 0
+			for _, r := range c.Rules {
+				if r.Enabled {
+					enabled++
+				}
+			}
+			ts.Chains = append(ts.Chains, applyChainSummary{
+				Name: c.Name, Kind: c.Kind, Hook: c.Hook, Policy: c.Policy, RuleCount: enabled,
+			})
+		}
+		out = append(out, ts)
+	}
+	return out
 }
 
 // handleChanges renders the candidate config, diffs it against the live
@@ -107,6 +152,14 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 		vm.Hunks = nftconf.Diff(live.String(), vm.Candidate, 3)
 		vm.Added, vm.Removed = nftconf.Stat(vm.Hunks)
 
+		existing := map[store.TableRef]bool{}
+		for _, sn := range snaps {
+			if sn.Exists {
+				existing[store.TableRef{Family: sn.Family, Name: sn.Name}] = true
+			}
+		}
+		vm.Summary = summarizeModel(m, existing)
+
 		// Adoption warning: a table nftably is about to replace that already
 		// exists in the kernel but is absent from the applied ledger was created
 		// by someone else — a hand-written /etc/nftables.conf, another tool. The
@@ -125,6 +178,10 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 				}
 			}
 		}
+	}
+	if vm.Summary == nil {
+		// Live tables unreadable — still show the outline of what would apply.
+		vm.Summary = summarizeModel(m, nil)
 	}
 
 	if p, pending, err := s.store.GetPendingApply(); err != nil {

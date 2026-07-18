@@ -48,6 +48,11 @@ typed, explained control instead of a fixed form.
 - **Live rule preview.** The editor's "renders as" panel now updates as you type
   (debounced, server-rendered so it can't drift from what applies) and shows the
   rule inside its chain — `chain input { … <your rule> … }`.
+- **Closing the build → apply loop.** Lockout warnings now also appear on the
+  Firewall page, one screen before Review & apply, with a link to simulate the
+  concern. Review & apply gained a scannable "What this applies" outline (tables,
+  chains, hooks, policies, rule counts) above the raw diff, and both pages
+  cross-link to the packet simulator.
 - **Opt-in GeoIP download.** Settings → GeoIP can fetch the free DB-IP Lite
   country database (CC-BY 4.0, no account), validate it, and optionally refresh it
   monthly. Your own MaxMind file still works. This is the only thing that ever

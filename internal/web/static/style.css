@@ -189,6 +189,14 @@ h1, h2, h3 { font-weight: 700; color: var(--text); margin: 0; }
 }
 .skip-link:focus { top: 8px; text-decoration: none; }
 
+/* ---------- apply summary outline ---------- */
+.apply-summary { display: flex; flex-direction: column; gap: 10px; }
+.apply-tbl { border: 1px solid var(--border); border-radius: var(--radius-control); padding: 10px 12px; }
+.apply-tbl-head { font-size: 0.8125rem; margin-bottom: 6px; }
+.apply-chain { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 3px 0 3px 12px; font-size: 0.8125rem; }
+.apply-chain-name { flex: 0 0 auto; }
+.apply-rulecount { margin-left: auto; font-size: 0.75rem; }
+
 /* ---------- packet simulator ---------- */
 .sim-verdict .card-body { border-radius: var(--radius-card); }
 .sim-verdict.sim-accept { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
