@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	nftconf "github.com/floreabogdan/nftably/internal/render"
@@ -76,18 +77,33 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 		LintWarns: nftconf.Lint(m, s.listenAddr),
 		SetupDone: r.URL.Query().Get("setup") == "1",
 	}
-	for _, rule := range m.Rules {
-		if rule.Enabled {
-			vm.RuleCount++
+	for _, t := range m.Tables {
+		for _, c := range t.Chains {
+			for _, rule := range c.Rules {
+				if rule.Enabled {
+					vm.RuleCount++
+				}
+			}
 		}
 	}
 
-	live, exists, err := s.applier.Table(r.Context(), "inet", nftconf.TableName)
+	// Build the "live" side from the current kernel text of every owned table,
+	// in model order, so it lines up with the candidate for a meaningful diff.
+	snaps, err := s.snapshotTables(r.Context(), modelTableRefs(m))
 	if err != nil {
 		vm.LiveErr = err.Error()
 	} else {
-		vm.TableExists = exists
-		vm.Hunks = nftconf.Diff(live, vm.Candidate, 3)
+		var live strings.Builder
+		for _, sn := range snaps {
+			if sn.Exists {
+				vm.TableExists = true
+				live.WriteString(sn.Text)
+				if !strings.HasSuffix(sn.Text, "\n") {
+					live.WriteString("\n")
+				}
+			}
+		}
+		vm.Hunks = nftconf.Diff(live.String(), vm.Candidate, 3)
 		vm.Added, vm.Removed = nftconf.Stat(vm.Hunks)
 	}
 

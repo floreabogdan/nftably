@@ -9,11 +9,11 @@
 		<div class="page-sub">
 			{{if eq .List.Role "allow"}}Always allowed: these sources are accepted before every rule, before even block lists — on the input chain and, with forwarding on, through the router. A network here can never be locked out.
 			{{else if eq .List.Role "block"}}Always blocked: these sources are dropped before established connections are accepted, so a new entry also cuts sessions that are already open, the moment you apply.
-			{{else}}An address group. It does nothing by itself — <a href="/rules">rules</a> that name it as their source match exactly these addresses, and every rule follows when the list changes.{{end}}
+			{{else}}An address group. It does nothing by itself — <a href="/firewall">rules</a> that name it as their source match exactly these addresses, and every rule follows when the list changes.{{end}}
 		</div>
 	</div>
 	<div class="page-header-actions">
-		{{if not .List.Role}}<a class="btn btn-sm btn-primary" href="/rules/new?src_list={{.List.ID}}">{{template "icon-plus"}}Add rule using this list</a>{{end}}
+		{{if not .List.Role}}<a class="btn btn-sm btn-primary" href="/firewall">{{template "icon-plus"}}Add rule using this list</a>{{end}}
 	</div>
 </div>
 
@@ -66,14 +66,14 @@
 						{{if ne .Proto "any"}}<span class="chip chip-primary mono">{{.Proto}}{{if .DPorts}} dport {{.DPorts}}{{end}}</span>{{end}}
 					</div></td>
 					<td>{{if eq .Action "accept"}}<span class="badge badge-success">accept</span>{{else if eq .Action "drop"}}<span class="badge badge-danger">drop</span>{{else}}<span class="badge badge-warning">reject</span>{{end}}</td>
-					<td class="row-actions"><a class="icon-action" href="/rules/{{.ID}}/edit" title="Edit" aria-label="Edit rule">{{template "icon-edit"}}</a></td>
+					<td class="row-actions"><a class="icon-action" href="/firewall" title="Edit" aria-label="Edit rule">{{template "icon-edit"}}</a></td>
 				</tr>
 				{{end}}
 			</tbody>
 		</table>
 	</div>
 	{{else}}
-	<div class="card-body"><div class="empty">{{if .List.Role}}This list acts on its own — its behaviour needs no rules.{{else}}No rules use this list yet. <a href="/rules/new?src_list={{.List.ID}}">Add one</a> — for example, allow SSH only from here.{{end}}</div></div>
+	<div class="card-body"><div class="empty">{{if .List.Role}}This list acts on its own — its behaviour needs no rules.{{else}}No rules use this list yet. <a href="/firewall">Add one</a> — for example, allow SSH only from here.{{end}}</div></div>
 	{{end}}
 </div>
 

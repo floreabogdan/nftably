@@ -148,13 +148,95 @@ CREATE TABLE IF NOT EXISTS advisor_dismissed (
 );
 
 -- The armed apply, persisted so a crash during the confirm window still ends
--- in a revert: server startup finds this row and restores prev_table.
+-- in a revert: server startup finds this row and restores the snapshot.
+-- prev_tables is a JSON array of every owned table's pre-apply text (the
+-- general model manages many tables, so one blob no longer suffices); the
+-- legacy prev_table/prev_exists columns are retained empty for old databases.
 CREATE TABLE IF NOT EXISTS pending_apply (
 	id          INTEGER PRIMARY KEY CHECK (id = 1),
 	version_id  INTEGER NOT NULL REFERENCES config_versions(id),
-	prev_table  TEXT NOT NULL,      -- pre-apply "nft list table inet nftably" text
-	prev_exists INTEGER NOT NULL,   -- 0: the table was absent before the apply
+	prev_table  TEXT NOT NULL DEFAULT '',   -- legacy single-table snapshot (unused)
+	prev_exists INTEGER NOT NULL DEFAULT 0, -- legacy (unused)
+	prev_tables TEXT NOT NULL DEFAULT '[]', -- JSON [{family,name,text,exists}] snapshot
 	deadline    TEXT NOT NULL,
 	created_at  TEXT NOT NULL
+);
+
+-- ── The general nftables object model (the do-over) ──────────────────────
+-- nftably no longer owns one fixed inet/nftably table. It manages the set of
+-- tables recorded here — and never touches a table it does not own (e.g.
+-- Docker's). The model is the source of truth; the render layer walks these
+-- rows into nft config text, and apply replaces exactly these tables in one
+-- atomic transaction.
+
+-- A table nftably owns, in any netfilter family.
+CREATE TABLE IF NOT EXISTS nft_tables (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	family     TEXT NOT NULL,             -- inet | ip | ip6 | arp | bridge | netdev
+	name       TEXT NOT NULL,             -- ^[a-zA-Z][a-zA-Z0-9_]{0,63}$
+	comment    TEXT NOT NULL DEFAULT '',
+	position   INTEGER NOT NULL,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	UNIQUE(family, name)
+);
+
+-- A chain in a table. A base chain hooks into netfilter (type+hook+priority+
+-- policy); a regular chain is just a named jump/goto target (those four are
+-- empty). position is render/eval order within the table.
+CREATE TABLE IF NOT EXISTS nft_chains (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	table_id   INTEGER NOT NULL REFERENCES nft_tables(id) ON DELETE CASCADE,
+	name       TEXT NOT NULL,             -- ^[a-zA-Z][a-zA-Z0-9_]{0,63}$
+	kind       TEXT NOT NULL DEFAULT 'base',  -- base | regular
+	hook       TEXT NOT NULL DEFAULT '',  -- input|output|forward|prerouting|postrouting|ingress|egress
+	chain_type TEXT NOT NULL DEFAULT '',  -- filter | nat | route
+	priority   TEXT NOT NULL DEFAULT '',  -- keyword (filter, srcnat, dstnat, …) or signed int
+	policy     TEXT NOT NULL DEFAULT '',  -- accept | drop (base chains)
+	position   INTEGER NOT NULL,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	UNIQUE(table_id, name)
+);
+
+-- One rule on a chain. The match conditions and action statements are child
+-- rows (nft_rule_matches / nft_rule_statements), each keyed by a catalogue id.
+CREATE TABLE IF NOT EXISTS nft_rules (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	chain_id   INTEGER NOT NULL REFERENCES nft_chains(id) ON DELETE CASCADE,
+	position   INTEGER NOT NULL,
+	comment    TEXT NOT NULL DEFAULT '',   -- becomes the rule's nft comment
+	enabled    INTEGER NOT NULL DEFAULT 1,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+
+-- A match condition: catalogue key (ip.saddr, tcp.dport, ct.state, meta.iifname…),
+-- an operator, and the typed value text. position orders the conditions on a rule.
+CREATE TABLE IF NOT EXISTS nft_rule_matches (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	rule_id    INTEGER NOT NULL REFERENCES nft_rules(id) ON DELETE CASCADE,
+	position   INTEGER NOT NULL,
+	key        TEXT NOT NULL,             -- catalogue id
+	op         TEXT NOT NULL DEFAULT '==',-- == != < > <= >= (negation folded into !=)
+	value      TEXT NOT NULL DEFAULT ''
+);
+
+-- An action statement: catalogue key (accept, drop, reject, jump, log, counter,
+-- dnat, snat, masquerade, meta.mark.set…) and its parameters as JSON.
+CREATE TABLE IF NOT EXISTS nft_rule_statements (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	rule_id    INTEGER NOT NULL REFERENCES nft_rules(id) ON DELETE CASCADE,
+	position   INTEGER NOT NULL,
+	key        TEXT NOT NULL,             -- catalogue id
+	params     TEXT NOT NULL DEFAULT '{}' -- JSON of the statement's typed fields
+);
+
+-- The set of tables nftably had in the kernel as of the last confirmed apply.
+-- The next apply diffs the current model against this to know which tables the
+-- operator deleted (so they can be removed from the kernel too). Single row.
+CREATE TABLE IF NOT EXISTS applied_state (
+	id     INTEGER PRIMARY KEY CHECK (id = 1),
+	tables TEXT NOT NULL DEFAULT '[]'   -- JSON [{family,name}]
 );
 `

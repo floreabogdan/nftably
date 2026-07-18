@@ -171,42 +171,38 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /import", s.requireAuth(s.handleImport))
 	s.mux.Handle("GET /timeline", s.requireAuth(s.handleTimeline))
 
-	// The M2 rule model: CRUD plus ordering, and the render/diff preview. All
-	// of it is model-only — nothing here writes to netfilter (that is M3).
-	s.mux.Handle("GET /rules", s.requireAuth(s.handleRulesList))
-	s.mux.Handle("GET /rules/new", s.requireAuth(s.handleRuleNew))
-	s.mux.Handle("POST /rules/new", s.requireAuth(s.handleRuleSave))
-	s.mux.Handle("POST /rules/policy", s.requireAuth(s.handleRulesPolicy))
-	s.mux.Handle("GET /rules/{id}/edit", s.requireAuth(s.handleRuleEdit))
-	s.mux.Handle("POST /rules/{id}/edit", s.requireAuth(s.handleRuleSave))
-	s.mux.Handle("POST /rules/{id}/delete", s.requireAuth(s.handleRuleDelete))
-	s.mux.Handle("POST /rules/{id}/toggle", s.requireAuth(s.handleRuleToggle))
-	s.mux.Handle("POST /rules/{id}/move", s.requireAuth(s.handleRuleMove))
+	// The firewall object model: tables → chains → rules, with the typed,
+	// explained rule editor. All model-only — nothing here writes to netfilter;
+	// /changes renders, diffs and applies it with the armed auto-revert.
+	s.mux.Handle("GET /firewall", s.requireAuth(s.handleFirewall))
+	s.mux.Handle("POST /firewall/tables/new", s.requireAuth(s.handleTableCreate))
+	s.mux.Handle("POST /firewall/tables/{id}/delete", s.requireAuth(s.handleTableDelete))
+	s.mux.Handle("POST /firewall/tables/{id}/move", s.requireAuth(s.handleTableMove))
+	s.mux.Handle("GET /firewall/tables/{id}/chains/new", s.requireAuth(s.handleChainNew))
+	s.mux.Handle("POST /firewall/chains/new", s.requireAuth(s.handleChainSave))
+	s.mux.Handle("GET /firewall/chains/{id}/edit", s.requireAuth(s.handleChainEdit))
+	s.mux.Handle("POST /firewall/chains/{id}/edit", s.requireAuth(s.handleChainSave))
+	s.mux.Handle("POST /firewall/chains/{id}/delete", s.requireAuth(s.handleChainDelete))
+	s.mux.Handle("POST /firewall/chains/{id}/move", s.requireAuth(s.handleChainMove))
+	s.mux.Handle("GET /firewall/chains/{id}/rules/new", s.requireAuth(s.handleRuleNew))
+	s.mux.Handle("POST /firewall/chains/{id}/rules/new", s.requireAuth(s.handleRuleSave))
+	s.mux.Handle("GET /firewall/rules/{id}/edit", s.requireAuth(s.handleRuleEditGet))
+	s.mux.Handle("POST /firewall/rules/{id}/edit", s.requireAuth(s.handleRuleSave))
+	s.mux.Handle("POST /firewall/rules/{id}/delete", s.requireAuth(s.handleRuleDelete))
+	s.mux.Handle("POST /firewall/rules/{id}/toggle", s.requireAuth(s.handleRuleToggle))
+	s.mux.Handle("POST /firewall/rules/{id}/move", s.requireAuth(s.handleRuleMove))
 	s.mux.Handle("GET /changes", s.requireAuth(s.handleChanges))
 
-	// M4 forwarding: router settings (WAN, forward policy, masquerade) and
-	// port-forward CRUD. Model-only, like /rules — /changes applies it.
-	s.mux.Handle("GET /forwarding", s.requireAuth(s.handleForwarding))
-	s.mux.Handle("POST /forwarding/settings", s.requireAuth(s.handleForwardingSettings))
-	s.mux.Handle("GET /forwarding/new", s.requireAuth(s.handleForwardNew))
-	s.mux.Handle("POST /forwarding/new", s.requireAuth(s.handleForwardSave))
-	s.mux.Handle("GET /forwarding/{id}/edit", s.requireAuth(s.handleForwardEdit))
-	s.mux.Handle("POST /forwarding/{id}/edit", s.requireAuth(s.handleForwardSave))
-	s.mux.Handle("POST /forwarding/{id}/delete", s.requireAuth(s.handleForwardDelete))
-	s.mux.Handle("POST /forwarding/{id}/toggle", s.requireAuth(s.handleForwardToggle))
-	s.mux.Handle("POST /forwarding/{id}/move", s.requireAuth(s.handleForwardMove))
+	// Presets: one-click best-practice starting points (BGP router, secure server).
+	s.mux.Handle("GET /presets", s.requireAuth(s.handlePresets))
+	s.mux.Handle("POST /presets/apply", s.requireAuth(s.handlePresetApply))
 
-	// The M3 apply pipeline: load into the kernel with an armed auto-revert.
+	// The apply pipeline: load into the kernel with an armed auto-revert.
 	s.mux.Handle("POST /apply", s.requireAuth(s.handleApply))
 	s.mux.Handle("POST /apply/confirm", s.requireAuth(s.handleApplyConfirm))
 	s.mux.Handle("POST /apply/rollback", s.requireAuth(s.handleApplyRollback))
 
-	// The guided setup: detection-prefilled, opinionated first configuration.
-	s.mux.Handle("GET /setup", s.requireAuth(s.handleSetup))
-	s.mux.Handle("POST /setup", s.requireAuth(s.handleSetupApply))
-	s.mux.Handle("POST /setup/preview", s.requireAuth(s.handleSetupPreview))
-
-	// M6 connections: the live conntrack view with one-click block.
+	// Connections: the live conntrack view with one-click block.
 	s.mux.Handle("GET /connections", s.requireAuth(s.handleConnections))
 
 	// Named address lists: as many as the operator wants, each either a
@@ -222,10 +218,9 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /lists/entries/{id}/delete", s.requireAuth(s.handleListEntryDelete))
 	s.mux.Handle("POST /lists/block", s.requireAuth(s.handleQuickBlock))
 
-	// The advisor: detect what runs on the box, suggest rules for it.
-	s.mux.Handle("GET /advisor", s.requireAuth(s.handleAdvisor))
-	s.mux.Handle("POST /advisor/dismiss", s.requireAuth(s.handleAdvisorDismiss))
-	s.mux.Handle("POST /advisor/restore", s.requireAuth(s.handleAdvisorRestore))
+	// The advisor (detect what runs on the box, suggest rules) is temporarily
+	// unlinked while it is re-pointed at the new object model — its handlers
+	// remain but are not routed.
 
 	s.mux.Handle("GET /settings", s.requireAuth(s.handleSettingsPage))
 	s.mux.Handle("POST /settings/identity", s.requireAuth(s.handleSettingsIdentity))

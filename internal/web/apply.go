@@ -60,14 +60,25 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 	}
 	candidate := nftconf.Config(m)
 
-	// Snapshot what the kernel runs now — this is what the revert restores.
-	prevTable, prevExists, err := s.applier.Table(r.Context(), "inet", nftconf.TableName)
+	// Which tables must this apply remove? Any nftably had in the kernel at the
+	// last confirmed apply that the operator has since deleted from the model.
+	current := modelTableRefs(m)
+	ledger, err := s.store.GetAppliedTables()
 	if err != nil {
-		s.renderChangesError(w, r, "Could not snapshot the live table before applying: "+err.Error())
+		s.serverError(w, "get applied tables", err)
+		return
+	}
+	removed := refsMinus(ledger, current)
+
+	// Snapshot every table this apply touches — the ones it will replace and the
+	// ones it will remove — so the revert can restore each exactly.
+	snaps, err := s.snapshotTables(r.Context(), unionRefs(current, ledger))
+	if err != nil {
+		s.renderChangesError(w, r, "Could not snapshot the live tables before applying: "+err.Error())
 		return
 	}
 
-	path, cleanup, err := writeTempScript(nftconf.BuildApplyFile(candidate))
+	path, cleanup, err := writeTempScript(nftconf.BuildApplyFile(m.Tables, removed))
 	if err != nil {
 		s.serverError(w, "write apply file", err)
 		return
@@ -91,7 +102,7 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 	// between apply and confirm, startup recovery finds this row and reverts.
 	deadline := time.Now().Add(timeout)
 	if err := s.store.SetPendingApply(store.PendingApply{
-		VersionID: versionID, PrevTable: prevTable, PrevExists: prevExists, Deadline: deadline,
+		VersionID: versionID, PrevTables: snaps, Deadline: deadline,
 	}); err != nil {
 		s.serverError(w, "record pending apply", err)
 		return
@@ -134,6 +145,11 @@ func (s *Server) handleApplyConfirm(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.SetConfigVersionStatus(p.VersionID, store.VersionConfirmed); err != nil {
 		s.serverError(w, "confirm version", err)
 		return
+	}
+	// The apply is now the kernel's truth: record its owned-table set as the
+	// ledger the next apply diffs against for removals.
+	if m, err := s.loadModel(); err == nil {
+		_ = s.store.SetAppliedTables(modelTableRefs(m))
 	}
 	_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventConfigApply,
 		fmt.Sprintf("confirmed config #%d", p.VersionID))
@@ -205,7 +221,7 @@ func (s *Server) RecoverPendingApply() {
 // Callers hold applyMu. On failure the pending row is kept, so a later startup
 // recovery retries rather than leaving the kernel on an unconfirmed config.
 func (s *Server) revert(p store.PendingApply, actor, reason string) error {
-	path, cleanup, err := writeTempScript(nftconf.BuildRevertFile(p.PrevTable, p.PrevExists))
+	path, cleanup, err := writeTempScript(nftconf.BuildRevertFile(p.PrevTables))
 	if err != nil {
 		return err
 	}

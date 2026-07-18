@@ -1,0 +1,43 @@
+{{define "presets.html"}}{{template "shell-open" .}}
+
+<div class="page-header">
+	<h1>{{template "icon-spark"}} Presets</h1>
+	<p class="page-sub">Best-practice starting points. Applying one <strong>replaces your current
+	firewall tables</strong> with a recommended layout and creates the named sets it needs (your
+	existing sets are kept). Nothing goes live until you edit the sets and hit
+	<a href="/changes">Review &amp; apply</a> — with the armed auto-revert, so it's safe to try.</p>
+</div>
+
+<div class="preset-grid">
+{{range .Presets}}
+	<div class="card preset-card">
+		<div class="card-header"><div class="card-title">{{template "icon-shield"}} {{.Name}}</div></div>
+		<div class="card-body">
+			<p class="preset-tagline">{{.Tagline}}</p>
+
+			<div class="preset-section">
+				<div class="preset-heading">What it sets up</div>
+				<ul class="preset-list">
+					{{range .Adds}}<li>{{.}}</li>{{end}}
+				</ul>
+			</div>
+
+			{{if .Sets}}
+			<div class="preset-section">
+				<div class="preset-heading">Named sets you'll edit afterwards</div>
+				<ul class="preset-list preset-sets">
+					{{range .Sets}}<li><span class="mono">@{{.Name}}</span> — {{.Why}}</li>{{end}}
+				</ul>
+			</div>
+			{{end}}
+
+			<form method="post" action="/presets/apply" data-confirm="Apply the {{.Name}} preset? This replaces your current firewall tables (your named sets are kept). Nothing is applied to the kernel until you Review &amp; apply.">
+				<input type="hidden" name="preset" value="{{.Key}}">
+				<div class="form-actions"><button class="btn btn-primary" type="submit">{{template "icon-spark"}} Use this preset</button></div>
+			</form>
+		</div>
+	</div>
+{{end}}
+</div>
+
+{{template "shell-close" .}}{{end}}

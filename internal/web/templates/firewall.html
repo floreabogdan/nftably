@@ -1,0 +1,142 @@
+{{define "firewall.html"}}{{template "shell-open" .}}
+
+<div class="page-header">
+	<div>
+		<h1>{{template "icon-shield"}} Firewall</h1>
+		<p class="page-sub">Everything nftably manages. Nothing here touches your live firewall until
+		you go to <a href="/changes">Review &amp; apply</a> — applied with an armed auto-revert that
+		undoes it automatically if you don't confirm, so you can't lock yourself out.</p>
+	</div>
+	<div class="page-header-actions">
+		<a class="btn btn-ghost" href="/presets">{{template "icon-spark"}} Use a preset</a>
+		<button type="button" class="btn btn-success" data-modal-open="modal-new-table">{{template "icon-plus"}} New table</button>
+	</div>
+</div>
+
+{{if .Preset}}<div class="flash">Applied the <strong>{{.Preset}}</strong> preset. Edit its named sets (<a href="/lists">Named sets</a> — fill in your peers and management IPs), then <a href="/changes">Review &amp; apply</a>.</div>{{end}}
+
+<div class="card card-info">
+	<div class="card-body howto">
+		<div class="howto-step"><span class="howto-n">1</span><div><strong>Table</strong><div class="text-muted">A container, usually one in the <span class="mono">inet</span> family (covers IPv4 + IPv6).</div></div></div>
+		<div class="howto-arrow">→</div>
+		<div class="howto-step"><span class="howto-n">2</span><div><strong>Chain</strong><div class="text-muted">Hooks into the traffic path — <span class="mono">input</span> (to this box), <span class="mono">forward</span> (through it), <span class="mono">output</span> (from it).</div></div></div>
+		<div class="howto-arrow">→</div>
+		<div class="howto-step"><span class="howto-n">3</span><div><strong>Rules</strong><div class="text-muted">Checked top to bottom. Each matches some traffic and acts on it. Unmatched traffic hits the chain's policy.</div></div></div>
+	</div>
+</div>
+
+{{if .Saved}}<div class="flash">Saved to the model. Go to <a href="/changes">Review &amp; apply</a> to make it live.</div>{{end}}
+{{if .Err}}<div class="flash flash-error">{{.Err}}</div>{{end}}
+
+{{range $t := .Tables}}
+<div class="card">
+	<div class="card-header">
+		<div class="card-title">{{template "icon-shield"}} <span class="mono">{{$t.Family}} {{$t.Name}}</span></div>
+		<div class="row-actions">
+			<form method="post" action="/firewall/tables/{{$t.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up">{{template "icon-up"}}</button></form>
+			<form method="post" action="/firewall/tables/{{$t.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down">{{template "icon-down"}}</button></form>
+			<form method="post" action="/firewall/tables/{{$t.ID}}/delete" data-confirm="Delete this whole table, its chains and rules?"><button class="icon-action a-danger" title="Delete table">{{template "icon-trash"}}</button></form>
+		</div>
+	</div>
+	<div class="card-body">
+		{{if $t.Comment}}<p class="text-muted">{{$t.Comment}}</p>{{end}}
+		{{if $t.Chains}}
+		<div class="chain-group" data-table="{{$t.ID}}">
+			<div class="chain-tabs" role="tablist">
+				{{range $ci, $ch := $t.Chains}}
+				<button type="button" class="chain-tab{{if eq $ci 0}} active{{end}}" data-panel="t{{$t.ID}}c{{$ch.ID}}">
+					chain {{$ch.Name}}
+					{{if $ch.IsBase}}<span class="tab-hook">{{$ch.Hook}}</span>{{else}}<span class="tab-hook">regular</span>{{end}}
+					<span class="tab-count">{{len $ch.Rules}}</span>
+				</button>
+				{{end}}
+				<a class="btn btn-sm btn-ghost chain-add" href="/firewall/tables/{{$t.ID}}/chains/new">{{template "icon-plus"}} Add chain</a>
+			</div>
+			{{range $ci, $ch := $t.Chains}}
+			<div class="chain-panel{{if eq $ci 0}} active{{end}}" id="t{{$t.ID}}c{{$ch.ID}}" role="tabpanel">
+				<div class="chain-head">
+					<div><span class="hint">{{$ch.HookLine}}</span></div>
+					<div class="row-actions">
+						<a class="btn btn-sm btn-primary" href="/firewall/chains/{{$ch.ID}}/rules/new">{{template "icon-plus"}} Add rule</a>
+						<a class="icon-action a-primary" title="Edit chain" href="/firewall/chains/{{$ch.ID}}/edit">{{template "icon-edit"}}</a>
+						<form method="post" action="/firewall/chains/{{$ch.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up">{{template "icon-up"}}</button></form>
+						<form method="post" action="/firewall/chains/{{$ch.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down">{{template "icon-down"}}</button></form>
+						<form method="post" action="/firewall/chains/{{$ch.ID}}/delete" data-confirm="Delete this chain and its rules?"><button class="icon-action a-danger" title="Delete chain">{{template "icon-trash"}}</button></form>
+					</div>
+				</div>
+				{{if $ch.Rules}}
+				<div class="table-scroll">
+				<table class="rule-table">
+					<tbody>
+					{{range $ch.Rules}}
+					<tr class="{{if not .Enabled}}row-disabled{{end}}">
+						<td class="rule-preview">
+							{{if .Preview}}<code class="mono">{{.Preview}}</code>{{else}}<span class="badge badge-warning">won't render{{if .RenderErr}}: {{.RenderErr}}{{end}}</span>{{end}}
+							{{if .Comment}}<div class="hint">{{.Comment}}</div>{{end}}
+						</td>
+						<td class="rule-actions">
+							<div class="row-actions">
+								<form method="post" action="/firewall/rules/{{.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up">{{template "icon-up"}}</button></form>
+								<form method="post" action="/firewall/rules/{{.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down">{{template "icon-down"}}</button></form>
+								<form method="post" action="/firewall/rules/{{.ID}}/toggle"><button class="icon-action" title="{{if .Enabled}}Disable{{else}}Enable{{end}}">{{template "icon-power"}}</button></form>
+								<a class="icon-action a-primary" title="Edit rule" href="/firewall/rules/{{.ID}}/edit">{{template "icon-edit"}}</a>
+								<form method="post" action="/firewall/rules/{{.ID}}/delete" data-confirm="Delete this rule?"><button class="icon-action a-danger" title="Delete rule">{{template "icon-trash"}}</button></form>
+							</div>
+						</td>
+					</tr>
+					{{end}}
+					</tbody>
+				</table>
+				</div>
+				{{else}}
+				<p class="empty">No rules in this chain yet. <a href="/firewall/chains/{{$ch.ID}}/rules/new">Add the first one</a> — the editor explains every option.</p>
+				{{end}}
+			</div>
+			{{end}}
+		</div>
+		{{else}}
+		<p class="empty">This table has no chains yet. <a href="/firewall/tables/{{$t.ID}}/chains/new">Add a chain</a> to start filtering traffic.</p>
+		{{end}}
+	</div>
+</div>
+{{else}}
+<div class="card"><div class="card-body"><p class="empty">No tables yet — add one below to start.</p></div></div>
+{{end}}
+
+<div class="modal-backdrop" id="modal-new-table" data-modal>
+	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-new-table-title">
+		<div class="modal-head">
+			<h2 id="modal-new-table-title">{{template "icon-plus"}} New table</h2>
+			<button type="button" class="icon-btn" data-modal-close title="Close">&times;</button>
+		</div>
+		<div class="modal-body">
+			<p class="hint">A table groups related chains. Most setups need just one, in the <strong>inet</strong>
+			family — that one table covers both IPv4 and IPv6 at once. Pick a different family only if you know
+			you need it.</p>
+			<form method="post" action="/firewall/tables/new">
+				<div class="field-row">
+					<div class="field">
+						<label>Family</label>
+						<select name="family">{{range .Families}}<option value="{{.}}"{{if eq . "inet"}} selected{{end}}>{{.}}</option>{{end}}</select>
+						<div class="field-hint">inet = IPv4 + IPv6 together (recommended). ip = IPv4 only, ip6 = IPv6 only. arp/bridge/netdev are advanced.</div>
+					</div>
+					<div class="field">
+						<label>Name</label>
+						<input type="text" name="name" placeholder="filter" required>
+						<div class="field-hint">Any short name (letters, digits, underscore), e.g. <span class="mono">filter</span> or <span class="mono">nat</span>.</div>
+					</div>
+				</div>
+				<div class="field">
+					<label>Comment <span class="text-muted">(optional)</span></label>
+					<input type="text" name="comment" placeholder="what this table is for">
+				</div>
+				<div class="form-actions">
+					<button class="btn btn-success" type="submit">{{template "icon-plus"}} Create table</button>
+					<button class="btn" type="button" data-modal-close>Cancel</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+{{template "shell-close" .}}{{end}}

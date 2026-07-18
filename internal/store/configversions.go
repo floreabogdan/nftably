@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -83,11 +84,28 @@ func (s *Store) ListConfigVersions(limit int) ([]ConfigVersion, error) {
 	return out, rows.Err()
 }
 
-// PendingApply is the armed, unconfirmed apply — at most one exists.
+// TableRef identifies one owned table.
+type TableRef struct {
+	Family string `json:"family"`
+	Name   string `json:"name"`
+}
+
+// TableSnapshot is one table's pre-apply state, captured so a revert can put it
+// back exactly. Text is the `nft list table …` output; Exists is false when the
+// table was absent before the apply (so revert simply removes it).
+type TableSnapshot struct {
+	Family string `json:"family"`
+	Name   string `json:"name"`
+	Text   string `json:"text"`
+	Exists bool   `json:"exists"`
+}
+
+// PendingApply is the armed, unconfirmed apply — at most one exists. PrevTables
+// is the per-table snapshot the revert restores (the general model manages many
+// tables, so a single blob no longer suffices).
 type PendingApply struct {
 	VersionID  int64
-	PrevTable  string
-	PrevExists bool
+	PrevTables []TableSnapshot
 	Deadline   time.Time
 }
 
@@ -95,10 +113,14 @@ type PendingApply struct {
 // one — the applyMu serialization should make that impossible, and if it
 // somehow happens, losing the first revert snapshot would be unrecoverable.
 func (s *Store) SetPendingApply(p PendingApply) error {
-	_, err := s.db.Exec(`
-		INSERT INTO pending_apply (id, version_id, prev_table, prev_exists, deadline, created_at)
-		VALUES (1, ?, ?, ?, ?, ?)`,
-		p.VersionID, p.PrevTable, p.PrevExists, p.Deadline.UTC().Format(time.RFC3339Nano), now())
+	blob, err := json.Marshal(p.PrevTables)
+	if err != nil {
+		return fmt.Errorf("store: encode pending snapshot: %w", err)
+	}
+	_, err = s.db.Exec(`
+		INSERT INTO pending_apply (id, version_id, prev_table, prev_exists, prev_tables, deadline, created_at)
+		VALUES (1, ?, '', 0, ?, ?, ?)`,
+		p.VersionID, string(blob), p.Deadline.UTC().Format(time.RFC3339Nano), now())
 	if err != nil {
 		return fmt.Errorf("store: set pending apply: %w", err)
 	}
@@ -108,20 +130,59 @@ func (s *Store) SetPendingApply(p PendingApply) error {
 // GetPendingApply returns the armed apply, or ok=false when none is pending.
 func (s *Store) GetPendingApply() (PendingApply, bool, error) {
 	var p PendingApply
-	var deadline string
-	row := s.db.QueryRow(`SELECT version_id, prev_table, prev_exists, deadline FROM pending_apply WHERE id = 1`)
-	err := row.Scan(&p.VersionID, &p.PrevTable, &p.PrevExists, &deadline)
+	var deadline, blob string
+	row := s.db.QueryRow(`SELECT version_id, prev_tables, deadline FROM pending_apply WHERE id = 1`)
+	err := row.Scan(&p.VersionID, &blob, &deadline)
 	if err == sql.ErrNoRows {
 		return PendingApply{}, false, nil
 	}
 	if err != nil {
 		return PendingApply{}, false, fmt.Errorf("store: get pending apply: %w", err)
 	}
+	if blob != "" {
+		if err := json.Unmarshal([]byte(blob), &p.PrevTables); err != nil {
+			return PendingApply{}, false, fmt.Errorf("store: decode pending snapshot: %w", err)
+		}
+	}
 	p.Deadline, err = time.Parse(time.RFC3339Nano, deadline)
 	if err != nil {
 		return PendingApply{}, false, fmt.Errorf("store: parse pending deadline: %w", err)
 	}
 	return p, true, nil
+}
+
+// GetAppliedTables returns the set of tables nftably had in the kernel as of the
+// last confirmed apply — the ledger the next apply diffs against to know which
+// tables the operator has since deleted (and must therefore be removed).
+func (s *Store) GetAppliedTables() ([]TableRef, error) {
+	var blob string
+	err := s.db.QueryRow(`SELECT tables FROM applied_state WHERE id = 1`).Scan(&blob)
+	if err == sql.ErrNoRows || blob == "" {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store: get applied tables: %w", err)
+	}
+	var refs []TableRef
+	if err := json.Unmarshal([]byte(blob), &refs); err != nil {
+		return nil, fmt.Errorf("store: decode applied tables: %w", err)
+	}
+	return refs, nil
+}
+
+// SetAppliedTables records the owned-table set as of a confirmed apply.
+func (s *Store) SetAppliedTables(refs []TableRef) error {
+	blob, err := json.Marshal(refs)
+	if err != nil {
+		return fmt.Errorf("store: encode applied tables: %w", err)
+	}
+	_, err = s.db.Exec(`
+		INSERT INTO applied_state (id, tables) VALUES (1, ?)
+		ON CONFLICT(id) DO UPDATE SET tables = excluded.tables`, string(blob))
+	if err != nil {
+		return fmt.Errorf("store: set applied tables: %w", err)
+	}
+	return nil
 }
 
 // ClearPendingApply removes the armed apply (after confirm or revert).

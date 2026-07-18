@@ -13,7 +13,7 @@ import (
 //
 // nftably's database is a single file the user can snapshot and restore, so
 // migrations must be forward-only and safe to re-run.
-const schemaVersion = 4
+const schemaVersion = 5
 
 func migrate(db *sql.DB) error {
 	var version int
@@ -47,10 +47,43 @@ func migrate(db *sql.DB) error {
 		{"fw_rules", "src_list_id", `INTEGER NOT NULL DEFAULT 0`},
 		{"settings", "geoip_db", `TEXT NOT NULL DEFAULT ''`},
 		{"list_entries", "list_id", `INTEGER NOT NULL DEFAULT 0`},
+		// version < 5 (the do-over): the general object model replaces the
+		// single-table snapshot with a per-table JSON snapshot.
+		{"pending_apply", "prev_tables", `TEXT NOT NULL DEFAULT '[]'`},
 	}
 	for _, a := range adds {
 		if err := addColumnIfMissing(tx, a.table, a.column, a.ddl); err != nil {
 			return err
+		}
+	}
+
+	ts := now()
+
+	// Seed a neutral starter object model on a database that has never had one:
+	// an inet "filter" table with the three usual base chains, all policy accept
+	// (a blank canvas that cannot lock anyone out). It shows the structure on a
+	// fresh install; the opinionated safe setups live in the presets, not here.
+	// One-time only — guarded on there being no owned tables at all, so deleting
+	// the starter does not resurrect it.
+	if _, err := tx.Exec(`
+		INSERT INTO nft_tables (family, name, comment, position, created_at, updated_at)
+		SELECT 'inet', 'filter', 'Starter table — rename or delete freely', 1, ?, ?
+		WHERE NOT EXISTS (SELECT 1 FROM nft_tables)`, ts, ts); err != nil {
+		return fmt.Errorf("seed starter table: %w", err)
+	}
+	for i, ch := range []struct{ name, hook, policy string }{
+		{"input", "input", "accept"},
+		{"forward", "forward", "accept"},
+		{"output", "output", "accept"},
+	} {
+		if _, err := tx.Exec(`
+			INSERT INTO nft_chains (table_id, name, kind, hook, chain_type, priority, policy, position, created_at, updated_at)
+			SELECT t.id, ?, 'base', ?, 'filter', 'filter', ?, ?, ?, ?
+			FROM nft_tables t
+			WHERE t.family = 'inet' AND t.name = 'filter'
+			  AND NOT EXISTS (SELECT 1 FROM nft_chains c WHERE c.table_id = t.id AND c.name = ?)`,
+			ch.name, ch.hook, ch.policy, i+1, ts, ts, ch.name); err != nil {
+			return fmt.Errorf("seed starter chain %s: %w", ch.name, err)
 		}
 	}
 
@@ -60,7 +93,6 @@ func migrate(db *sql.DB) error {
 	// pre-v4 databases the UNIQUE constraint is (list, cidr) and cannot be
 	// altered, so keeping the column in lockstep preserves per-list
 	// uniqueness there. All idempotent — safe to re-run.
-	ts := now()
 	for i, seed := range []struct{ name, role, note string }{
 		{"management", "allow", "Accepted before everything — this network can never be locked out."},
 		{"blacklist", "block", "Dropped before established connections — blocking also cuts live sessions."},

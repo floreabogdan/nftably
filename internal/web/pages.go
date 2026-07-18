@@ -44,9 +44,9 @@ type dashboardVM struct {
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := reqCtx(r)
 	defer cancel()
-	rules, err := s.store.ListRules()
+	tables, err := s.store.ListTables()
 	if err != nil {
-		s.serverError(w, "list rules", err)
+		s.serverError(w, "list tables", err)
 		return
 	}
 	vm := dashboardVM{
@@ -54,7 +54,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		Backend:    nft.Detect(ctx, s.nft),
 		Iptables:   nft.ProbeIptables(ctx, s.iptablesSave, s.ip6tablesSave, s.iptablesBin),
 		WideOpen:   s.WideOpen(),
-		NeedsSetup: len(rules) == 0,
+		NeedsSetup: len(tables) == 0,
 	}
 	render(w, s.log, "dashboard.html", vm)
 }

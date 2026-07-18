@@ -1,0 +1,83 @@
+{{define "chain_form.html"}}{{template "shell-open" .}}
+
+<div class="page-header">
+	<h1>{{if .IsNew}}New chain{{else}}Edit chain{{end}}</h1>
+	<p class="page-sub">A chain is a list of rules. A <strong>base chain</strong> plugs into the traffic
+	path at a hook and is where filtering actually happens; a <strong>regular chain</strong> is just a
+	named list you send traffic to with a jump/goto (handy for grouping rules). In table
+	<span class="mono">{{.Table.Family}} {{.Table.Name}}</span>.</p>
+</div>
+
+{{if .Errors}}<div class="card card-danger"><div class="card-body">{{range .Errors}}<div class="field-error">{{.}}</div>{{end}}</div></div>{{end}}
+
+<div class="card"><div class="card-body">
+<form method="post" action="{{if .IsNew}}/firewall/chains/new{{else}}/firewall/chains/{{.Chain.ID}}/edit{{end}}">
+	{{if .IsNew}}<input type="hidden" name="table_id" value="{{.Table.ID}}">{{end}}
+
+	<div class="field">
+		<label>Name</label>
+		<input type="text" name="name" value="{{.Chain.Name}}" placeholder="input" required>
+		<div class="field-hint">Base chains are usually named after their hook: <span class="mono">input</span>,
+		<span class="mono">forward</span>, <span class="mono">output</span>, <span class="mono">prerouting</span>,
+		<span class="mono">postrouting</span>.</div>
+	</div>
+
+	<div class="field">
+		<label>Kind</label>
+		<select name="kind">
+			<option value="base"{{if eq .Chain.Kind "base"}} selected{{end}}>Base chain — hooks into the traffic path</option>
+			<option value="regular"{{if eq .Chain.Kind "regular"}} selected{{end}}>Regular chain — a jump/goto target only</option>
+		</select>
+		<div class="field-hint">The fields below only apply to base chains. A regular chain ignores them.</div>
+	</div>
+
+	<div class="field">
+		<label>Hook <span class="text-muted">(base chains)</span></label>
+		<select name="hook">
+			<option value="">—</option>
+			{{$h := .Chain.Hook}}
+			{{range .Hooks}}<option value="{{.}}"{{if eq . $h}} selected{{end}}>{{.}}</option>{{end}}
+		</select>
+		<div class="field-hint"><strong>input</strong> = traffic addressed to this box · <strong>output</strong> = traffic this box sends ·
+		<strong>forward</strong> = traffic routed through it · <strong>prerouting</strong>/<strong>postrouting</strong> = for NAT
+		(rewriting addresses as packets arrive / leave).</div>
+	</div>
+
+	<div class="field-row">
+		<div class="field">
+			<label>Type <span class="text-muted">(base chains)</span></label>
+			<select name="chain_type">
+				<option value="">—</option>
+				{{$ct := .Chain.ChainType}}
+				{{range .Types}}<option value="{{.}}"{{if eq . $ct}} selected{{end}}>{{.}}</option>{{end}}
+			</select>
+			<div class="field-hint"><strong>filter</strong> for allow/deny rules · <strong>nat</strong> for port-forwards and
+			masquerade · <strong>route</strong> for policy routing.</div>
+		</div>
+		<div class="field">
+			<label>Priority <span class="text-muted">(base chains)</span></label>
+			<input type="text" name="priority" value="{{.Chain.Priority}}" placeholder="filter">
+			<div class="field-hint">Order among chains on the same hook. Keywords work: <span class="mono">filter</span>,
+			<span class="mono">dstnat</span> (prerouting NAT), <span class="mono">srcnat</span> (postrouting NAT), or a number.</div>
+		</div>
+	</div>
+
+	<div class="field">
+		<label>Policy <span class="text-muted">(base chains)</span></label>
+		<select name="policy">
+			<option value="accept"{{if eq .Chain.Policy "accept"}} selected{{end}}>accept — allow anything no rule dropped (permissive)</option>
+			<option value="drop"{{if eq .Chain.Policy "drop"}} selected{{end}}>drop — block anything no rule allowed (secure default)</option>
+		</select>
+		<div class="field-hint">The verdict for traffic that reaches the end of the chain unmatched. <strong>drop</strong>
+		is the secure choice for an input chain — but then you must add rules to allow the traffic you want (including
+		your own SSH / this UI), or the auto-revert will have to save you.</div>
+	</div>
+
+	<div class="form-actions">
+		<button class="btn btn-primary" type="submit">{{if .IsNew}}Create chain{{else}}Save chain{{end}}</button>
+		<a class="btn" href="/firewall">Cancel</a>
+	</div>
+</form>
+</div></div>
+
+{{template "shell-close" .}}{{end}}

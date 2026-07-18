@@ -6,145 +6,171 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/floreabogdan/nftably/internal/nftcat"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
-// Lint checks the model for the classic self-lockout footguns before an apply.
-// It returns warnings, not errors: the auto-revert is the hard safety net, and
-// an operator reaching this box over a serial console may be doing exactly what
-// the warning describes on purpose.
-//
-// The baseline rules already guarantee loopback, established/related and
-// essential ICMP — so the checks here are about what a drop policy does to NEW
-// connections the operator depends on. A populated allow-role list is treated
-// as a way in: those sources are accepted before everything, so the lockout
-// warnings stand down.
+// Lint returns self-lockout warnings for a candidate model — never errors. The
+// armed auto-revert is the hard safety net; these are the friendly heads-up
+// before it has to fire. The checks are deliberately conservative: they warn
+// when a drop-policy input chain has no plausible way in for the operator's own
+// SSH or the nftably UI, and when a rule references something that will not
+// render.
 func Lint(m Model, listenAddr string) []string {
-	fw, rules, pfs := m.FW, m.Rules, m.Forwards
 	var warns []string
 
-	hasAllowList := false
-	for _, l := range m.Lists {
-		if l.Role == store.RoleAllow && len(l.Entries) > 0 {
-			hasAllowList = true
+	uiPort := listenPort(listenAddr)
+
+	// Gather every base chain that filters inbound traffic to this host with a
+	// default-drop policy — those are the ones that can lock you out.
+	var dropInputs []ChainTree
+	for _, t := range m.Tables {
+		for _, c := range t.Chains {
+			if c.IsBase() && c.Hook == "input" && c.ChainType != "nat" && c.Policy == "drop" {
+				dropInputs = append(dropInputs, c)
+			}
 		}
 	}
 
-	if (fw.InputPolicy == "drop" || fw.InputPolicy == "") && !hasAllowList {
-		if port := listenPort(listenAddr); port > 0 && !InputAccepts(rules, port) {
-			warns = append(warns, fmt.Sprintf(
-				"No rule accepts new connections to nftably's own port (tcp %d). Your current session survives on established/related, but a reconnect would be dropped — the auto-revert would save you, and then you'd add this rule anyway.", port))
+	if len(dropInputs) > 0 {
+		// If nothing anywhere in the drop-policy input chains plausibly lets the
+		// management connection back in, warn. We look across all such chains
+		// together — one may accept SSH, another the UI.
+		var allRules []store.ChainRule
+		for _, c := range dropInputs {
+			allRules = append(allRules, c.Rules...)
 		}
-		if !InputAccepts(rules, 22) {
+		if uiPort > 0 && !acceptsPort(allRules, uiPort) && !acceptsEstablished(allRules) {
+			warns = append(warns, fmt.Sprintf(
+				"An input chain drops by default and nothing accepts the nftably UI port (%d) — applying this could cut off this web session. The auto-revert would bring it back, but add an allow rule to be safe.", uiPort))
+		}
+		if !acceptsPort(allRules, 22) && !acceptsEstablished(allRules) {
 			warns = append(warns,
-				"No rule accepts new SSH connections (tcp 22). Existing sessions survive, new ones will be dropped. Skip this warning only if you reach the box another way.")
+				"An input chain drops by default and nothing accepts TCP 22 (SSH) — if you manage this box over SSH, add an allow rule so you don't get locked out.")
 		}
 	}
 
-	// Forwarding configuration that will not render is a silent surprise, not
-	// a lockout — still worth a warning before the operator hunts for why a
-	// port-forward does nothing.
-	if fw.WANIface == "" {
-		if n := enabledForwards(pfs); n > 0 {
-			warns = append(warns, fmt.Sprintf(
-				"%d port-forward(s) are enabled but no WAN interface is set, so they are not in the rendered config. Name the WAN interface on the Forwarding page to activate them.", n))
-		}
-		if n := enabledChainRules(rules, "forward"); n > 0 {
-			warns = append(warns, fmt.Sprintf(
-				"%d forward-chain rule(s) are enabled but no WAN interface is set, so the forward chain is not rendered. Name the WAN interface on the Forwarding page to activate it.", n))
+	// Rules that reference an unknown knob will silently not render.
+	for _, t := range m.Tables {
+		for _, c := range t.Chains {
+			for _, r := range c.Rules {
+				if !r.Enabled {
+					continue
+				}
+				for _, mt := range r.Matches {
+					if _, ok := nftcat.MatchByKey(mt.Key); !ok && strings.TrimSpace(mt.Key) != "" {
+						warns = append(warns, fmt.Sprintf("A rule in chain %q uses an unknown condition (%s) and will not be applied.", c.Name, mt.Key))
+					}
+				}
+				for _, st := range r.Statements {
+					if _, ok := nftcat.StatementByKey(st.Key); !ok && strings.TrimSpace(st.Key) != "" {
+						warns = append(warns, fmt.Sprintf("A rule in chain %q uses an unknown action (%s) and will not be applied.", c.Name, st.Key))
+					}
+				}
+			}
 		}
 	}
 
-	// A rule sourcing from a missing or empty list matches nothing — legal,
-	// but almost certainly not what the operator meant.
-	for _, r := range rules {
-		if !r.Enabled || r.SrcListID == 0 {
-			continue
-		}
-		l := m.list(r.SrcListID)
-		switch {
-		case l == nil:
-			warns = append(warns, fmt.Sprintf(
-				"Rule %q sources from a list that no longer exists — it matches nothing and is not rendered.", r.Name))
-		case len(l.Entries) == 0:
-			warns = append(warns, fmt.Sprintf(
-				"Rule %q sources from list %q, which has no entries yet — it matches nothing until the list does.", r.Name, l.Name))
-		}
-	}
 	return warns
 }
 
-func enabledForwards(pfs []store.PortForward) int {
-	n := 0
-	for _, p := range pfs {
-		if p.Enabled {
-			n++
-		}
-	}
-	return n
-}
-
-func enabledChainRules(rules []store.Rule, chain string) int {
-	n := 0
+// acceptsEstablished reports whether some enabled rule accepts established/
+// related connections — the classic "keep my own sessions alive" allow that, on
+// its own, keeps an in-progress SSH/UI connection working under a drop policy.
+func acceptsEstablished(rules []store.ChainRule) bool {
 	for _, r := range rules {
-		if r.Enabled && r.Chain == chain {
-			n++
-		}
-	}
-	return n
-}
-
-// InputAccepts reports whether any enabled input-chain accept rule matches a
-// new TCP connection to port. Source or interface restrictions still count — the
-// operator knows their management network; what matters is that some path to
-// the port exists.
-func InputAccepts(rules []store.Rule, port int) bool {
-	for _, r := range rules {
-		if !r.Enabled || r.Action != "accept" || (r.Chain != "" && r.Chain != "input") {
+		if !r.Enabled || !hasAccept(r) {
 			continue
 		}
-		switch r.Proto {
-		case "any":
-			return true
-		case "tcp":
-			ports, _ := store.ParsePorts(r.DPorts)
-			if len(ports) == 0 {
-				return true // whole protocol accepted
-			}
-			for _, tok := range ports {
-				if portInToken(port, tok) {
-					return true
-				}
+		for _, m := range r.Matches {
+			if m.Key == "ct.state" && strings.Contains(m.Value, "established") {
+				return true
 			}
 		}
 	}
 	return false
 }
 
-func portInToken(port int, tok string) bool {
-	if lo, hi, found := strings.Cut(tok, "-"); found {
-		l, _ := strconv.Atoi(lo)
-		h, _ := strconv.Atoi(hi)
-		return port >= l && port <= h
+// acceptsPort reports whether some enabled rule accepts TCP traffic to port —
+// either unconditionally (an accept with no port condition) or with a tcp.dport
+// condition that covers it.
+func acceptsPort(rules []store.ChainRule, port int) bool {
+	for _, r := range rules {
+		if !r.Enabled || !hasAccept(r) {
+			continue
+		}
+		portMatched, portMentioned := false, false
+		blockedByOtherProto := false
+		for _, m := range r.Matches {
+			switch m.Key {
+			case "tcp.dport":
+				portMentioned = true
+				if m.Op == "==" && portInValue(m.Value, port) {
+					portMatched = true
+				}
+			case "udp.dport":
+				// A rule pinned to a UDP port can't be the one that lets TCP
+				// SSH/UI in.
+				blockedByOtherProto = true
+			case "meta.l4proto":
+				if m.Op == "==" && !strings.Contains(m.Value, "tcp") {
+					blockedByOtherProto = true
+				}
+			}
+		}
+		if blockedByOtherProto {
+			continue
+		}
+		if portMatched || !portMentioned {
+			return true
+		}
 	}
-	n, _ := strconv.Atoi(tok)
-	return n == port
+	return false
 }
 
-// listenPort extracts the TCP port nftably itself is bound to; 0 when it
-// cannot be determined. A loopback bind returns 0 too — off-box traffic cannot
-// reach it, so the input chain is irrelevant to it.
+// hasAccept reports whether a rule's actions include a plain accept.
+func hasAccept(r store.ChainRule) bool {
+	for _, st := range r.Statements {
+		if st.Key == "accept" {
+			return true
+		}
+	}
+	return false
+}
+
+// portInValue reports whether port falls inside a stored port value — a comma
+// list of single ports and a-b ranges.
+func portInValue(value string, port int) bool {
+	for _, tok := range strings.Split(value, ",") {
+		tok = strings.TrimSpace(tok)
+		if tok == "" {
+			continue
+		}
+		if lo, hi, ok := strings.Cut(tok, "-"); ok {
+			a, err1 := strconv.Atoi(strings.TrimSpace(lo))
+			b, err2 := strconv.Atoi(strings.TrimSpace(hi))
+			if err1 == nil && err2 == nil && port >= a && port <= b {
+				return true
+			}
+			continue
+		}
+		if n, err := strconv.Atoi(tok); err == nil && n == port {
+			return true
+		}
+	}
+	return false
+}
+
+// listenPort extracts the TCP port from a listen address like ":8080" or
+// "0.0.0.0:8080"; 0 when it cannot be determined.
 func listenPort(addr string) int {
-	host, portStr, err := net.SplitHostPort(addr)
+	_, portStr, err := net.SplitHostPort(strings.TrimSpace(addr))
 	if err != nil {
 		return 0
 	}
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-		return 0
-	}
-	port, err := strconv.Atoi(portStr)
+	n, err := strconv.Atoi(portStr)
 	if err != nil {
 		return 0
 	}
-	return port
+	return n
 }

@@ -1,0 +1,614 @@
+package web
+
+import (
+	"encoding/json"
+	"html/template"
+	"net"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/floreabogdan/nftably/internal/nftcat"
+	nftconf "github.com/floreabogdan/nftably/internal/render"
+	"github.com/floreabogdan/nftably/internal/store"
+)
+
+// This file is the /firewall surface: the owned object graph (tables → chains →
+// rules) and the catalogue-driven, explained rule editor. Everything here is
+// model-only — /changes renders it, diffs it and applies it with the armed
+// auto-revert. Nothing writes to netfilter directly.
+
+const (
+	maxConds = 8 // condition rows a rule form offers
+	maxActs  = 6 // action rows a rule form offers
+)
+
+// paramKeys is the union of every statement parameter, so one fixed set of
+// inputs on the action row can feed any statement; RenderStatement reads only
+// the keys its statement needs and ignores the rest.
+var paramKeys = []string{"target", "addr", "port", "with", "prefix", "level", "rate", "per", "burst", "value"}
+
+// ── overview ────────────────────────────────────────────────────────────────
+
+type fwVM struct {
+	nav
+	Tables   []fwTable
+	Families []string
+	Saved    bool
+	Err      string
+	Preset   string // name of a just-applied preset, for the confirmation banner
+}
+
+type fwTable struct {
+	store.Table
+	Chains []fwChain
+}
+
+type fwChain struct {
+	store.Chain
+	HookLine string
+	Rules    []fwRule
+}
+
+type fwRule struct {
+	store.ChainRule
+	Preview   string
+	RenderErr string
+}
+
+func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
+	m, err := s.loadModel()
+	if err != nil {
+		s.serverError(w, "load model", err)
+		return
+	}
+	vm := fwVM{
+		nav:      s.navFor(r, "firewall"),
+		Families: []string{"inet", "ip", "ip6", "arp", "bridge", "netdev"},
+		Saved:    r.URL.Query().Get("saved") == "1",
+		Err:      r.URL.Query().Get("err"),
+	}
+	if key := r.URL.Query().Get("preset"); key != "" {
+		if p, ok := s.presetByKey(key); ok {
+			vm.Preset = p.Name
+		}
+	}
+	for _, t := range m.Tables {
+		ft := fwTable{Table: t.Table}
+		for _, c := range t.Chains {
+			fc := fwChain{Chain: c.Chain, HookLine: hookLine(c.Chain)}
+			for _, rule := range c.Rules {
+				fr := fwRule{ChainRule: rule}
+				if line, err := nftconf.RenderRule(t.Family, rule); err != nil {
+					fr.RenderErr = err.Error()
+				} else {
+					fr.Preview = line
+				}
+				fc.Rules = append(fc.Rules, fr)
+			}
+			ft.Chains = append(ft.Chains, fc)
+		}
+		vm.Tables = append(vm.Tables, ft)
+	}
+	render(w, s.log, "firewall.html", vm)
+}
+
+// hookLine is the human summary shown under a base chain's name.
+func hookLine(c store.Chain) string {
+	if !c.IsBase() {
+		return "regular chain — reached only by jump/goto"
+	}
+	line := "hook " + c.Hook + " · " + c.ChainType + " · priority " + c.Priority
+	if c.Policy != "" {
+		line += " · policy " + c.Policy
+	}
+	return line
+}
+
+// ── table CRUD ──────────────────────────────────────────────────────────────
+
+func (s *Server) handleTableCreate(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	t := store.Table{
+		Family:  strings.TrimSpace(r.FormValue("family")),
+		Name:    strings.TrimSpace(r.FormValue("name")),
+		Comment: strings.TrimSpace(r.FormValue("comment")),
+	}
+	if errs := t.Validate(); len(errs) > 0 {
+		redirectErr(w, r, "/firewall", errs[0])
+		return
+	}
+	if _, err := s.store.CreateTable(t); err != nil {
+		redirectErr(w, r, "/firewall", "Could not create table: "+err.Error())
+		return
+	}
+	s.audit(r, "created table "+t.Family+" "+t.Name)
+	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+}
+
+func (s *Server) handleTableDelete(w http.ResponseWriter, r *http.Request) {
+	id := pathID(r)
+	if err := s.store.DeleteTable(id); err != nil {
+		redirectErr(w, r, "/firewall", "Could not delete table: "+err.Error())
+		return
+	}
+	s.audit(r, "deleted a table")
+	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+}
+
+func (s *Server) handleTableMove(w http.ResponseWriter, r *http.Request) {
+	_ = s.store.MoveTable(pathID(r), moveDir(r))
+	http.Redirect(w, r, "/firewall", http.StatusSeeOther)
+}
+
+// ── chain CRUD ──────────────────────────────────────────────────────────────
+
+type chainFormVM struct {
+	nav
+	Chain  store.Chain
+	Table  store.Table
+	IsNew  bool
+	Errors []string
+	Hooks  []string
+	Types  []string
+}
+
+func (s *Server) handleChainNew(w http.ResponseWriter, r *http.Request) {
+	t, err := s.store.GetTable(pathID(r))
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	s.chainForm(w, r, chainFormVM{
+		Table: t,
+		Chain: store.Chain{TableID: t.ID, Kind: "base", ChainType: "filter", Priority: "filter", Policy: "accept"},
+		IsNew: true,
+	})
+}
+
+func (s *Server) handleChainEdit(w http.ResponseWriter, r *http.Request) {
+	c, err := s.store.GetChain(pathID(r))
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	t, err := s.store.GetTable(c.TableID)
+	if err != nil {
+		s.serverError(w, "get table", err)
+		return
+	}
+	s.chainForm(w, r, chainFormVM{Table: t, Chain: c})
+}
+
+func (s *Server) chainForm(w http.ResponseWriter, r *http.Request, vm chainFormVM) {
+	vm.nav = s.navFor(r, "firewall")
+	vm.Hooks = []string{"input", "output", "forward", "prerouting", "postrouting", "ingress", "egress"}
+	vm.Types = []string{"filter", "nat", "route"}
+	render(w, s.log, "chain_form.html", vm)
+}
+
+func (s *Server) handleChainSave(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	isNew := r.PathValue("id") == "" || r.URL.Query().Get("new") == "1"
+
+	var c store.Chain
+	var table store.Table
+	if isNew {
+		tid, _ := strconv.ParseInt(r.FormValue("table_id"), 10, 64)
+		t, err := s.store.GetTable(tid)
+		if err != nil {
+			s.notFoundOr(w, err)
+			return
+		}
+		table = t
+		c.TableID = t.ID
+	} else {
+		existing, err := s.store.GetChain(pathID(r))
+		if err != nil {
+			s.notFoundOr(w, err)
+			return
+		}
+		c = existing
+		if t, err := s.store.GetTable(c.TableID); err == nil {
+			table = t
+		}
+	}
+
+	c.Name = strings.TrimSpace(r.FormValue("name"))
+	c.Kind = r.FormValue("kind")
+	c.Hook = r.FormValue("hook")
+	c.ChainType = r.FormValue("chain_type")
+	c.Priority = strings.TrimSpace(r.FormValue("priority"))
+	c.Policy = r.FormValue("policy")
+
+	if errs := c.Validate(); len(errs) > 0 {
+		s.chainForm(w, r, chainFormVM{Table: table, Chain: c, IsNew: isNew, Errors: errs})
+		return
+	}
+	var err error
+	if isNew {
+		_, err = s.store.CreateChain(c)
+	} else {
+		err = s.store.UpdateChain(c)
+	}
+	if err != nil {
+		s.chainForm(w, r, chainFormVM{Table: table, Chain: c, IsNew: isNew, Errors: []string{err.Error()}})
+		return
+	}
+	s.audit(r, "saved chain "+c.Name)
+	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+}
+
+func (s *Server) handleChainDelete(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.DeleteChain(pathID(r)); err != nil {
+		redirectErr(w, r, "/firewall", "Could not delete chain: "+err.Error())
+		return
+	}
+	s.audit(r, "deleted a chain")
+	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+}
+
+func (s *Server) handleChainMove(w http.ResponseWriter, r *http.Request) {
+	_ = s.store.MoveChain(pathID(r), moveDir(r))
+	http.Redirect(w, r, "/firewall", http.StatusSeeOther)
+}
+
+// ── rule editor ─────────────────────────────────────────────────────────────
+
+type condRow struct {
+	Field string
+	Op    string
+	Value string
+}
+
+type actRow struct {
+	Key    string
+	Params map[string]string
+}
+
+type ruleFormVM struct {
+	nav
+	Chain           store.Chain
+	Table           store.Table
+	RuleID          int64
+	Comment         string
+	Enabled         bool
+	IsNew           bool
+	Errors          []string
+	Preview         string
+	Conds           []condRow
+	Acts            []actRow
+	MatchGroups     []nftcat.MatchGroup
+	StatementGroups []nftcat.StatementGroup
+	ParamKeys       []string
+	Ops             []string
+	// CatalogueJSON is the per-knob help/example/options metadata, embedded in
+	// the page for firewall.js to annotate the form as the operator builds a rule.
+	CatalogueJSON template.JS
+	// PageDataJSON carries the box's real interfaces, this table's named sets and
+	// its chain names, so the editor can offer them as choices instead of asking
+	// the operator to type identifiers blind.
+	PageDataJSON template.JS
+}
+
+func (s *Server) handleRuleNew(w http.ResponseWriter, r *http.Request) {
+	c, err := s.store.GetChain(pathID(r))
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	vm := ruleFormVM{Chain: c, IsNew: true, Enabled: true}
+	// Seed one empty condition and one accept action so the form is inviting.
+	vm.Conds = padConds(nil)
+	vm.Acts = padActs([]actRow{{Key: "accept", Params: map[string]string{}}})
+	s.ruleForm(w, r, vm)
+}
+
+func (s *Server) handleRuleEditGet(w http.ResponseWriter, r *http.Request) {
+	rule, err := s.store.GetChainRule(pathID(r))
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	c, err := s.store.GetChain(rule.ChainID)
+	if err != nil {
+		s.serverError(w, "get chain", err)
+		return
+	}
+	vm := ruleFormVM{
+		Chain:   c,
+		RuleID:  rule.ID,
+		Comment: rule.Comment,
+		Enabled: rule.Enabled,
+	}
+	for _, m := range rule.Matches {
+		vm.Conds = append(vm.Conds, condRow{Field: m.Key, Op: m.Op, Value: m.Value})
+	}
+	vm.Conds = padConds(vm.Conds)
+	for _, st := range rule.Statements {
+		vm.Acts = append(vm.Acts, actRow{Key: st.Key, Params: nftconf.DecodeParams(st.Params)})
+	}
+	vm.Acts = padActs(vm.Acts)
+	s.ruleForm(w, r, vm)
+}
+
+func (s *Server) ruleForm(w http.ResponseWriter, r *http.Request, vm ruleFormVM) {
+	vm.nav = s.navFor(r, "firewall")
+	if t, err := s.store.GetTable(vm.Chain.TableID); err == nil {
+		vm.Table = t
+	}
+	vm.MatchGroups = nftcat.MatchGroups()
+	vm.StatementGroups = nftcat.StatementGroups()
+	vm.ParamKeys = paramKeys
+	vm.Ops = []string{"==", "!=", "<", ">", "<=", ">="}
+	vm.CatalogueJSON = template.JS(nftcat.CatalogueJSON())
+	vm.PageDataJSON = template.JS(s.rulePageData(vm.Chain))
+
+	// A live preview of what the rule renders to, best-effort.
+	rule := ruleFromForm(vm)
+	if line, err := nftconf.RenderRule(vm.Table.Family, rule); err == nil {
+		vm.Preview = line
+	}
+	render(w, s.log, "rule_form.html", vm)
+}
+
+// rulePageData is the JSON the editor uses to offer real choices: the box's
+// interfaces (for iifname/oifname), the named sets a rule can reference, and the
+// sibling chains a jump/goto can target.
+func (s *Server) rulePageData(chain store.Chain) string {
+	var setNames []string
+	if lists, err := s.store.ListLists(); err == nil {
+		for _, l := range lists {
+			setNames = append(setNames, l.Name)
+		}
+	}
+	var chainNames []string
+	if chain.TableID != 0 {
+		if chains, err := s.store.ListChains(chain.TableID); err == nil {
+			for _, c := range chains {
+				if c.ID != chain.ID { // a chain cannot jump to itself
+					chainNames = append(chainNames, c.Name)
+				}
+			}
+		}
+	}
+	b, err := json.Marshal(map[string]any{
+		"interfaces": hostInterfaces(),
+		"sets":       setNames,
+		"chains":     chainNames,
+	})
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+// hostInterfaces lists the network interface names on the box, so the editor can
+// offer them for iifname/oifname instead of a blind text field. In production
+// (host network namespace) these are the router's real interfaces; in a bridged
+// container they are the container's — either way, the ones nft will see.
+func hostInterfaces() []string {
+	ifs, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(ifs))
+	for _, i := range ifs {
+		out = append(out, i.Name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ruleFromForm builds a ChainRule from the form view-model's rows (dropping
+// empty ones), for both preview and save.
+func ruleFromForm(vm ruleFormVM) store.ChainRule {
+	rule := store.ChainRule{ID: vm.RuleID, ChainID: vm.Chain.ID, Comment: vm.Comment, Enabled: vm.Enabled}
+	for _, c := range vm.Conds {
+		if strings.TrimSpace(c.Field) == "" {
+			continue
+		}
+		op := c.Op
+		if op == "" {
+			op = "=="
+		}
+		rule.Matches = append(rule.Matches, store.RuleMatch{Key: c.Field, Op: op, Value: strings.TrimSpace(c.Value)})
+	}
+	for _, a := range vm.Acts {
+		if strings.TrimSpace(a.Key) == "" {
+			continue
+		}
+		rule.Statements = append(rule.Statements, store.RuleStatement{Key: a.Key, Params: nftconf.EncodeParams(a.Params)})
+	}
+	return rule
+}
+
+func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	isNew := r.URL.Query().Get("new") == "1" || strings.Contains(r.URL.Path, "/rules/new")
+
+	var chain store.Chain
+	var ruleID int64
+	if isNew {
+		c, err := s.store.GetChain(pathID(r))
+		if err != nil {
+			s.notFoundOr(w, err)
+			return
+		}
+		chain = c
+	} else {
+		ruleID = pathID(r)
+		existing, err := s.store.GetChainRule(ruleID)
+		if err != nil {
+			s.notFoundOr(w, err)
+			return
+		}
+		c, err := s.store.GetChain(existing.ChainID)
+		if err != nil {
+			s.serverError(w, "get chain", err)
+			return
+		}
+		chain = c
+	}
+
+	vm := ruleFormVM{
+		Chain:   chain,
+		RuleID:  ruleID,
+		IsNew:   isNew,
+		Comment: strings.TrimSpace(r.FormValue("comment")),
+		Enabled: r.FormValue("enabled") == "on",
+		Conds:   readConds(r),
+		Acts:    readActs(r),
+	}
+
+	rule := ruleFromForm(vm)
+	if errs := rule.Validate(); len(errs) > 0 {
+		vm.Errors = errs
+		vm.Conds = padConds(vm.Conds)
+		vm.Acts = padActs(vm.Acts)
+		s.ruleForm(w, r, vm)
+		return
+	}
+	// Reject anything nft would — the render itself is the check here.
+	table, _ := s.store.GetTable(chain.TableID)
+	if _, err := nftconf.RenderRule(table.Family, rule); err != nil {
+		vm.Errors = []string{"This rule can't be expressed: " + err.Error()}
+		vm.Conds = padConds(vm.Conds)
+		vm.Acts = padActs(vm.Acts)
+		s.ruleForm(w, r, vm)
+		return
+	}
+
+	var err error
+	if isNew {
+		_, err = s.store.CreateChainRule(rule)
+	} else {
+		err = s.store.UpdateChainRule(rule)
+	}
+	if err != nil {
+		vm.Errors = []string{err.Error()}
+		vm.Conds = padConds(vm.Conds)
+		vm.Acts = padActs(vm.Acts)
+		s.ruleForm(w, r, vm)
+		return
+	}
+	s.audit(r, "saved a rule in chain "+chain.Name)
+	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+}
+
+func (s *Server) handleRuleDelete(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.DeleteChainRule(pathID(r)); err != nil {
+		redirectErr(w, r, "/firewall", "Could not delete rule: "+err.Error())
+		return
+	}
+	s.audit(r, "deleted a rule")
+	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+}
+
+func (s *Server) handleRuleToggle(w http.ResponseWriter, r *http.Request) {
+	rule, err := s.store.GetChainRule(pathID(r))
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	_ = s.store.SetChainRuleEnabled(rule.ID, !rule.Enabled)
+	http.Redirect(w, r, "/firewall", http.StatusSeeOther)
+}
+
+func (s *Server) handleRuleMove(w http.ResponseWriter, r *http.Request) {
+	_ = s.store.MoveChainRule(pathID(r), moveDir(r))
+	http.Redirect(w, r, "/firewall", http.StatusSeeOther)
+}
+
+// ── form row parsing ────────────────────────────────────────────────────────
+
+func readConds(r *http.Request) []condRow {
+	var out []condRow
+	for i := range maxConds {
+		field := strings.TrimSpace(r.FormValue("c_field_" + strconv.Itoa(i)))
+		if field == "" {
+			continue
+		}
+		out = append(out, condRow{
+			Field: field,
+			Op:    r.FormValue("c_op_" + strconv.Itoa(i)),
+			Value: r.FormValue("c_val_" + strconv.Itoa(i)),
+		})
+	}
+	return out
+}
+
+func readActs(r *http.Request) []actRow {
+	var out []actRow
+	for i := range maxActs {
+		key := strings.TrimSpace(r.FormValue("a_key_" + strconv.Itoa(i)))
+		if key == "" {
+			continue
+		}
+		params := map[string]string{}
+		for _, pk := range paramKeys {
+			if v := strings.TrimSpace(r.FormValue("a_" + pk + "_" + strconv.Itoa(i))); v != "" {
+				params[pk] = v
+			}
+		}
+		out = append(out, actRow{Key: key, Params: params})
+	}
+	return out
+}
+
+// padConds/padActs top the rows up to the form's slot count so the template can
+// always render a fixed grid (extra rows are empty and ignored on save).
+func padConds(in []condRow) []condRow {
+	for len(in) < maxConds {
+		in = append(in, condRow{Op: "=="})
+	}
+	return in[:maxConds]
+}
+
+func padActs(in []actRow) []actRow {
+	for len(in) < maxActs {
+		in = append(in, actRow{Params: map[string]string{}})
+	}
+	for i := range in {
+		if in[i].Params == nil {
+			in[i].Params = map[string]string{}
+		}
+	}
+	return in[:maxActs]
+}
+
+// ── small shared helpers ────────────────────────────────────────────────────
+
+func pathID(r *http.Request) int64 {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	return id
+}
+
+func moveDir(r *http.Request) int {
+	if r.FormValue("dir") == "up" || r.URL.Query().Get("dir") == "up" {
+		return -1
+	}
+	return 1
+}
+
+func redirectErr(w http.ResponseWriter, r *http.Request, base, msg string) {
+	http.Redirect(w, r, base+"?err="+urlEscape(msg), http.StatusSeeOther)
+}
+
+func (s *Server) notFoundOr(w http.ResponseWriter, err error) {
+	if err == store.ErrNotFound {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	s.serverError(w, "lookup", err)
+}

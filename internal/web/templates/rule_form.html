@@ -1,93 +1,109 @@
-{{template "shell-open" .}}
-<div class="page-top">
-	<span class="page-eyebrow">Manage</span>
-	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><a href="/rules">Rules</a><span class="sep">/</span><span class="current">{{if .IsNew}}New{{else}}Edit{{end}}</span></div>
-</div>
+{{define "rule_form.html"}}{{template "shell-open" .}}
+
 <div class="page-header">
-	<div>
-		<h1>{{if .IsNew}}New rule{{else}}Edit rule{{end}}</h1>
-		<div class="page-sub">One rule covers IPv4 and IPv6 — sources from both families render into their family's match automatically.</div>
-	</div>
+	<h1>{{if .IsNew}}New rule{{else}}Edit rule{{end}}</h1>
+	<p class="page-sub">A rule matches some traffic (the <strong>conditions</strong>, all of which must
+	hold) and then takes one or more <strong>actions</strong>. With no conditions, a rule matches
+	everything. In chain <span class="mono">{{.Chain.Name}}</span> of table
+	<span class="mono">{{.Table.Family}} {{.Table.Name}}</span>.</p>
 </div>
 
-{{if .Errors}}
-<div class="card card-danger"><div class="card-body">
-	{{range .Errors}}<div class="field-error">{{.}}</div>{{end}}
-</div></div>
-{{end}}
+{{if .Errors}}<div class="card card-danger"><div class="card-body">{{range .Errors}}<div class="field-error">{{.}}</div>{{end}}</div></div>{{end}}
 
-<div class="card">
-	<div class="card-body">
-		<form method="post" action="{{if .IsNew}}/rules/new{{else}}/rules/{{.Rule.ID}}/edit{{end}}">
-			<div class="field">
-				<label for="name">Name</label>
-				<input type="text" id="name" name="name" value="{{.Rule.Name}}" placeholder="e.g. ssh from mgmt" autocomplete="off">
-				<div class="field-hint text-muted">Shows up as the rule's comment in the rendered config.</div>
+<script type="application/json" id="catalogue">{{.CatalogueJSON}}</script>
+<script type="application/json" id="pagedata">{{.PageDataJSON}}</script>
+
+<form method="post" action="{{if .IsNew}}/firewall/chains/{{.Chain.ID}}/rules/new{{else}}/firewall/rules/{{.RuleID}}/edit{{end}}" class="split">
+<div class="split-main">
+
+	<div class="card">
+		<div class="card-header"><div class="card-title">{{template "icon-info"}} Conditions <span class="text-muted">— what traffic this matches</span></div></div>
+		<div class="card-body">
+			<div id="conds">
+			{{range $i, $c := .Conds}}
+				<div class="knob-row cond-row{{if ge $i 3}} extra{{end}}" data-index="{{$i}}">
+					<select name="c_field_{{$i}}" class="knob-field" data-kind="cond">
+						<option value="">— add a condition —</option>
+						{{range $.MatchGroups}}<optgroup label="{{.Name}}">{{range .Matches}}<option value="{{.Key}}"{{if eq .Key $c.Field}} selected{{end}}>{{.Label}}</option>{{end}}</optgroup>{{end}}
+					</select>
+					<select name="c_op_{{$i}}" class="knob-op">
+						{{range $.Ops}}<option value="{{.}}"{{if eq . $c.Op}} selected{{end}}>{{.}}</option>{{end}}
+					</select>
+					<div class="knob-val-cell"><input type="text" name="c_val_{{$i}}" class="knob-val" value="{{$c.Value}}" placeholder="value" autocomplete="off"></div>
+					<div class="knob-help"></div>
+				</div>
+			{{end}}
 			</div>
-			<div class="field">
-				<label for="chain">Chain</label>
-				<select id="chain" name="chain">
-					<option value="input" {{if ne .Rule.Chain "forward"}}selected{{end}}>input — traffic to this host</option>
-					<option value="forward" {{if eq .Rule.Chain "forward"}}selected{{end}}>forward — traffic routed through it</option>
-				</select>
-				<div class="field-hint text-muted">Forward rules only render once the WAN interface is named on the <a href="/forwarding">Forwarding</a> page.</div>
+			<button type="button" class="btn btn-sm btn-ghost" id="add-cond">{{template "icon-plus"}} Add condition</button>
+		</div>
+	</div>
+
+	<div class="card">
+		<div class="card-header"><div class="card-title">{{template "icon-spark"}} Actions <span class="text-muted">— what to do with it</span></div></div>
+		<div class="card-body">
+			<div id="acts">
+			{{range $j, $a := .Acts}}
+				<div class="knob-row act-row{{if ge $j 2}} extra{{end}}" data-index="{{$j}}">
+					<select name="a_key_{{$j}}" class="knob-action" data-kind="act">
+						<option value="">— add an action —</option>
+						{{range $.StatementGroups}}<optgroup label="{{.Name}}">{{range .Statements}}<option value="{{.Key}}"{{if eq .Key $a.Key}} selected{{end}}>{{.Label}}</option>{{end}}</optgroup>{{end}}
+					</select>
+					<div class="knob-params">
+						<span class="param" data-param="target" data-for="jump,goto"><label>Target chain</label><input type="text" name="a_target_{{$j}}" value="{{index $a.Params "target"}}" placeholder="chain name"></span>
+						<span class="param" data-param="addr" data-for="dnat,snat"><label>To address</label><input type="text" name="a_addr_{{$j}}" value="{{index $a.Params "addr"}}" placeholder="192.168.1.10"></span>
+						<span class="param" data-param="port" data-for="dnat,snat,redirect"><label>To port</label><input type="text" name="a_port_{{$j}}" value="{{index $a.Params "port"}}" placeholder="80"></span>
+						<span class="param" data-param="with" data-for="reject"><label>Send back</label><select name="a_with_{{$j}}">
+							<option value=""{{if eq (index $a.Params "with") ""}} selected{{end}}>Default (ICMP unreachable)</option>
+							<option value="tcp reset"{{if eq (index $a.Params "with") "tcp reset"}} selected{{end}}>TCP reset</option>
+							<option value="icmpx admin"{{if eq (index $a.Params "with") "icmpx admin"}} selected{{end}}>Admin prohibited</option>
+						</select></span>
+						<span class="param" data-param="prefix" data-for="log"><label>Log prefix</label><input type="text" name="a_prefix_{{$j}}" value="{{index $a.Params "prefix"}}" placeholder="blocked "></span>
+						<span class="param" data-param="level" data-for="log"><label>Log level</label><select name="a_level_{{$j}}">
+							{{$lvl := index $a.Params "level"}}
+							{{range $l := (list "" "debug" "info" "notice" "warn" "err" "crit")}}<option value="{{$l}}"{{if eq $l $lvl}} selected{{end}}>{{if $l}}{{$l}}{{else}}info (default){{end}}</option>{{end}}
+						</select></span>
+						<span class="param" data-param="rate" data-for="limit"><label>Rate</label><input type="text" name="a_rate_{{$j}}" value="{{index $a.Params "rate"}}" placeholder="10"></span>
+						<span class="param" data-param="per" data-for="limit"><label>Per</label><select name="a_per_{{$j}}">
+							{{$per := index $a.Params "per"}}
+							{{range $p := (list "second" "minute" "hour" "day")}}<option value="{{$p}}"{{if eq $p $per}} selected{{end}}>{{$p}}</option>{{end}}
+						</select></span>
+						<span class="param" data-param="burst" data-for="limit"><label>Burst</label><input type="text" name="a_burst_{{$j}}" value="{{index $a.Params "burst"}}" placeholder="5"></span>
+						<span class="param" data-param="value" data-for="meta.mark.set,ct.mark.set"><label>Mark</label><input type="text" name="a_value_{{$j}}" value="{{index $a.Params "value"}}" placeholder="0x1"></span>
+					</div>
+					<div class="knob-help"></div>
+				</div>
+			{{end}}
 			</div>
+			<button type="button" class="btn btn-sm btn-ghost" id="add-act">{{template "icon-plus"}} Add action</button>
+		</div>
+	</div>
+
+	<div class="card">
+		<div class="card-body">
 			<div class="field">
-				<label for="action">Action</label>
-				<select id="action" name="action">
-					<option value="accept" {{if eq .Rule.Action "accept"}}selected{{end}}>accept</option>
-					<option value="drop" {{if eq .Rule.Action "drop"}}selected{{end}}>drop</option>
-					<option value="reject" {{if eq .Rule.Action "reject"}}selected{{end}}>reject (tell the sender)</option>
-				</select>
+				<label>Comment <span class="text-muted">(optional, helps you remember what this rule is for)</span></label>
+				<input type="text" name="comment" value="{{.Comment}}" placeholder="allow SSH from the office">
 			</div>
-			<div class="field">
-				<label for="proto">Protocol</label>
-				<select id="proto" name="proto">
-					<option value="tcp" {{if eq .Rule.Proto "tcp"}}selected{{end}}>tcp</option>
-					<option value="udp" {{if eq .Rule.Proto "udp"}}selected{{end}}>udp</option>
-					<option value="any" {{if eq .Rule.Proto "any"}}selected{{end}}>any</option>
-				</select>
-			</div>
-			<div class="field">
-				<label for="dports">Destination ports</label>
-				<input type="text" id="dports" name="dports" value="{{.Rule.DPorts}}" class="mono" placeholder="22, 80, 8000-8100" autocomplete="off">
-				<div class="field-hint text-muted">Numbers and ranges, comma-separated. Leave blank to match the whole protocol. Requires tcp or udp.</div>
-			</div>
-			<div class="field">
-				<label for="src_list">Source list</label>
-				<select id="src_list" name="src_list">
-					<option value="0" {{if eq .Rule.SrcListID 0}}selected{{end}}>&mdash; use the addresses below (or any source)</option>
-					{{range .Lists}}<option value="{{.ID}}" {{if eq .ID $.Rule.SrcListID}}selected{{end}}>{{.Name}}{{if .Role}} ({{if eq .Role "allow"}}always allow{{else}}always block{{end}}){{end}}</option>{{end}}
-				</select>
-				<div class="field-hint text-muted">Match a <a href="/lists">named list</a> instead of typing addresses — edit the list later and every rule using it follows. Renders as <span class="mono">ip saddr @&lt;list&gt;4</span>.</div>
-			</div>
-			<div class="field">
-				<label for="saddrs">Source addresses</label>
-				<textarea id="saddrs" name="saddrs" rows="3" class="mono" placeholder="10.0.0.0/8&#10;2001:db8::/32">{{.Rule.SAddrs}}</textarea>
-				<div class="field-hint text-muted">IPs or CIDRs, either family, comma or newline separated. Empty matches any source. Ignored when a source list is chosen above.</div>
-			</div>
-			<div class="field">
-				<label for="iif">Ingress interface</label>
-				<input type="text" id="iif" name="iif" value="{{.Rule.IIf}}" class="mono" placeholder="eth0" autocomplete="off">
-				<div class="field-hint text-muted">Empty matches any interface.</div>
-			</div>
-			<div class="field">
-				<label class="check-label"><input type="checkbox" name="enabled" {{if .Rule.Enabled}}checked{{end}}> Enabled</label>
-			</div>
+			<label class="check-label"><input type="checkbox" name="enabled"{{if .Enabled}} checked{{end}}> Enabled (uncheck to keep the rule but skip it)</label>
 			<div class="form-actions">
-				<button type="submit" class="btn btn-primary">{{if .IsNew}}Add rule{{else}}Save rule{{end}}</button>
-				<a class="btn" href="/rules">Cancel</a>
+				<button class="btn btn-primary" type="submit">{{if .IsNew}}Create rule{{else}}Save rule{{end}}</button>
+				<a class="btn" href="/firewall">Cancel</a>
 			</div>
-		</form>
+		</div>
 	</div>
 </div>
 
-{{if .Preview}}
-<div class="card">
-	<div class="card-header"><span class="card-title">{{template "icon-changes"}}Renders as</span></div>
-	<div class="card-body">
-		<div class="code-block mono">{{range .Preview}}<div>{{.}}</div>{{end}}</div>
+<aside class="split-side">
+	<div class="card sticky-preview">
+		<div class="card-header"><div class="card-title">{{template "icon-changes"}} Renders as</div></div>
+		<div class="card-body">
+			<p class="hint">The exact nftables line this rule becomes:</p>
+			<pre class="code-block mono" id="rule-preview">{{if .Preview}}{{.Preview}}{{else}}(add a condition or action){{end}}</pre>
+			<p class="hint">Save it, then <a href="/changes">Review &amp; apply</a> — with the armed auto-revert so a mistake can't lock you out.</p>
+		</div>
 	</div>
-</div>
-{{end}}
-{{template "shell-close" .}}
+</aside>
+</form>
+
+<script src="/static/firewall.js" defer></script>
+{{template "shell-close" .}}{{end}}

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	nftconf "github.com/floreabogdan/nftably/internal/render"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
@@ -145,49 +144,5 @@ func TestQuickBlockAndSelfGuard(t *testing.T) {
 	}
 	if entries, _ = srv.store.ListEntries(nb.ID); len(entries) != 1 {
 		t.Fatalf("recreated blacklist entries: %+v", entries)
-	}
-}
-
-func TestRuleWithSourceList(t *testing.T) {
-	srv, cookie := newTestServer(t)
-	office, err := srv.store.CreateList(store.IPList{Name: "office"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := srv.store.AddListEntry(office, "10.9.0.0/24", ""); err != nil {
-		t.Fatal(err)
-	}
-
-	rec := postForm(srv, "/rules/new", url.Values{
-		"name": {"ssh office"}, "chain": {"input"}, "action": {"accept"}, "proto": {"tcp"},
-		"dports": {"22"}, "src_list": {itoa(office)}, "enabled": {"on"},
-	}, cookie)
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
-	}
-	rules, _ := srv.store.ListRules()
-	if len(rules) != 1 || rules[0].SrcListID != office {
-		t.Fatalf("rule: %+v", rules)
-	}
-
-	// The rendered config references the list's sets.
-	m, err := srv.loadModel()
-	if err != nil {
-		t.Fatal(err)
-	}
-	out := nftconf.Config(m)
-	for _, want := range []string{"set office4", "ip saddr @office4 tcp dport 22 accept"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("config missing %q:\n%s", want, out)
-		}
-	}
-
-	// List + literal addresses together is a validation error.
-	rec = postForm(srv, "/rules/new", url.Values{
-		"name": {"both"}, "action": {"accept"}, "proto": {"tcp"}, "dports": {"23"},
-		"src_list": {itoa(office)}, "saddrs": {"10.0.0.1"},
-	}, cookie)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "either a source list") {
-		t.Fatalf("both sources accepted: %d", rec.Code)
 	}
 }
