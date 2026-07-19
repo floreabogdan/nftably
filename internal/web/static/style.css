@@ -216,6 +216,11 @@
 
 * { box-sizing: border-box; }
 
+/* Icons are inline SVGs; an unsized SVG defaults to 100% width, so give every
+   icon a sane base size. Context-specific rules (.btn svg, .stat-icon svg…)
+   override this by specificity. */
+svg { width: 18px; height: 18px; flex-shrink: 0; vertical-align: -4px; }
+
 html, body {
 	margin: 0;
 	padding: 0;
