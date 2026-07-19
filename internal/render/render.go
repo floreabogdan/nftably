@@ -30,6 +30,17 @@ type TableTree struct {
 	// Sets are the named sets this table must declare because a rule in it
 	// references one (via @name). Populated by ResolveSets.
 	Sets []SetDef
+	// DynSets are dynamic timeout sets a rule in this table populates at runtime
+	// (an `add @set` ban statement) — declared empty with flags dynamic,timeout.
+	// Populated by ResolveDynSets.
+	DynSets []DynSetDef
+}
+
+// DynSetDef is one dynamic timeout set to emit: its nft name and element type.
+// It carries no elements — the kernel fills it as rules fire.
+type DynSetDef struct {
+	Name string
+	Type string // ipv4_addr | ipv6_addr
 }
 
 // ChainTree is a chain with its rules.
@@ -77,6 +88,9 @@ func TableConfig(t TableTree) string {
 
 func writeTable(b *strings.Builder, t TableTree) {
 	fmt.Fprintf(b, "table %s %s {\n", t.Family, t.Name)
+	for _, s := range t.DynSets {
+		writeDynSet(b, s)
+	}
 	for _, s := range t.Sets {
 		writeSet(b, s)
 	}

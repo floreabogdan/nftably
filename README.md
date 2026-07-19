@@ -84,6 +84,12 @@ make** and **easy to get right**:
   *"PostgreSQL is reachable from the internet"* or *"sshd is listening but a
   connection from outside would be dropped"*. Both halves offer safe one-click fixes
   that land on the Review page behind the auto-revert.
+- **Brute-force auto-ban, in the kernel.** One click on the Posture page installs a
+  fail2ban-style guard for SSH — no daemon, no log parsing. A source that opens
+  connections faster than the allowed rate is added to a **dynamic timeout set** and
+  dropped for the ban window (the set clears itself as bans expire). It's built from
+  a first-class *Rate-ban the source* action you can also drop onto any rule to
+  protect any port.
 - **Learn while you harden.** A **Concepts** page teaches how nftables actually works
   (the packet's journey through the hooks, chains, connection tracking, sets) in
   plain language, so someone new to firewalls can go from *"what's a chain?"* to a

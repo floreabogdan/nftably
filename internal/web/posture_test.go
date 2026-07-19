@@ -2,7 +2,9 @@ package web
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/floreabogdan/nftably/internal/store"
@@ -155,6 +157,74 @@ func TestHardenFixNoInputChain(t *testing.T) {
 	}
 	if loc := rec.Header().Get("Location"); loc == "/changes" {
 		t.Errorf("no-chain fix redirected to /changes; expected back to /harden")
+	}
+}
+
+// TestHardenSSHBanRecipe drives POST /harden/ssh-ban: it installs the four
+// auto-ban rules at the top of the input chain, reports itself active, and is
+// idempotent (a second click adds nothing). This is a security control that
+// writes firewall rules, so the injection and the guard both need coverage.
+func TestHardenSSHBanRecipe(t *testing.T) {
+	srv, cookie, _ := dropInputServer(t)
+
+	if v, _ := srv.postureView(); v.any(hasBanRule) {
+		t.Fatal("precondition: a fresh chain must have no ban rule")
+	}
+
+	rec := postForm(srv, "/harden/ssh-ban", url.Values{}, cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("ssh-ban: status %d, want 303", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/changes" {
+		t.Errorf("ssh-ban redirect = %q, want /changes", loc)
+	}
+
+	v, err := srv.postureView()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v.rules) != 4 {
+		t.Errorf("installed %d rules, want 4", len(v.rules))
+	}
+	if !v.any(hasBanRule) {
+		t.Error("no ban.rate rule after applying the recipe")
+	}
+	// The two ban rules must reference distinct per-family sets, and the drop rules
+	// must reference the same sets — otherwise the ban never takes effect.
+	var haveDrop4, haveDrop6, haveBan bool
+	for _, r := range v.rules {
+		if matchHas(r, "ip.saddr", "@"+sshBanSet4) && stmtHas(r, "drop") {
+			haveDrop4 = true
+		}
+		if matchHas(r, "ip6.saddr", "@"+sshBanSet6) && stmtHas(r, "drop") {
+			haveDrop6 = true
+		}
+		if hasBanRule(r) {
+			haveBan = true
+		}
+	}
+	if !haveDrop4 || !haveDrop6 || !haveBan {
+		t.Errorf("recipe wiring incomplete: drop4=%v drop6=%v ban=%v", haveDrop4, haveDrop6, haveBan)
+	}
+
+	// The Posture page renders its "active" branch (HaveModel + SSHBanActive true).
+	req := httptest.NewRequest(http.MethodGet, "/harden", nil)
+	req.AddCookie(cookie)
+	rec2 := httptest.NewRecorder()
+	srv.ServeHTTP(rec2, req)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("GET /harden after recipe: status %d, want 200", rec2.Code)
+	}
+	if body := rec2.Body.String(); !strings.Contains(body, "Brute-force auto-ban") || !strings.Contains(body, "Active.") {
+		t.Error("Posture page did not show the auto-ban 'on' state")
+	}
+
+	// Idempotent: clicking again adds nothing.
+	if rec := postForm(srv, "/harden/ssh-ban", url.Values{}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("second ssh-ban: status %d, want 303", rec.Code)
+	}
+	if v, _ := srv.postureView(); len(v.rules) != 4 {
+		t.Errorf("second apply changed rule count to %d, want 4", len(v.rules))
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/floreabogdan/nftably/internal/nftcat"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
@@ -22,6 +23,12 @@ func ResolveSets(m *Model, lists []ListWithEntries) {
 	}
 	for ti := range m.Tables {
 		refs := referencedSetNames(m.Tables[ti])
+		// A dynamic set (ban target) owns its name — never also resolve it as a
+		// list-backed set, or the table would declare the same set name twice.
+		dyn := map[string]bool{}
+		for _, d := range m.Tables[ti].DynSets {
+			dyn[d.Name] = true
+		}
 		var defs []SetDef
 		// Deterministic order: sort the referenced set names.
 		names := make([]string, 0, len(refs))
@@ -30,6 +37,9 @@ func ResolveSets(m *Model, lists []ListWithEntries) {
 		}
 		sort.Strings(names)
 		for _, setName := range names {
+			if dyn[setName] {
+				continue
+			}
 			list, family, ok := listForSet(byName, setName)
 			if !ok {
 				continue // dangling reference — lint warns, render just skips it
@@ -42,6 +52,33 @@ func ResolveSets(m *Model, lists []ListWithEntries) {
 			defs = append(defs, SetDef{Name: setName, Type: typ, Elements: elems})
 		}
 		m.Tables[ti].Sets = defs
+	}
+}
+
+// ResolveDynSets fills each table's DynSets from the ban statements its enabled
+// rules carry: an `add @set` ban action declares a dynamic timeout set, which
+// nft must see declared (empty) in the table. Deduplicated by name, in
+// first-seen order, so two rules banning into the same set emit one declaration.
+func ResolveDynSets(m *Model) {
+	for ti := range m.Tables {
+		var defs []DynSetDef
+		seen := map[string]bool{}
+		for _, c := range m.Tables[ti].Chains {
+			for _, r := range c.Rules {
+				if !r.Enabled {
+					continue
+				}
+				for _, st := range r.Statements {
+					name, typ, ok := nftcat.DynamicSet(st.Key, DecodeParams(st.Params))
+					if !ok || seen[name] {
+						continue
+					}
+					seen[name] = true
+					defs = append(defs, DynSetDef{Name: name, Type: typ})
+				}
+			}
+		}
+		m.Tables[ti].DynSets = defs
 	}
 }
 
@@ -109,6 +146,17 @@ func splitFamilies(entries []store.ListEntry) (v4, v6 []string) {
 		v6 = append(v6, e.s)
 	}
 	return v4, v6
+}
+
+// writeDynSet emits a dynamic timeout set: declared empty with flags
+// dynamic,timeout, the kernel populates it as ban rules fire. Per-element
+// timeouts come from the `add @set { … timeout … }` statement, so no default
+// timeout attribute is needed here.
+func writeDynSet(b *strings.Builder, s DynSetDef) {
+	fmt.Fprintf(b, "\tset %s {\n", s.Name)
+	fmt.Fprintf(b, "\t\ttype %s\n", s.Type)
+	b.WriteString("\t\tflags dynamic, timeout\n")
+	b.WriteString("\t}\n\n")
 }
 
 // writeSet emits one named set in nft's canonical listing format: elements two

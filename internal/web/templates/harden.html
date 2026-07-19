@@ -60,6 +60,36 @@
 	</div>
 </div>
 
+{{if .HaveModel}}
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-shield"}}Brute-force auto-ban for SSH</span>
+		{{if .SSHBanActive}}<span class="badge badge-success">on</span>{{end}}
+	</div>
+	<div class="card-body">
+		<p class="check-detail">Fail2ban, in the kernel — no daemon, no log parsing. A source that opens SSH
+		connections faster than <strong>10/minute</strong> (burst 5) is dropped into a dynamic timeout set and
+		blocked for <strong>1 hour</strong>; the set clears itself as bans expire. The rules go in at the top of your
+		input chain — above any SSH allow — and cover IPv4 and IPv6.</p>
+		{{if .SSHBanActive}}
+		<div class="check check-pass">
+			<div class="check-icon" aria-hidden="true">&#10003;</div>
+			<div class="check-body"><strong>Active.</strong>
+			<p class="check-detail">The auto-ban rules are in your input chain. Tune the rate or ban time on the
+			<a href="/firewall">Firewall</a> page (the <em>Rate-ban the source</em> action), and watch bans land in the
+			<a href="/logs">firewall log</a>.</p></div>
+		</div>
+		{{else}}
+		<form method="post" action="/harden/ssh-ban">
+			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-shield"}} Protect SSH from brute-force</button>
+		</form>
+		<p class="field-hint text-muted">Model-only — it drops you on <a href="/changes">Review</a>, behind the armed
+		auto-revert. Legitimate admins from your management network stay well under the limit.</p>
+		{{end}}
+	</div>
+</div>
+{{end}}
+
 <div class="card">
 	<div class="card-header">
 		<span class="card-title">{{template "icon-bulb"}}Exposed services</span>

@@ -431,6 +431,21 @@ var statements = []Statement{
 			return "tcp option maxseg size set " + size, nil
 		}},
 
+	{Key: "ban.rate", Label: "Rate-ban the source (brute-force auto-ban)", Group: "Defense",
+		Example: `meter ssh_abusers_m4 { ip saddr limit rate over 10/minute burst 5 packets } add @ssh_abusers { ip saddr timeout 1h } drop`,
+		Help: "Fail2ban in the kernel: a source that opens new connections faster than the allowed rate is added to a timeout set and dropped for the ban period — no userspace daemon, no log parsing. Put it on new connections to the port you're protecting (match `tcp dport 22` and connection state `new`), and add a companion rule higher up that drops the same set. nftably declares the dynamic set for you.",
+		Params: []Param{
+			{Key: "set", Label: "Ban set", Kind: KindText, Placeholder: "ssh_abusers", Help: "Name of the dynamic set offenders are added to. A companion `saddr @<set> drop` rule does the blocking; nftably emits the set declaration automatically."},
+			{Key: "family", Label: "Address family", Kind: KindEnum, Help: "A dynamic set holds one family. Ban IPv4 and IPv6 with a rule (and set) each.",
+				Options: []Option{{"ip", "IPv4", "Bans by IPv4 source (ipv4_addr set)."}, {"ip6", "IPv6", "Bans by IPv6 source (ipv6_addr set)."}}},
+			{Key: "rate", Label: "Rate", Kind: KindInt, Placeholder: "10", Help: "New connections a source may open per time unit before it's banned."},
+			{Key: "per", Label: "Per", Kind: KindEnum, Help: "The time unit for the rate.",
+				Options: []Option{{"second", "second", ""}, {"minute", "minute", ""}, {"hour", "hour", ""}}},
+			{Key: "burst", Label: "Burst", Kind: KindInt, Optional: true, Placeholder: "5", Help: "Short burst tolerated before the ban kicks in."},
+			{Key: "timeout", Label: "Ban for", Kind: KindText, Optional: true, Placeholder: "1h", Help: "How long a banned source stays blocked — an nft duration like 30s, 10m, 1h, 1d."},
+		},
+		render: renderBanRate},
+
 	// Byte quota — accounting with a cut-off.
 	{Key: "quota", Label: "Byte quota", Group: "Rate limiting", Example: "quota over 500 mbytes",
 		Help: "Match against a running byte total — cut a service off after it has served so much, or allow only up to a cap. 'over' fires once the total is exceeded (then drop); 'until' fires while still under it (then accept).",
@@ -630,6 +645,19 @@ func checkNumberOrHex(label, value string) error {
 	return fmt.Errorf("%s must be a whole number (decimal or 0x-hex)", label)
 }
 
+// durationRe matches an nft time value: one or more number+unit segments, e.g.
+// "30s", "10m", "1h", "1d", "1h30m". Emitted bare, so validated against the
+// exact shape rather than only the structural deny-list.
+var durationRe = regexp.MustCompile(`^([0-9]+[smhdw])+$`)
+
+// checkDuration accepts an nft duration like 30s, 10m, 1h, 1d, 1h30m.
+func checkDuration(label, value string) error {
+	if !durationRe.MatchString(strings.TrimSpace(value)) {
+		return fmt.Errorf("%s must be a duration like 30s, 10m, 1h or 1d", label)
+	}
+	return nil
+}
+
 // checkPort accepts a single port, an a-b range, or a comma list of those.
 func checkPort(label, value string) error {
 	for _, tok := range strings.Split(value, ",") {
@@ -738,6 +766,83 @@ func RenderStatement(key string, params map[string]string, ctx Ctx) (string, err
 		return "", fmt.Errorf("unknown action %q", key)
 	}
 	return s.render(params, ctx)
+}
+
+// renderBanRate renders the kernel fail2ban statement: a per-source rate meter
+// that, once a source exceeds the rate, adds it to a dynamic timeout set and
+// drops the packet. A companion `saddr @<set> drop` rule (higher in the chain)
+// blocks everything the set holds for the ban duration. The dynamic set itself
+// is declared by the render layer via DynamicSet, so this only emits the rule.
+func renderBanRate(p map[string]string, _ Ctx) (string, error) {
+	set := strings.TrimSpace(p["set"])
+	if !identRe.MatchString(set) {
+		return "", fmt.Errorf("ban set name must be letters, digits and underscores")
+	}
+	saddr, suffix, err := banSaddr(p["family"])
+	if err != nil {
+		return "", err
+	}
+	rate := strings.TrimSpace(p["rate"])
+	if _, err := strconv.Atoi(rate); err != nil {
+		return "", fmt.Errorf("ban rate must be a whole number")
+	}
+	per := strings.TrimSpace(p["per"])
+	if per == "" {
+		per = "minute"
+	}
+	if !rateUnits[per] {
+		return "", fmt.Errorf("ban rate unit %q is not second/minute/hour/day/week", per)
+	}
+	timeout := strings.TrimSpace(p["timeout"])
+	if timeout == "" {
+		timeout = "1h"
+	}
+	if err := checkDuration("ban timeout", timeout); err != nil {
+		return "", err
+	}
+	// The meter name must be unique per table; deriving it from the set and family
+	// keeps the v4 and v6 rules from colliding.
+	var b strings.Builder
+	fmt.Fprintf(&b, "meter %s_m%s { %s limit rate over %s/%s", set, suffix, saddr, rate, per)
+	if burst := strings.TrimSpace(p["burst"]); burst != "" {
+		if _, err := strconv.Atoi(burst); err != nil {
+			return "", fmt.Errorf("ban burst must be a whole number")
+		}
+		b.WriteString(" burst " + burst + " packets")
+	}
+	fmt.Fprintf(&b, " } add @%s { %s timeout %s } drop", set, saddr, timeout)
+	return b.String(), nil
+}
+
+// banSaddr maps the family param to its source-address expression and a family
+// suffix (used to keep meter names unique).
+func banSaddr(family string) (saddr, suffix string, err error) {
+	switch strings.TrimSpace(family) {
+	case "", "ip":
+		return "ip saddr", "4", nil
+	case "ip6":
+		return "ip6 saddr", "6", nil
+	default:
+		return "", "", fmt.Errorf("ban family must be ip or ip6")
+	}
+}
+
+// DynamicSet reports the dynamic timeout set a statement declares — its nft name
+// and element type — so the render layer can emit the `set … { flags dynamic,
+// timeout }` block. ok is false for every statement that declares no set.
+func DynamicSet(key string, params map[string]string) (name, elemType string, ok bool) {
+	if key != "ban.rate" {
+		return "", "", false
+	}
+	name = strings.TrimSpace(params["set"])
+	if !identRe.MatchString(name) {
+		return "", "", false
+	}
+	elemType = "ipv4_addr"
+	if strings.TrimSpace(params["family"]) == "ip6" {
+		elemType = "ipv6_addr"
+	}
+	return name, elemType, true
 }
 
 // renderNatTo renders a dnat/snat `... to <addr>[:port]`, adding the family

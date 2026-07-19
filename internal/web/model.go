@@ -35,8 +35,10 @@ func (s *Server) loadModel() (nftconf.Model, error) {
 		m.Tables = append(m.Tables, tt)
 	}
 
-	// Resolve named-set references: emit each list a rule points at (@name4 /
-	// @name6) into the table that uses it.
+	// Declare dynamic ban sets first, so list resolution never re-declares one of
+	// their names, then resolve named-set references: emit each list a rule points
+	// at (@name4 / @name6) into the table that uses it.
+	nftconf.ResolveDynSets(&m)
 	lists, err := s.loadLists()
 	if err != nil {
 		return m, err

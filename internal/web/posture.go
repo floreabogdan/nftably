@@ -240,6 +240,9 @@ type hardenVM struct {
 	Total     int
 	HaveModel bool
 	LoadErr   string
+	// SSHBanActive is true once the brute-force auto-ban rules are in the input
+	// chain, so the recipe card shows "on" instead of offering to add them.
+	SSHBanActive bool
 	// Exposed-services section (the merged-in advisor): every live listener run
 	// through the simulator against the model.
 	Findings []advisor.Finding
@@ -258,6 +261,7 @@ func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
 		vm.Checks = checks
 		vm.Pass, vm.Total = postureScore(checks)
 		vm.HaveModel = v.haveInput
+		vm.SSHBanActive = v.any(hasBanRule)
 	}
 	// The exposed-services scan is independent of the posture read; a failure
 	// there shouldn't blank the whole page, so it's best-effort.
@@ -316,5 +320,59 @@ func (s *Server) handleHardenFix(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, "applied hardening fix: "+id)
 	// Land on the Review page so the armed auto-revert covers the change.
+	http.Redirect(w, r, "/changes", http.StatusSeeOther)
+}
+
+// hasBanRule reports whether a rule carries a rate-ban (auto-ban) statement.
+func hasBanRule(r store.ChainRule) bool { return stmtHas(r, "ban.rate") }
+
+// sshBanSets are the two dynamic sets the SSH auto-ban recipe drops on and bans
+// into — one per family.
+const (
+	sshBanSet4 = "ssh_abusers"
+	sshBanSet6 = "ssh_abusers6"
+)
+
+// handleHardenSSHBan installs the kernel brute-force auto-ban for SSH: a rule
+// that adds a source opening SSH connections too fast to a dynamic timeout set,
+// and an early drop of everything in that set. It inserts at the top of the input
+// chain — before any SSH accept, so an open accept can't shadow the detector —
+// and the dynamic sets are declared by the renderer. Model-only; the armed apply
+// still gates the kernel.
+func (s *Server) handleHardenSSHBan(w http.ResponseWriter, r *http.Request) {
+	v, err := s.postureView()
+	if err != nil {
+		redirectErr(w, r, "/harden", "Could not read the firewall: "+err.Error())
+		return
+	}
+	if v.chainID == 0 {
+		redirectErr(w, r, "/harden", "There's no input chain to protect yet — start from a preset.")
+		return
+	}
+	if v.any(hasBanRule) {
+		http.Redirect(w, r, "/harden", http.StatusSeeOther)
+		return
+	}
+	// Built in display order; inserted in reverse so they land top-of-chain as:
+	// drop-banned (v4, v6) then detect-and-ban (v4, v6), above every existing rule.
+	banParams := func(set, family string) map[string]string {
+		return map[string]string{"set": set, "family": family, "rate": "10", "per": "minute", "burst": "5", "timeout": "1h"}
+	}
+	rules := []store.ChainRule{
+		{Comment: "drop brute-force-banned sources (IPv4)", Matches: []store.RuleMatch{mt("ip.saddr", "@"+sshBanSet4)}, Statements: []store.RuleStatement{stmt("drop")}},
+		{Comment: "drop brute-force-banned sources (IPv6)", Matches: []store.RuleMatch{mt("ip6.saddr", "@"+sshBanSet6)}, Statements: []store.RuleStatement{stmt("drop")}},
+		{Comment: "ban sources hammering SSH (IPv4)", Matches: []store.RuleMatch{mt("tcp.dport", "22"), mt("ct.state", "new")}, Statements: []store.RuleStatement{stmtP("ban.rate", banParams(sshBanSet4, "ip"))}},
+		{Comment: "ban sources hammering SSH (IPv6)", Matches: []store.RuleMatch{mt("tcp.dport", "22"), mt("ct.state", "new")}, Statements: []store.RuleStatement{stmtP("ban.rate", banParams(sshBanSet6, "ip6"))}},
+	}
+	for i := len(rules) - 1; i >= 0; i-- {
+		rl := rules[i]
+		rl.ChainID = v.chainID
+		rl.Enabled = true
+		if _, err := s.store.CreateChainRuleAtStart(rl); err != nil {
+			redirectErr(w, r, "/harden", "Could not add the auto-ban rules: "+err.Error())
+			return
+		}
+	}
+	s.audit(r, "enabled SSH brute-force auto-ban")
 	http.Redirect(w, r, "/changes", http.StatusSeeOther)
 }

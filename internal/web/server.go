@@ -248,6 +248,7 @@ func (s *Server) routes() {
 	// offer safe one-click fixes.
 	s.mux.Handle("GET /harden", s.requireAuth(s.handleHarden))
 	s.mux.Handle("POST /harden/fix/{id}", s.requireAuth(s.handleHardenFix))
+	s.mux.Handle("POST /harden/ssh-ban", s.requireAuth(s.handleHardenSSHBan))
 
 	s.mux.Handle("GET /advisor", s.requireAuth(s.handleAdvisor))
 	s.mux.Handle("POST /advisor/allow", s.requireAuth(s.handleAdvisorAllow))

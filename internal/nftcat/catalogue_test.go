@@ -67,6 +67,11 @@ func TestRenderStatement(t *testing.T) {
 		{"queue", map[string]string{"num": "2", "bypass": "bypass"}, "inet", "queue num 2 bypass"},
 		{"queue", map[string]string{"bypass": "bypass"}, "inet", "queue num 0 bypass"},
 		{"notrack", nil, "inet", "notrack"},
+		// Kernel brute-force auto-ban (rendered form verified valid against nft v1.0.9).
+		{"ban.rate", map[string]string{"set": "ssh_abusers", "family": "ip", "rate": "10", "per": "minute", "burst": "5", "timeout": "1h"}, "inet",
+			"meter ssh_abusers_m4 { ip saddr limit rate over 10/minute burst 5 packets } add @ssh_abusers { ip saddr timeout 1h } drop"},
+		{"ban.rate", map[string]string{"set": "ssh_abusers6", "family": "ip6", "rate": "20", "per": "second"}, "inet",
+			"meter ssh_abusers6_m6 { ip6 saddr limit rate over 20/second } add @ssh_abusers6 { ip6 saddr timeout 1h } drop"},
 	}
 	for _, c := range cases {
 		got, err := RenderStatement(c.key, c.params, Ctx{Family: c.family})
@@ -106,14 +111,18 @@ func TestRejectsInjection(t *testing.T) {
 		{"ct.mark.set", map[string]string{"value": "}"}},            // brace mark
 		{"log", map[string]string{"level": "info\n drop"}},          // bogus level
 		{"limit", map[string]string{"rate": "10", "per": "minute\n drop"}},
-		{"dnat", map[string]string{"addr": "1.1.1.1\n drop"}},         // non-address target
-		{"redirect", map[string]string{"port": "80\n drop"}},          // non-port
-		{"synproxy", map[string]string{"mss": "abc"}},                 // non-numeric mss
-		{"synproxy", map[string]string{"wscale": "1 drop"}},           // non-numeric wscale
-		{"quota", map[string]string{"amount": "x", "unit": "mbytes"}}, // non-numeric amount
-		{"quota", map[string]string{"amount": "1", "unit": "gbytes"}}, // unit nft rejects
-		{"queue", map[string]string{"num": "0 drop"}},                 // non-numeric queue
-		{"tcp.mss.clamp", map[string]string{"size": "huge"}},          // non-number, non-'rt mtu'
+		{"dnat", map[string]string{"addr": "1.1.1.1\n drop"}},                                           // non-address target
+		{"redirect", map[string]string{"port": "80\n drop"}},                                            // non-port
+		{"synproxy", map[string]string{"mss": "abc"}},                                                   // non-numeric mss
+		{"synproxy", map[string]string{"wscale": "1 drop"}},                                             // non-numeric wscale
+		{"quota", map[string]string{"amount": "x", "unit": "mbytes"}},                                   // non-numeric amount
+		{"quota", map[string]string{"amount": "1", "unit": "gbytes"}},                                   // unit nft rejects
+		{"queue", map[string]string{"num": "0 drop"}},                                                   // non-numeric queue
+		{"tcp.mss.clamp", map[string]string{"size": "huge"}},                                            // non-number, non-'rt mtu'
+		{"ban.rate", map[string]string{"set": "a; drop", "family": "ip", "rate": "10"}},                 // non-identifier set
+		{"ban.rate", map[string]string{"set": "ok", "family": "arp", "rate": "10"}},                     // family nft can't ban by
+		{"ban.rate", map[string]string{"set": "ok", "family": "ip", "rate": "x"}},                       // non-numeric rate
+		{"ban.rate", map[string]string{"set": "ok", "family": "ip", "rate": "10", "timeout": "1 drop"}}, // bad duration
 	}
 	for _, c := range stmtCases {
 		if _, err := RenderStatement(c.key, c.params, Ctx{Family: "inet"}); err == nil {

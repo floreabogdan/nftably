@@ -89,6 +89,38 @@ func TestBuildApplyFileMultiTable(t *testing.T) {
 	}
 }
 
+func TestBanRateRendersDynamicSet(t *testing.T) {
+	// A drop-banned companion rule plus a detect-and-ban rule, as the SSH auto-ban
+	// recipe builds them.
+	m := model("drop",
+		rule("drop banned",
+			[]store.RuleMatch{{Key: "ip.saddr", Op: "==", Value: "@ssh_abusers"}},
+			[]store.RuleStatement{{Key: "drop"}},
+		),
+		rule("rate-ban ssh",
+			[]store.RuleMatch{{Key: "tcp.dport", Op: "==", Value: "22"}, {Key: "ct.state", Op: "==", Value: "new"}},
+			[]store.RuleStatement{{Key: "ban.rate", Params: `{"set":"ssh_abusers","family":"ip","rate":"10","per":"minute","burst":"5","timeout":"1h"}`}},
+		),
+	)
+	ResolveDynSets(&m)
+	out := Config(m)
+	for _, want := range []string{
+		"\tset ssh_abusers {",
+		"\t\ttype ipv4_addr",
+		"\t\tflags dynamic, timeout",
+		"ip saddr @ssh_abusers drop",
+		"meter ssh_abusers_m4 { ip saddr limit rate over 10/minute burst 5 packets } add @ssh_abusers { ip saddr timeout 1h } drop",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	// The dynamic set must be declared exactly once, even though two rules name it.
+	if n := strings.Count(out, "set ssh_abusers {"); n != 1 {
+		t.Errorf("dynamic set declared %d times, want 1:\n%s", n, out)
+	}
+}
+
 func TestResolveAndRenderSets(t *testing.T) {
 	m := model("accept", rule("from office",
 		[]store.RuleMatch{{Key: "ip.saddr", Op: "==", Value: "@office4"}},

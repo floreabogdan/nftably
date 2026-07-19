@@ -75,6 +75,13 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **Brute-force auto-ban for SSH** — fail2ban in the kernel, no daemon. One click on
+  the Posture page adds a rule that puts any source opening SSH connections faster
+  than 10/minute into a **dynamic timeout set** and drops it for an hour, plus an
+  early drop of everything in that set (IPv4 and IPv6, inserted above any SSH
+  allow). It's built on a new first-class **Rate-ban the source** action
+  (`meter … limit rate over … add @set … drop`) usable on any rule; nftably declares
+  the `flags dynamic, timeout` set automatically. Verified against nftables v1.0.9.
 - **One-click "block this country"** on the Connections view. Next to a remote
   address's country, a single click builds a GeoIP set of that country's CIDRs
   (auto-refreshing, so it stays current) and adds early `ip saddr @blk_xx drop`
