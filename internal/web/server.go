@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/floreabogdan/nftably/internal/nft"
+	"github.com/floreabogdan/nftably/internal/notify"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
@@ -71,6 +72,10 @@ type Server struct {
 	accessMu   sync.RWMutex
 	accessList []netip.Prefix
 
+	// notifier delivers alerts to the operator's configured destinations. Never
+	// nil — with no destinations every call is a no-op.
+	notifier *notify.Dispatcher
+
 	mux *http.ServeMux
 }
 
@@ -116,6 +121,8 @@ func New(cfg Config) *Server {
 	} else {
 		s.applier = cfg.Nft
 	}
+	// A 2-minute cooldown collapses a storm of the same auto-ban/feed/nft event.
+	s.notifier = notify.NewDispatcher(cfg.Store, log, 2*time.Minute)
 	s.routes()
 	s.reloadAccess()
 	return s
@@ -268,6 +275,11 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /settings/geoip/download", s.requireAuth(s.handleGeoIPDownload))
 	s.mux.Handle("GET /settings/backup/export", s.requireAuth(s.handleConfigExport))
 	s.mux.Handle("POST /settings/backup/restore", s.requireAuth(s.handleConfigRestore))
+	s.mux.Handle("GET /alerts/new", s.requireAuth(s.handleAlertNew))
+	s.mux.Handle("POST /alerts/save", s.requireAuth(s.handleAlertSave))
+	s.mux.Handle("GET /alerts/{id}/edit", s.requireAuth(s.handleAlertEdit))
+	s.mux.Handle("POST /alerts/{id}/delete", s.requireAuth(s.handleAlertDelete))
+	s.mux.Handle("POST /alerts/{id}/test", s.requireAuth(s.handleAlertTest))
 
 	s.mux.Handle("GET /profile", s.requireAuth(s.handleProfilePage))
 	s.mux.Handle("POST /profile/identity", s.requireAuth(s.handleProfileIdentity))

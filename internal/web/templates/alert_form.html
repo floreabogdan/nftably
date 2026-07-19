@@ -1,0 +1,118 @@
+{{define "alert_form.html"}}{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">System</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><a href="/settings?tab=alerts">Alerts</a><span class="sep">/</span><span class="current">{{if .IsNew}}New{{else}}{{.Dest.Name}}{{end}}</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>{{if .IsNew}}{{template "icon-plus"}}{{else}}{{template "icon-edit"}}{{end}} {{if .IsNew}}New alert destination{{else}}Edit destination{{end}}</h1>
+		<div class="page-sub">Where nftably sends a notification when the firewall does something notable. A webhook, Slack or
+		Discord takes an incoming-webhook URL; email takes your SMTP details.</div>
+	</div>
+</div>
+
+<form method="post" action="/alerts/save" data-alert-form>
+	<input type="hidden" name="id" value="{{.Dest.ID}}">
+	<div class="card"><div class="card-body">
+		<div class="field-row">
+			<div class="field">
+				<label for="name">Name</label>
+				<input type="text" id="name" name="name" value="{{.Dest.Name}}" placeholder="e.g. ops-slack" autocomplete="off" required>
+				{{with index .Errs "name"}}<div class="field-error">{{.}}</div>{{end}}
+			</div>
+			<div class="field">
+				<label for="type">Type</label>
+				<select id="type" name="type" data-alert-type>
+					<option value="webhook"{{if eq .Dest.Type "webhook"}} selected{{end}}>Webhook (generic JSON)</option>
+					<option value="slack"{{if eq .Dest.Type "slack"}} selected{{end}}>Slack</option>
+					<option value="discord"{{if eq .Dest.Type "discord"}} selected{{end}}>Discord</option>
+					<option value="email"{{if eq .Dest.Type "email"}} selected{{end}}>Email (SMTP)</option>
+				</select>
+				{{with index .Errs "type"}}<div class="field-error">{{.}}</div>{{end}}
+			</div>
+		</div>
+		<label class="check-label"><input type="checkbox" name="enabled"{{if .Dest.Enabled}} checked{{end}}> Enabled — deliver alerts to this destination</label>
+	</div></div>
+
+	<div class="card" data-alert-group="url"{{if .Dest.IsEmail}} hidden{{end}}>
+		<div class="card-header"><span class="card-title">{{template "icon-route"}}Webhook URL</span></div>
+		<div class="card-body">
+			<div class="field">
+				<label for="url">Incoming webhook URL</label>
+				<input type="text" id="url" name="url" class="mono" value="{{.Dest.URL}}" placeholder="https://hooks.slack.com/services/... or https://discord.com/api/webhooks/..." autocomplete="off">
+				<div class="field-hint text-muted">For Slack/Discord this is the incoming-webhook URL from that app; for a generic webhook, any HTTPS endpoint that accepts a JSON POST.</div>
+				{{with index .Errs "url"}}<div class="field-error">{{.}}</div>{{end}}
+			</div>
+		</div>
+	</div>
+
+	<div class="card" data-alert-group="email"{{if not .Dest.IsEmail}} hidden{{end}}>
+		<div class="card-header"><span class="card-title">{{template "icon-book"}}SMTP</span></div>
+		<div class="card-body">
+			<div class="field-row">
+				<div class="field">
+					<label for="smtp_host">Server host</label>
+					<input type="text" id="smtp_host" name="smtp_host" class="mono" value="{{.Dest.SMTPHost}}" placeholder="smtp.example.com" autocomplete="off">
+					{{with index .Errs "smtpHost"}}<div class="field-error">{{.}}</div>{{end}}
+				</div>
+				<div class="field">
+					<label for="smtp_port">Port</label>
+					<input type="text" id="smtp_port" name="smtp_port" class="mono" value="{{if .Dest.SMTPPort}}{{.Dest.SMTPPort}}{{else}}587{{end}}" autocomplete="off">
+					{{with index .Errs "smtpPort"}}<div class="field-error">{{.}}</div>{{end}}
+				</div>
+				<div class="field">
+					<label for="smtp_security">Security</label>
+					<select id="smtp_security" name="smtp_security">
+						<option value="starttls"{{if eq .Dest.SMTPSecurity "starttls"}} selected{{end}}>STARTTLS (587)</option>
+						<option value="tls"{{if eq .Dest.SMTPSecurity "tls"}} selected{{end}}>TLS (465)</option>
+						<option value="none"{{if eq .Dest.SMTPSecurity "none"}} selected{{end}}>None (25)</option>
+					</select>
+					{{with index .Errs "smtpSecurity"}}<div class="field-error">{{.}}</div>{{end}}
+				</div>
+			</div>
+			<div class="field-row">
+				<div class="field">
+					<label for="smtp_username">Username <span class="text-muted">(optional)</span></label>
+					<input type="text" id="smtp_username" name="smtp_username" value="{{.Dest.SMTPUsername}}" autocomplete="off">
+				</div>
+				<div class="field">
+					<label for="smtp_password">Password <span class="text-muted">(optional)</span></label>
+					<input type="password" id="smtp_password" name="smtp_password" value="{{.Dest.SMTPPassword}}" autocomplete="new-password">
+				</div>
+			</div>
+			<div class="field-row">
+				<div class="field">
+					<label for="smtp_from">From address</label>
+					<input type="text" id="smtp_from" name="smtp_from" class="mono" value="{{.Dest.SMTPFrom}}" placeholder="nftably@example.com" autocomplete="off">
+					{{with index .Errs "smtpFrom"}}<div class="field-error">{{.}}</div>{{end}}
+				</div>
+				<div class="field">
+					<label for="smtp_to">To address(es)</label>
+					<input type="text" id="smtp_to" name="smtp_to" class="mono" value="{{.Dest.SMTPTo}}" placeholder="ops@example.com, oncall@example.com" autocomplete="off">
+					{{with index .Errs "smtpTo"}}<div class="field-error">{{.}}</div>{{end}}
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="card">
+		<div class="card-header"><span class="card-title">{{template "icon-alert"}}Which events</span></div>
+		<div class="card-body">
+			<p class="field-hint text-muted">Leave all unchecked to receive <strong>every</strong> event — the common choice.
+			Check some to filter this destination to only those.</p>
+			<div class="check-list">
+				{{range .EventKinds}}
+				<label class="check-label"><input type="checkbox" name="event_{{.Kind}}"{{if $.Dest.HasEvent .Kind}} checked{{end}}> {{.Label}}</label>
+				{{end}}
+			</div>
+		</div>
+	</div>
+
+	<div class="form-actions">
+		<button type="submit" class="btn btn-primary">Save destination</button>
+		<a class="btn" href="/settings?tab=alerts">Cancel</a>
+	</div>
+</form>
+
+<script src="/static/alerts.js"></script>
+{{template "shell-close" .}}{{end}}

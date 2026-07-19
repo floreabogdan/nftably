@@ -213,6 +213,28 @@ CREATE TABLE IF NOT EXISTS applied_state (
 	tables TEXT NOT NULL DEFAULT '[]'   -- JSON [{family,name}]
 );
 
+-- Alert destinations: where nftably delivers a notification when something
+-- notable happens (an armed apply auto-reverts, a source is auto-banned, a feed
+-- fails, nft goes unreachable). smtp_password is stored as-is, like any SMTP
+-- integration; the database is the operator's to protect (see the .gitignore).
+CREATE TABLE IF NOT EXISTS alert_destinations (
+	id            INTEGER PRIMARY KEY AUTOINCREMENT,
+	name          TEXT NOT NULL UNIQUE,
+	type          TEXT NOT NULL,               -- webhook | slack | discord | email
+	enabled       INTEGER NOT NULL DEFAULT 1,
+	url           TEXT NOT NULL DEFAULT '',
+	smtp_host     TEXT NOT NULL DEFAULT '',
+	smtp_port     INTEGER NOT NULL DEFAULT 587,
+	smtp_username TEXT NOT NULL DEFAULT '',
+	smtp_password TEXT NOT NULL DEFAULT '',
+	smtp_from     TEXT NOT NULL DEFAULT '',
+	smtp_to       TEXT NOT NULL DEFAULT '',
+	smtp_security TEXT NOT NULL DEFAULT 'starttls', -- none | starttls | tls
+	events        TEXT NOT NULL DEFAULT '',     -- comma-separated kinds; empty = all
+	created_at    TEXT NOT NULL,
+	updated_at    TEXT NOT NULL
+);
+
 -- Indexes for the object-model foreign keys: every rule-editor and render read
 -- filters children by their parent id, so index those columns to keep a
 -- single-rule/single-chain fetch from scanning the whole child table.

@@ -17,6 +17,7 @@
 	<a href="?tab=metrics" id="tab-metrics" data-tab="metrics" role="tab" aria-controls="panel-metrics" aria-selected="{{if eq .Tab "metrics"}}true{{else}}false{{end}}">{{template "icon-activity"}}Metrics</a>
 	<a href="?tab=import" id="tab-import" data-tab="import" role="tab" aria-controls="panel-import" aria-selected="{{if eq .Tab "import"}}true{{else}}false{{end}}">{{template "icon-import"}}Import</a>
 	<a href="?tab=backup" id="tab-backup" data-tab="backup" role="tab" aria-controls="panel-backup" aria-selected="{{if eq .Tab "backup"}}true{{else}}false{{end}}">{{template "icon-copy"}}Backup</a>
+	<a href="?tab=alerts" id="tab-alerts" data-tab="alerts" role="tab" aria-controls="panel-alerts" aria-selected="{{if eq .Tab "alerts"}}true{{else}}false{{end}}">{{template "icon-alert"}}Alerts</a>
 	<a href="?tab=theme" id="tab-theme" data-tab="theme" role="tab" aria-controls="panel-theme" aria-selected="{{if eq .Tab "theme"}}true{{else}}false{{end}}">{{template "icon-sun"}}Theme</a>
 </nav>
 
@@ -223,6 +224,47 @@
 					<button type="submit" class="btn btn-danger">{{template "icon-import"}} Restore &amp; replace</button>
 				</div>
 			</form>
+		</div>
+	</div>
+</section>
+
+<section data-tab-panel="alerts" id="panel-alerts" role="tabpanel" aria-labelledby="tab-alerts" {{if ne .Tab "alerts"}}hidden{{end}} class="tab-panel">
+	{{if .Flash}}<div class="card card-success"><div class="card-body">{{.Flash}}</div></div>{{end}}
+	{{if .FlashErr}}<div class="card card-danger"><div class="card-body">{{.FlashErr}}</div></div>{{end}}
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">{{template "icon-alert"}}Alert destinations</span>
+			<a class="btn btn-sm btn-primary" href="/alerts/new">{{template "icon-plus"}} Add destination</a>
+		</div>
+		<div class="card-body">
+			<p class="field-hint text-muted">Get a notification when something notable happens to the firewall — an armed apply
+			<strong>auto-reverts</strong> (you may have been cut off), a source is <strong>auto-banned</strong>, a blocklist
+			<strong>feed fails</strong> to refresh, or <strong>nft goes unreachable</strong>. Delivered to a webhook, Slack,
+			Discord, or by email.</p>
+			{{if .Destinations}}
+			<div class="table-scroll">
+				<table>
+					<thead><tr><th>Name</th><th>Type</th><th>Sends to</th><th>Events</th><th></th></tr></thead>
+					<tbody>
+						{{range .Destinations}}
+						<tr class="{{if not .Enabled}}row-disabled{{end}}">
+							<td><a href="/alerts/{{.ID}}/edit">{{.Name}}</a>{{if not .Enabled}} <span class="badge badge-muted">off</span>{{end}}</td>
+							<td>{{.TypeName}}</td>
+							<td class="mono">{{.Target}}</td>
+							<td class="text-muted">{{if .Events}}filtered{{else}}all events{{end}}</td>
+							<td class="row-actions">
+								<form method="post" action="/alerts/{{.ID}}/test"><button type="submit" class="btn btn-sm" title="Send a test alert">Test</button></form>
+								<a class="icon-action a-primary" href="/alerts/{{.ID}}/edit" title="Edit" aria-label="Edit {{.Name}}">{{template "icon-edit"}}</a>
+								<form method="post" action="/alerts/{{.ID}}/delete" data-confirm="Delete alert destination {{.Name}}?"><button class="icon-action a-danger" title="Delete" aria-label="Delete {{.Name}}">{{template "icon-trash"}}</button></form>
+							</td>
+						</tr>
+						{{end}}
+					</tbody>
+				</table>
+			</div>
+			{{else}}
+			<div class="empty">No destinations yet. <a href="/alerts/new">Add one</a> to start receiving alerts.</div>
+			{{end}}
 		</div>
 	</div>
 </section>

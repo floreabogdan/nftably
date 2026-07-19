@@ -243,6 +243,7 @@ func (s *Server) RefreshSourcedLists() {
 		if err != nil {
 			s.log.Warn("auto-refresh failed", "list", l.Name, "error", err)
 			_ = s.store.SetListRefreshNote(l.ID, "auto-refresh failed: "+err.Error())
+			s.notifier.Notify(store.AlertFeedFailed, l.Name, "Auto-refresh failed: "+err.Error())
 			continue
 		}
 		_ = s.store.SetListRefreshed(l.ID, refreshNote(n))

@@ -28,11 +28,15 @@ type settingsVM struct {
 	// Import tab: the iptables coexistence report and the nft translation.
 	Iptables nft.IptablesReport
 	Blocks   []translateBlock
+	// Alerts tab: the configured delivery destinations, and a flash from a test.
+	Destinations []store.Destination
+	Flash        string
+	FlashErr     string
 }
 
 // settingsTabs are the settings tab keys in display order; the first is the
 // default when no (or an unknown) ?tab= is given.
-var settingsTabs = []string{"general", "access", "geoip", "metrics", "import", "backup", "theme"}
+var settingsTabs = []string{"general", "access", "geoip", "metrics", "import", "backup", "alerts", "theme"}
 
 // savedTab maps a just-saved section to the tab it lives on, so a save banner
 // shows on the right tab.
@@ -60,6 +64,16 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, saved st
 		Saved:       saved,
 		GeoIPErr:    geoErr,
 		CanDownload: s.managedGeoIPPath() != "",
+	}
+	// Alerts tab: the configured destinations, and a flash from a "Test" click
+	// (carried on the redirect query, not the save path).
+	vm.Destinations, _ = s.store.ListAlertDestinations()
+	if m := r.URL.Query().Get("saved"); m != "" && saved == "" {
+		vm.Flash = m
+	}
+	if m := r.URL.Query().Get("err"); m != "" {
+		vm.FlashErr = m
+		vm.Tab = "alerts"
 	}
 	// After a save (or an error), show the relevant tab rather than dropping the
 	// operator back to the default one — a click shouldn't move them off the tab

@@ -109,6 +109,10 @@ make** and **easy to get right**:
   `_bytes_total`) — watch drops and accepts move — plus table/chain/rule counts and
   an `nftably_up` health gauge. Off by default; enabling it under Settings mints a
   bearer token the scraper must present.
+- **Alerts when it matters.** Get a notification — to a webhook, Slack, Discord or
+  email — when an armed apply auto-reverts (you may have been cut off), a source is
+  auto-banned, a blocklist feed fails to refresh, or nft goes unreachable. Configure
+  destinations under Settings → Alerts and filter each to the events you care about.
 - **Back it up, move it around.** Export your whole configuration — tables, chains,
   rules and named sets — as one portable JSON file (the model, not the database: no
   credentials), and restore it on any box. Restore is model-only, so it lands on the

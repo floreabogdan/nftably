@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	nftconf "github.com/floreabogdan/nftably/internal/render"
@@ -176,6 +177,7 @@ func (s *Server) handleApplyConfirm(w http.ResponseWriter, r *http.Request) {
 	s.pendingAppliedTables = nil
 	_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventConfigApply,
 		fmt.Sprintf("confirmed config #%d", p.VersionID))
+	s.notifier.Notify(store.AlertApplyConfirmed, "", fmt.Sprintf("Config #%d confirmed and kept.", p.VersionID))
 	http.Redirect(w, r, "/changes", http.StatusSeeOther)
 }
 
@@ -269,6 +271,13 @@ func (s *Server) revert(p store.PendingApply, actor, reason string) error {
 	} else {
 		_ = s.store.InsertEvent(store.EventConfigRevert, msg)
 	}
+	// An operator rollback and an armed auto-revert are different alerts: the
+	// latter usually means an apply cut off the operator's own access.
+	kind := store.AlertApplyReverted
+	if strings.HasPrefix(reason, "operator") {
+		kind = store.AlertApplyRolledBack
+	}
+	s.notifier.Notify(kind, "", "Config #"+fmt.Sprint(p.VersionID)+" "+reason+".")
 	s.log.Info("config reverted", "version", p.VersionID, "reason", reason)
 	return nil
 }

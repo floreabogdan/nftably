@@ -97,6 +97,10 @@ Fix it with:
 	// once at startup, then periodically. Does nothing without such a list.
 	srv.StartListRefresh()
 
+	// Watch for the operational alert conditions — nft going unreachable and new
+	// auto-bans. Does nothing until an alert destination is configured.
+	srv.StartAlertPoller(60 * time.Second)
+
 	// Said once, at startup: nftably binds every interface by default, so an
 	// allow-all access list means anyone who finds the port reaches the login —
 	// and without TLS, the login crosses the network in the clear.

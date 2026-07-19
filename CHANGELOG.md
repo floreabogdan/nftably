@@ -90,6 +90,14 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **Alerts** (Settings → Alerts). Get notified when the firewall does something
+  notable: an armed apply **auto-reverts** (you may have been cut off), a source is
+  **auto-banned** (a fresh member lands in a dynamic ban set), a blocklist **feed
+  fails** to refresh, or **nft goes unreachable** (and recovers). Delivered to a
+  generic JSON **webhook**, **Slack**, **Discord**, or by **email (SMTP)** — filter
+  each destination to specific events, and send a test. Apply/revert and feed alerts
+  are event-driven; nft-availability and auto-bans are watched by a lightweight
+  background poller. Ported from the sister project birdy.
 - **A layout-density theme** (Settings → Theme), a second theme axis alongside
   light/dark: **Comfortable** (the default — generous spacing, soft rounded cards)
   or **Compact** (tighter spacing, flatter panels, more on screen). Stored in the
