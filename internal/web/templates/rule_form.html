@@ -59,9 +59,19 @@
 						<span class="param" data-param="addr" data-for="dnat,snat"><label for="a_addr_{{$j}}">To address</label><input type="text" name="a_addr_{{$j}}" id="a_addr_{{$j}}" value="{{index $a.Params "addr"}}" placeholder="192.168.1.10"></span>
 						<span class="param" data-param="port" data-for="dnat,snat,redirect"><label for="a_port_{{$j}}">To port</label><input type="text" name="a_port_{{$j}}" id="a_port_{{$j}}" value="{{index $a.Params "port"}}" placeholder="80"></span>
 						<span class="param" data-param="with" data-for="reject"><label for="a_with_{{$j}}">Send back</label><select name="a_with_{{$j}}" id="a_with_{{$j}}">
-							<option value=""{{if eq (index $a.Params "with") ""}} selected{{end}}>Default (ICMP unreachable)</option>
-							<option value="tcp reset"{{if eq (index $a.Params "with") "tcp reset"}} selected{{end}}>TCP reset</option>
-							<option value="icmpx admin"{{if eq (index $a.Params "with") "icmpx admin"}} selected{{end}}>Admin prohibited</option>
+							{{$with := index $a.Params "with"}}
+							<option value=""{{if eq $with ""}} selected{{end}}>Default (ICMP unreachable)</option>
+							<option value="tcp reset"{{if eq $with "tcp reset"}} selected{{end}}>TCP reset</option>
+							<option value="icmpx admin"{{if eq $with "icmpx admin"}} selected{{end}}>Admin prohibited (any family)</option>
+							<option value="icmpx port"{{if eq $with "icmpx port"}} selected{{end}}>Port unreachable (any family)</option>
+							<option value="icmpx host"{{if eq $with "icmpx host"}} selected{{end}}>Host unreachable (any family)</option>
+							<option value="icmp admin"{{if eq $with "icmp admin"}} selected{{end}}>Admin prohibited (IPv4)</option>
+							<option value="icmp port"{{if eq $with "icmp port"}} selected{{end}}>Port unreachable (IPv4)</option>
+							<option value="icmp host"{{if eq $with "icmp host"}} selected{{end}}>Host unreachable (IPv4)</option>
+							<option value="icmp net"{{if eq $with "icmp net"}} selected{{end}}>Net unreachable (IPv4)</option>
+							<option value="icmpv6 admin"{{if eq $with "icmpv6 admin"}} selected{{end}}>Admin prohibited (IPv6)</option>
+							<option value="icmpv6 port"{{if eq $with "icmpv6 port"}} selected{{end}}>Port unreachable (IPv6)</option>
+							<option value="icmpv6 noroute"{{if eq $with "icmpv6 noroute"}} selected{{end}}>No route (IPv6)</option>
 						</select></span>
 						<span class="param" data-param="prefix" data-for="log"><label for="a_prefix_{{$j}}">Log prefix</label><input type="text" name="a_prefix_{{$j}}" id="a_prefix_{{$j}}" value="{{index $a.Params "prefix"}}" placeholder="blocked "></span>
 						<span class="param" data-param="level" data-for="log"><label for="a_level_{{$j}}">Log level</label><select name="a_level_{{$j}}" id="a_level_{{$j}}">
@@ -94,6 +104,22 @@
 							<option value=""{{if eq $bp ""}} selected{{end}}>drop the traffic</option>
 							<option value="bypass"{{if eq $bp "bypass"}} selected{{end}}>let it pass (fail open)</option>
 						</select></span>
+						<span class="param" data-param="lmode" data-for="limit"><label for="a_lmode_{{$j}}">Mode</label><select name="a_lmode_{{$j}}" id="a_lmode_{{$j}}">
+							{{$lm := index $a.Params "lmode"}}
+							<option value=""{{if eq $lm ""}} selected{{end}}>under — throttle (pair with accept)</option>
+							<option value="over"{{if eq $lm "over"}} selected{{end}}>over — police (pair with drop)</option>
+						</select></span>
+						<span class="param" data-param="lunit" data-for="limit"><label for="a_lunit_{{$j}}">Unit</label><select name="a_lunit_{{$j}}" id="a_lunit_{{$j}}">
+							{{$lu := index $a.Params "lunit"}}
+							{{range $u := (list "" "bytes" "kbytes" "mbytes")}}<option value="{{$u}}"{{if eq $u $lu}} selected{{end}}>{{if $u}}{{$u}}{{else}}packets{{end}}</option>{{end}}
+						</select></span>
+						<span class="param" data-param="group" data-for="log"><label for="a_group_{{$j}}">nflog group</label><input type="text" name="a_group_{{$j}}" id="a_group_{{$j}}" value="{{index $a.Params "group"}}" placeholder="(kernel log)"></span>
+						<span class="param" data-param="name" data-for="ct.helper.set"><label for="a_name_{{$j}}">Helper name</label><input type="text" name="a_name_{{$j}}" id="a_name_{{$j}}" value="{{index $a.Params "name"}}" placeholder="ftp"></span>
+						<span class="param" data-param="vmapkey" data-for="vmap"><label for="a_vmapkey_{{$j}}">Map on</label><select name="a_vmapkey_{{$j}}" id="a_vmapkey_{{$j}}">
+							{{$vk := index $a.Params "vmapkey"}}
+							{{range $k := (list "tcp dport" "tcp sport" "udp dport" "udp sport" "ip saddr" "ip daddr" "ip6 saddr" "ip6 daddr" "meta mark" "ct mark" "meta l4proto" "meta iifname")}}<option value="{{$k}}"{{if eq $k $vk}} selected{{end}}>{{$k}}</option>{{end}}
+						</select></span>
+						<span class="param param-wide" data-param="vmapentries" data-for="vmap"><label for="a_vmapentries_{{$j}}">Entries (value : verdict, …)</label><input type="text" name="a_vmapentries_{{$j}}" id="a_vmapentries_{{$j}}" class="mono" value="{{index $a.Params "vmapentries"}}" placeholder="22 : accept, 80 : drop, 443 : accept"></span>
 					</div>
 					<div class="knob-help"></div>
 				</div>

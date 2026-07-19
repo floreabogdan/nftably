@@ -87,9 +87,9 @@ func TestRenderStatement(t *testing.T) {
 		{"reject", map[string]string{"with": "icmp host"}, "ip", "reject with icmp type host-unreachable"},
 		{"reject", map[string]string{"with": "icmpv6 noroute"}, "ip6", "reject with icmpv6 type no-route"},
 		// limit: drop-when-over and byte rates.
-		{"limit", map[string]string{"dir": "over", "rate": "100", "per": "second"}, "inet", "limit rate over 100/second"},
-		{"limit", map[string]string{"rate": "10", "unit": "mbytes", "per": "second"}, "inet", "limit rate 10 mbytes/second"},
-		{"limit", map[string]string{"rate": "5", "unit": "kbytes", "per": "second", "burst": "20"}, "inet", "limit rate 5 kbytes/second burst 20 kbytes"},
+		{"limit", map[string]string{"lmode": "over", "rate": "100", "per": "second"}, "inet", "limit rate over 100/second"},
+		{"limit", map[string]string{"rate": "10", "lunit": "mbytes", "per": "second"}, "inet", "limit rate 10 mbytes/second"},
+		{"limit", map[string]string{"rate": "5", "lunit": "kbytes", "per": "second", "burst": "20"}, "inet", "limit rate 5 kbytes/second burst 20 kbytes"},
 		// log to an nflog group.
 		{"log", map[string]string{"prefix": "drop ", "group": "2"}, "inet", `log prefix "drop " group 2`},
 		// assign a conntrack helper.

@@ -1401,6 +1401,8 @@ details[open] .collapse-hint::before { content: "hide"; }
 .knob-remove:hover { border-color: var(--danger); color: var(--danger); background: var(--surface); }
 .knob-remove:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .knob-params { display: flex; flex-wrap: wrap; gap: 10px; }
+.knob-params .param-wide { flex: 1 1 100%; }
+.knob-params .param-wide input { width: 100%; }
 .param { display: inline-flex; flex-direction: column; gap: 3px; min-width: 140px; }
 .param label { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 600; }
 .param input, .param select { min-width: 140px; }

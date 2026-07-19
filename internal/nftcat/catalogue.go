@@ -366,11 +366,11 @@ var statements = []Statement{
 	{Key: "limit", Label: "Rate limit", Group: "Rate limiting", Example: "limit rate 10/minute burst 5 packets",
 		Help: "Cap matching traffic to a rate. In 'under' mode (default) matching packets up to the rate pass to the next statement (pair with accept to throttle, e.g. new SSH); in 'over' mode the ones ABOVE the rate match (pair with drop to police a flood). Choose packets or a byte rate.",
 		Params: []Param{
-			{Key: "dir", Label: "Mode", Kind: KindEnum, Optional: true, Help: "under = the traffic within the rate matches; over = the excess matches (pair with drop).", Options: []Option{
+			{Key: "lmode", Label: "Mode", Kind: KindEnum, Optional: true, Help: "under = the traffic within the rate matches; over = the excess matches (pair with drop).", Options: []Option{
 				{"", "under (throttle — pair with accept)", ""}, {"over", "over (police — pair with drop)", ""},
 			}},
 			{Key: "rate", Label: "Rate", Kind: KindInt, Placeholder: "10", Help: "How much per unit of time."},
-			{Key: "unit", Label: "Unit", Kind: KindEnum, Optional: true, Help: "Count packets, or a data rate.", Options: []Option{
+			{Key: "lunit", Label: "Unit", Kind: KindEnum, Optional: true, Help: "Count packets, or a data rate.", Options: []Option{
 				{"", "packets", ""}, {"bytes", "bytes", ""}, {"kbytes", "kbytes", ""}, {"mbytes", "mbytes", ""},
 			}},
 			{Key: "per", Label: "Per", Kind: KindEnum, Options: []Option{
@@ -391,13 +391,13 @@ var statements = []Statement{
 				return "", fmt.Errorf("rate limit unit %q is not second/minute/hour/day/week", per)
 			}
 			out := "limit rate"
-			if dir := strings.TrimSpace(p["dir"]); dir == "over" {
+			if dir := strings.TrimSpace(p["lmode"]); dir == "over" {
 				out += " over"
 			} else if dir != "" {
 				return "", fmt.Errorf("rate limit mode %q must be over or blank", dir)
 			}
 			byteUnits := map[string]bool{"bytes": true, "kbytes": true, "mbytes": true}
-			if unit := strings.TrimSpace(p["unit"]); unit != "" && byteUnits[unit] {
+			if unit := strings.TrimSpace(p["lunit"]); unit != "" && byteUnits[unit] {
 				// Byte rate: burst (if any) is a byte quantity, not packets.
 				out += fmt.Sprintf(" %s %s/%s", rate, unit, per)
 				if burst := strings.TrimSpace(p["burst"]); burst != "" {
