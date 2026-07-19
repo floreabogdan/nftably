@@ -155,6 +155,65 @@
 		{{end}}
 	</div>
 </div>
+
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-ban"}}Auto-ban any service</span>
+	</div>
+	<div class="card-body">
+		<p class="check-detail">The same kernel auto-ban for <strong>any</strong> port — a flooded web server, mail, DNS,
+		a game server. Name it, point it at a protocol and port, set the rate and how long a ban lasts; nftably builds the
+		detect-and-drop rules on a per-service ban set (both families) at the top of your input chain.</p>
+		<form method="post" action="/harden/ban">
+			<div class="field-row">
+				<div class="field">
+					<label for="ban-service">Service name</label>
+					<input type="text" name="service" id="ban-service" placeholder="http" required>
+					<div class="field-hint">Names the ban set (letters, digits, underscore).</div>
+				</div>
+				<div class="field">
+					<label for="ban-proto">Protocol</label>
+					<select name="proto" id="ban-proto">
+						<option value="tcp">tcp</option>
+						<option value="udp">udp</option>
+					</select>
+				</div>
+			</div>
+			<div class="field-row">
+				<div class="field">
+					<label for="ban-port">Port(s)</label>
+					<input type="text" name="port" id="ban-port" placeholder="80,443">
+					<div class="field-hint">A port, a comma list, or blank to watch every new connection.</div>
+				</div>
+				<div class="field">
+					<label for="ban-timeout">Ban lasts</label>
+					<input type="text" name="timeout" id="ban-timeout" value="1h" placeholder="1h">
+					<div class="field-hint">e.g. 30s, 10m, 1h, 2d.</div>
+				</div>
+			</div>
+			<div class="field-row">
+				<div class="field">
+					<label for="ban-rate">Rate</label>
+					<input type="text" name="rate" id="ban-rate" value="10">
+				</div>
+				<div class="field">
+					<label for="ban-per">Per</label>
+					<select name="per" id="ban-per">
+						<option value="second">second</option>
+						<option value="minute" selected>minute</option>
+						<option value="hour">hour</option>
+						<option value="day">day</option>
+					</select>
+				</div>
+			</div>
+			<div class="field">
+				<label for="ban-burst">Burst <span class="text-muted">(optional)</span></label>
+				<input type="text" name="burst" id="ban-burst" value="5">
+			</div>
+			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-ban"}} Add auto-ban</button>
+		</form>
+	</div>
+</div>
 {{end}}
 
 {{if .HaveForward}}

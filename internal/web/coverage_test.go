@@ -92,6 +92,62 @@ func TestVersionRestoreRoundTrip(t *testing.T) {
 	}
 }
 
+// TestGenericAutoBan checks the generic auto-ban builds detect-and-drop rules
+// for an arbitrary service on a per-service ban set.
+func TestGenericAutoBan(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	if rec := postForm(srv, "/presets/apply", url.Values{"preset": {"secure-server"}}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("apply preset: %d", rec.Code)
+	}
+	rec := postForm(srv, "/harden/ban", url.Values{
+		"service": {"http"}, "proto": {"tcp"}, "port": {"80,443"},
+		"rate": {"20"}, "per": {"minute"}, "burst": {"5"}, "timeout": {"30m"},
+	}, cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("auto-ban: code=%d, want 303", rec.Code)
+	}
+	m, _ := srv.loadModel()
+	var haveDrop4, haveBan bool
+	for _, tbl := range m.Tables {
+		for _, c := range tbl.Chains {
+			for _, rl := range c.Rules {
+				if matchHas(rl, "ip.saddr", "@http_abusers") && stmtHas(rl, "drop") {
+					haveDrop4 = true
+				}
+				if hasBanRule(rl) && matchHas(rl, "tcp.dport", "80,443") {
+					haveBan = true
+				}
+			}
+		}
+	}
+	if !haveDrop4 {
+		t.Error("no drop rule referencing @http_abusers")
+	}
+	if !haveBan {
+		t.Error("no rate-ban detector on tcp/80,443")
+	}
+
+	// A bad service name is rejected without adding rules.
+	count := func() int {
+		mm, _ := srv.loadModel()
+		n := 0
+		for _, tbl := range mm.Tables {
+			for _, c := range tbl.Chains {
+				n += len(c.Rules)
+			}
+		}
+		return n
+	}
+	before := count()
+	rec = postForm(srv, "/harden/ban", url.Values{"service": {"Bad Name!"}, "proto": {"tcp"}, "port": {"22"}, "rate": {"10"}, "timeout": {"1h"}}, cookie)
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "err=") {
+		t.Errorf("bad service name should error, got %q", loc)
+	}
+	if after := count(); after != before {
+		t.Errorf("a rejected auto-ban changed the model: %d -> %d rules", before, after)
+	}
+}
+
 // TestRuleDuplicate checks a rule clones into its chain with matches/statements
 // intact and a distinguishing comment.
 func TestRuleDuplicate(t *testing.T) {

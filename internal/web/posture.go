@@ -2,6 +2,8 @@ package web
 
 import (
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/floreabogdan/nftably/internal/advisor"
@@ -380,9 +382,12 @@ func hasBanRule(r store.ChainRule) bool { return stmtHas(r, "ban.rate") }
 
 // sshBanSets are the two dynamic sets the SSH auto-ban recipe drops on and bans
 // into — one per family.
-const (
-	sshBanSet4 = "ssh_abusers"
-	sshBanSet6 = "ssh_abusers6"
+// Validation for the generic auto-ban form.
+var (
+	banServiceRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,30}$`)
+	banPortRe    = regexp.MustCompile(`^[0-9]{1,5}(,[0-9]{1,5})*$`)
+	banTimeoutRe = regexp.MustCompile(`^[0-9]{1,4}[smhd]$`)
+	banRateUnits = map[string]bool{"second": true, "minute": true, "hour": true, "day": true}
 )
 
 // handleHardenSSHBan installs the kernel brute-force auto-ban for SSH: a rule
@@ -405,27 +410,123 @@ func (s *Server) handleHardenSSHBan(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/harden", http.StatusSeeOther)
 		return
 	}
-	// Built in display order; inserted in reverse so they land top-of-chain as:
-	// drop-banned (v4, v6) then detect-and-ban (v4, v6), above every existing rule.
-	banParams := func(set, family string) map[string]string {
-		return map[string]string{"set": set, "family": family, "rate": "10", "per": "minute", "burst": "5", "timeout": "1h"}
+	rules := banRules("ssh", "tcp", "22", "10", "minute", "5", "1h")
+	if err := s.insertBanRules(v.chainID, rules); err != nil {
+		redirectErr(w, r, "/harden", "Could not add the auto-ban rules: "+err.Error())
+		return
 	}
-	rules := []store.ChainRule{
-		{Comment: "drop brute-force-banned sources (IPv4)", Matches: []store.RuleMatch{mt("ip.saddr", "@"+sshBanSet4)}, Statements: []store.RuleStatement{stmt("drop")}},
-		{Comment: "drop brute-force-banned sources (IPv6)", Matches: []store.RuleMatch{mt("ip6.saddr", "@"+sshBanSet6)}, Statements: []store.RuleStatement{stmt("drop")}},
-		{Comment: "ban sources hammering SSH (IPv4)", Matches: []store.RuleMatch{mt("tcp.dport", "22"), mt("ct.state", "new")}, Statements: []store.RuleStatement{stmtP("ban.rate", banParams(sshBanSet4, "ip"))}},
-		{Comment: "ban sources hammering SSH (IPv6)", Matches: []store.RuleMatch{mt("tcp.dport", "22"), mt("ct.state", "new")}, Statements: []store.RuleStatement{stmtP("ban.rate", banParams(sshBanSet6, "ip6"))}},
+	s.audit(r, "enabled SSH brute-force auto-ban")
+	http.Redirect(w, r, "/changes", http.StatusSeeOther)
+}
+
+// banRules builds the four rules of a rate-based auto-ban for one service: an
+// early drop of every source already in the abusers set (v4 + v6), and a
+// detector that adds a source exceeding the rate to that set (v4 + v6). setBase
+// names the dynamic sets (<base>_abusers / <base>_abusers6). proto is tcp or
+// udp; port is the watched destination port (or a comma list, or "" to watch
+// every new connection of that proto). The returned order is drops first, then
+// detectors, so inserting each at the chain start lands them top-of-chain as
+// drop(v4,v6) then detect(v4,v6).
+func banRules(setBase, proto, port, rate, per, burst, timeout string) []store.ChainRule {
+	set4, set6 := setBase+"_abusers", setBase+"_abusers6"
+	banP := func(set, family string) map[string]string {
+		return map[string]string{"set": set, "family": family, "rate": rate, "per": per, "burst": burst, "timeout": timeout}
 	}
+	// The detector's traffic match is the same for v4 and v6 (only the ban set
+	// and family differ); an empty port watches all new connections of the proto.
+	detect := func() []store.RuleMatch {
+		var ms []store.RuleMatch
+		if strings.TrimSpace(port) != "" {
+			ms = append(ms, mt(proto+".dport", port))
+		}
+		return append(ms, mt("ct.state", "new"))
+	}
+	svc := strings.ToUpper(setBase)
+	return []store.ChainRule{
+		{Comment: svc + " auto-ban: drop banned sources (IPv4)", Matches: []store.RuleMatch{mt("ip.saddr", "@"+set4)}, Statements: []store.RuleStatement{stmt("drop")}},
+		{Comment: svc + " auto-ban: drop banned sources (IPv6)", Matches: []store.RuleMatch{mt("ip6.saddr", "@"+set6)}, Statements: []store.RuleStatement{stmt("drop")}},
+		{Comment: svc + " auto-ban: detect floods (IPv4)", Matches: detect(), Statements: []store.RuleStatement{stmtP("ban.rate", banP(set4, "ip"))}},
+		{Comment: svc + " auto-ban: detect floods (IPv6)", Matches: detect(), Statements: []store.RuleStatement{stmtP("ban.rate", banP(set6, "ip6"))}},
+	}
+}
+
+// insertBanRules inserts the ban rules at the top of the chain, in reverse so
+// they keep their intended top-of-chain order.
+func (s *Server) insertBanRules(chainID int64, rules []store.ChainRule) error {
 	for i := len(rules) - 1; i >= 0; i-- {
 		rl := rules[i]
-		rl.ChainID = v.chainID
+		rl.ChainID = chainID
 		rl.Enabled = true
 		if _, err := s.store.CreateChainRuleAtStart(rl); err != nil {
-			redirectErr(w, r, "/harden", "Could not add the auto-ban rules: "+err.Error())
+			return err
+		}
+	}
+	return nil
+}
+
+// handleHardenBan installs a rate-based auto-ban for an arbitrary service — the
+// generic form of the SSH recipe. The operator names the service and gives the
+// protocol/port and rate; nftably builds the same detect-and-drop rules keyed on
+// a per-service dynamic set. Model-only; the armed apply gates the kernel.
+func (s *Server) handleHardenBan(w http.ResponseWriter, r *http.Request) {
+	v, err := s.postureView()
+	if err != nil {
+		redirectErr(w, r, "/harden", "Could not read the firewall: "+err.Error())
+		return
+	}
+	if v.chainID == 0 {
+		redirectErr(w, r, "/harden", "There's no input chain to protect yet — start from a preset.")
+		return
+	}
+	name := strings.ToLower(strings.TrimSpace(r.FormValue("service")))
+	proto := strings.TrimSpace(r.FormValue("proto"))
+	port := strings.TrimSpace(r.FormValue("port"))
+	rate := strings.TrimSpace(r.FormValue("rate"))
+	per := strings.TrimSpace(r.FormValue("per"))
+	burst := strings.TrimSpace(r.FormValue("burst"))
+	timeout := strings.TrimSpace(r.FormValue("timeout"))
+
+	if !banServiceRe.MatchString(name) {
+		redirectErr(w, r, "/harden", "The service name must be letters, digits or underscore (it names the ban set).")
+		return
+	}
+	if proto != "tcp" && proto != "udp" {
+		redirectErr(w, r, "/harden", "Protocol must be tcp or udp.")
+		return
+	}
+	if port != "" && !banPortRe.MatchString(port) {
+		redirectErr(w, r, "/harden", "Port must be a number, a comma list, or blank for any.")
+		return
+	}
+	if _, e := strconv.Atoi(rate); e != nil {
+		redirectErr(w, r, "/harden", "Rate must be a whole number.")
+		return
+	}
+	if burst != "" {
+		if _, e := strconv.Atoi(burst); e != nil {
+			redirectErr(w, r, "/harden", "Burst must be a whole number.")
 			return
 		}
 	}
-	s.audit(r, "enabled SSH brute-force auto-ban")
+	if !banTimeoutRe.MatchString(timeout) {
+		redirectErr(w, r, "/harden", "Ban duration must look like 30s, 10m, 1h or 2d.")
+		return
+	}
+	if !banRateUnits[per] {
+		per = "minute"
+	}
+	// Refuse a duplicate: a ban already keyed on this service's set.
+	for _, rl := range v.rules {
+		if matchHas(rl, "ip.saddr", "@"+name+"_abusers") || matchHas(rl, "ip6.saddr", "@"+name+"_abusers6") {
+			redirectErr(w, r, "/harden", "An auto-ban named "+name+" already exists.")
+			return
+		}
+	}
+	if err := s.insertBanRules(v.chainID, banRules(name, proto, port, rate, per, burst, timeout)); err != nil {
+		redirectErr(w, r, "/harden", "Could not add the auto-ban rules: "+err.Error())
+		return
+	}
+	s.audit(r, "enabled auto-ban for "+name)
 	http.Redirect(w, r, "/changes", http.StatusSeeOther)
 }
 

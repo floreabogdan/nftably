@@ -193,10 +193,10 @@ func TestHardenSSHBanRecipe(t *testing.T) {
 	// must reference the same sets — otherwise the ban never takes effect.
 	var haveDrop4, haveDrop6, haveBan bool
 	for _, r := range v.rules {
-		if matchHas(r, "ip.saddr", "@"+sshBanSet4) && stmtHas(r, "drop") {
+		if matchHas(r, "ip.saddr", "@ssh_abusers") && stmtHas(r, "drop") {
 			haveDrop4 = true
 		}
-		if matchHas(r, "ip6.saddr", "@"+sshBanSet6) && stmtHas(r, "drop") {
+		if matchHas(r, "ip6.saddr", "@ssh_abusers6") && stmtHas(r, "drop") {
 			haveDrop6 = true
 		}
 		if hasBanRule(r) {
