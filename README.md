@@ -107,6 +107,10 @@ make** and **easy to get right**:
   `_bytes_total`) — watch drops and accepts move — plus table/chain/rule counts and
   an `nftably_up` health gauge. Off by default; enabling it under Settings mints a
   bearer token the scraper must present.
+- **Back it up, move it around.** Export your whole configuration — tables, chains,
+  rules and named sets — as one portable JSON file (the model, not the database: no
+  credentials), and restore it on any box. Restore is model-only, so it lands on the
+  Changes page for review behind the auto-revert.
 
 ## The BGP edge router preset
 

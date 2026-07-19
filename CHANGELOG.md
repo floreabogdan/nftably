@@ -86,6 +86,13 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **Config backup & restore** (Settings → Backup). Export the whole model — tables,
+  chains, rules, and named sets with their entries — as one portable JSON file. It's
+  the model, not the database: no login credentials, no settings, so it's safe to
+  share, keep in version control, or move to another box. Restore replaces the
+  current model wholesale and is model-only — it drops you on Changes to review the
+  diff and apply behind the armed auto-revert, and it validates the file before
+  touching anything, so a bad upload can't leave a half-restored config.
 - **Four new Learn lessons** alongside Concepts, each a sibling page under the Learn
   group with a cross-lesson nav strip: **NAT &amp; port-forwarding** (dnat/snat/
   masquerade, prerouting vs postrouting, and why a port-forward is always two

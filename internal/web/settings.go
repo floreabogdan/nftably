@@ -32,7 +32,7 @@ type settingsVM struct {
 
 // settingsTabs are the settings tab keys in display order; the first is the
 // default when no (or an unknown) ?tab= is given.
-var settingsTabs = []string{"general", "access", "geoip", "metrics", "import"}
+var settingsTabs = []string{"general", "access", "geoip", "metrics", "import", "backup"}
 
 // savedTab maps a just-saved section to the tab it lives on, so a save banner
 // shows on the right tab.

@@ -266,6 +266,8 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /settings/geoip", s.requireAuth(s.handleSettingsGeoIP))
 	s.mux.Handle("POST /settings/metrics", s.requireAuth(s.handleSettingsMetrics))
 	s.mux.Handle("POST /settings/geoip/download", s.requireAuth(s.handleGeoIPDownload))
+	s.mux.Handle("GET /settings/backup/export", s.requireAuth(s.handleConfigExport))
+	s.mux.Handle("POST /settings/backup/restore", s.requireAuth(s.handleConfigRestore))
 
 	s.mux.Handle("GET /profile", s.requireAuth(s.handleProfilePage))
 	s.mux.Handle("POST /profile/identity", s.requireAuth(s.handleProfileIdentity))
