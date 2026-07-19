@@ -70,6 +70,25 @@
 						</select></span>
 						<span class="param" data-param="burst" data-for="limit"><label>Burst</label><input type="text" name="a_burst_{{$j}}" value="{{index $a.Params "burst"}}" placeholder="5"></span>
 						<span class="param" data-param="value" data-for="meta.mark.set,ct.mark.set"><label>Mark</label><input type="text" name="a_value_{{$j}}" value="{{index $a.Params "value"}}" placeholder="0x1"></span>
+						<span class="param" data-param="mss" data-for="synproxy"><label>MSS</label><input type="text" name="a_mss_{{$j}}" value="{{index $a.Params "mss"}}" placeholder="1460"></span>
+						<span class="param" data-param="wscale" data-for="synproxy"><label>Window scale</label><input type="text" name="a_wscale_{{$j}}" value="{{index $a.Params "wscale"}}" placeholder="7"></span>
+						<span class="param" data-param="size" data-for="tcp.mss.clamp"><label>Size</label><input type="text" name="a_size_{{$j}}" value="{{index $a.Params "size"}}" placeholder="rt mtu"></span>
+						<span class="param" data-param="dir" data-for="quota"><label>When</label><select name="a_dir_{{$j}}">
+							{{$dir := index $a.Params "dir"}}
+							<option value="over"{{if eq $dir "over"}} selected{{end}}>over — once exceeded</option>
+							<option value="until"{{if eq $dir "until"}} selected{{end}}>until — while under</option>
+						</select></span>
+						<span class="param" data-param="amount" data-for="quota"><label>Amount</label><input type="text" name="a_amount_{{$j}}" value="{{index $a.Params "amount"}}" placeholder="500"></span>
+						<span class="param" data-param="unit" data-for="quota"><label>Unit</label><select name="a_unit_{{$j}}">
+							{{$unit := index $a.Params "unit"}}
+							{{range $u := (list "bytes" "kbytes" "mbytes")}}<option value="{{$u}}"{{if eq $u $unit}} selected{{end}}>{{$u}}</option>{{end}}
+						</select></span>
+						<span class="param" data-param="num" data-for="queue"><label>Queue number</label><input type="text" name="a_num_{{$j}}" value="{{index $a.Params "num"}}" placeholder="0"></span>
+						<span class="param" data-param="bypass" data-for="queue"><label>If none is listening</label><select name="a_bypass_{{$j}}">
+							{{$bp := index $a.Params "bypass"}}
+							<option value=""{{if eq $bp ""}} selected{{end}}>drop the traffic</option>
+							<option value="bypass"{{if eq $bp "bypass"}} selected{{end}}>let it pass (fail open)</option>
+						</select></span>
 					</div>
 					<div class="knob-help"></div>
 				</div>

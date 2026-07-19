@@ -197,6 +197,13 @@ var matches = []Match{
 			{"broadcast", "broadcast", "Sent to everyone on the segment."},
 			{"multicast", "multicast", "Sent to a multicast group."},
 		}},
+
+	// Owner — for traffic this box itself sends (output/postrouting): the local
+	// user/group that owns the socket. Real egress control most firewalls skip.
+	{Key: "meta.skuid", Label: "Owning user (this box's own traffic)", Group: "Owner", Expr: "meta skuid", Kind: KindInt, Ops: []string{"==", "!="},
+		Help: "For traffic THIS box sends, the numeric user-id that owns the sending socket. Only meaningful in an output/postrouting chain — genuine egress control: e.g. only the backup user's traffic may leave, or root may not.", Example: "0"},
+	{Key: "meta.skgid", Label: "Owning group (this box's own traffic)", Group: "Owner", Expr: "meta skgid", Kind: KindInt, Ops: []string{"==", "!="},
+		Help: "Like the owning user, but the group-id of the socket that sent the packet. Match this box's outbound traffic by owning group.", Example: "0"},
 }
 
 var statements = []Statement{
@@ -379,6 +386,114 @@ var statements = []Statement{
 			}
 			return "redirect", nil
 		}},
+
+	// Defense — kernel-side attack mitigation most people never discover.
+	{Key: "synproxy", Label: "SYN-proxy (SYN-flood protection)", Group: "Defense", Example: "synproxy mss 1460 wscale 7",
+		Help: "Complete the TCP handshake in the kernel and only open a real connection once the client answers — so a SYN flood never reaches the service. Put it on new TCP SYN packets to the port you're protecting; leave the numbers blank for sane defaults.",
+		Params: []Param{
+			{Key: "mss", Label: "MSS", Kind: KindInt, Optional: true, Placeholder: "1460", Help: "Maximum segment size to advertise; 1460 suits standard Ethernet."},
+			{Key: "wscale", Label: "Window scale", Kind: KindInt, Optional: true, Placeholder: "7", Help: "TCP window-scale factor to advertise."},
+		},
+		render: func(p map[string]string, _ Ctx) (string, error) {
+			var b strings.Builder
+			b.WriteString("synproxy")
+			if mss := strings.TrimSpace(p["mss"]); mss != "" {
+				if _, err := strconv.Atoi(mss); err != nil {
+					return "", fmt.Errorf("synproxy MSS must be a whole number")
+				}
+				b.WriteString(" mss " + mss)
+			}
+			if ws := strings.TrimSpace(p["wscale"]); ws != "" {
+				if _, err := strconv.Atoi(ws); err != nil {
+					return "", fmt.Errorf("synproxy window scale must be a whole number")
+				}
+				b.WriteString(" wscale " + ws)
+			}
+			return b.String(), nil
+		}},
+	{Key: "tcp.mss.clamp", Label: "Clamp TCP MSS (fix VPN/PPPoE 'some sites hang')", Group: "Defense", Example: "tcp option maxseg size set rt mtu",
+		Help:   "Lower the TCP maximum segment size on connection-opening packets so they fit a smaller path — the classic cure when pages stall over a VPN or PPPoE link. Pair it with a match on TCP SYN packets in a forward chain. 'rt mtu' tracks the route's MTU automatically.",
+		Params: []Param{{Key: "size", Label: "Size", Kind: KindText, Optional: true, Placeholder: "rt mtu", Help: "'rt mtu' to follow the route automatically, or a number like 1400."}},
+		render: func(p map[string]string, _ Ctx) (string, error) {
+			size := strings.TrimSpace(p["size"])
+			if size == "" {
+				size = "rt mtu"
+			}
+			if size != "rt mtu" {
+				if _, err := strconv.Atoi(size); err != nil {
+					return "", fmt.Errorf("MSS size must be 'rt mtu' or a whole number")
+				}
+			}
+			return "tcp option maxseg size set " + size, nil
+		}},
+
+	// Byte quota — accounting with a cut-off.
+	{Key: "quota", Label: "Byte quota", Group: "Rate limiting", Example: "quota over 500 mbytes",
+		Help: "Match against a running byte total — cut a service off after it has served so much, or allow only up to a cap. 'over' fires once the total is exceeded (then drop); 'until' fires while still under it (then accept).",
+		Params: []Param{
+			{Key: "dir", Label: "When", Kind: KindEnum, Options: []Option{
+				{"over", "over — once exceeded", "Matches after the total passes the limit (pair with drop)."},
+				{"until", "until — while under", "Matches while still below the limit (pair with accept)."},
+			}, Help: "Match before or after the limit."},
+			{Key: "amount", Label: "Amount", Kind: KindInt, Placeholder: "500", Help: "How much data."},
+			{Key: "unit", Label: "Unit", Kind: KindEnum, Options: []Option{
+				{"bytes", "bytes", ""}, {"kbytes", "kbytes", ""}, {"mbytes", "mbytes", ""},
+			}, Help: "Byte unit."},
+		},
+		render: func(p map[string]string, _ Ctx) (string, error) {
+			dir := strings.TrimSpace(p["dir"])
+			if dir == "" {
+				dir = "over"
+			}
+			if dir != "over" && dir != "until" {
+				return "", fmt.Errorf("quota direction must be over or until")
+			}
+			amt := strings.TrimSpace(p["amount"])
+			if _, err := strconv.Atoi(amt); err != nil {
+				return "", fmt.Errorf("quota needs a whole-number amount")
+			}
+			unit := strings.TrimSpace(p["unit"])
+			if unit == "" {
+				unit = "mbytes"
+			}
+			if !quotaUnits[unit] {
+				return "", fmt.Errorf("quota unit must be bytes, kbytes or mbytes")
+			}
+			return fmt.Sprintf("quota %s %s %s", dir, amt, unit), nil
+		}},
+
+	// Advanced — hand-offs and tuning.
+	{Key: "queue", Label: "Send to userspace program (NFQUEUE)", Group: "Advanced", Example: "queue num 0",
+		Help: "Hand the packet to a userspace program reading an nfqueue — the standard way to feed traffic to an inline IDS/IPS such as Suricata or Snort. 'Fail open' lets traffic pass if no program is attached (safer for availability).",
+		Params: []Param{
+			{Key: "num", Label: "Queue number", Kind: KindInt, Optional: true, Placeholder: "0", Help: "The nfqueue the program reads from."},
+			{Key: "bypass", Label: "If no program is listening", Kind: KindEnum, Optional: true, Options: []Option{
+				{"", "drop the traffic", "Fail closed — no inspection, no pass."},
+				{"bypass", "let it pass (fail open)", "Keep working if the inspector is down."},
+			}, Help: "What happens when nothing is attached to the queue."},
+		},
+		render: func(p map[string]string, _ Ctx) (string, error) {
+			num := strings.TrimSpace(p["num"])
+			bypass := strings.TrimSpace(p["bypass"]) == "bypass"
+			if num == "" && bypass {
+				num = "0" // 'bypass' needs an explicit queue number
+			}
+			var b strings.Builder
+			b.WriteString("queue")
+			if num != "" {
+				if _, err := strconv.Atoi(num); err != nil {
+					return "", fmt.Errorf("queue number must be a whole number")
+				}
+				b.WriteString(" num " + num)
+			}
+			if bypass {
+				b.WriteString(" bypass")
+			}
+			return b.String(), nil
+		}},
+	{Key: "notrack", Label: "Don't track (skip connection tracking)", Group: "Advanced", Example: "notrack",
+		Help:   "Exempt matching packets from connection tracking — a performance win for high-volume stateless traffic (e.g. an authoritative DNS server). Only works in a chain at 'raw' priority (prerouting or output).",
+		render: func(_ map[string]string, _ Ctx) (string, error) { return "notrack", nil }},
 }
 
 // ── lookups ─────────────────────────────────────────────────────────────────
@@ -480,8 +595,9 @@ const nftStructuralChars = "\n\r\t{}();#\\\"'`"
 // config bare, so validated against the exact keyword set rather than only the
 // structural deny-list.
 var (
-	logLevels = map[string]bool{"debug": true, "info": true, "notice": true, "warn": true, "err": true, "crit": true, "alert": true, "emerg": true}
-	rateUnits = map[string]bool{"second": true, "minute": true, "hour": true, "day": true, "week": true}
+	logLevels  = map[string]bool{"debug": true, "info": true, "notice": true, "warn": true, "err": true, "crit": true, "alert": true, "emerg": true}
+	rateUnits  = map[string]bool{"second": true, "minute": true, "hour": true, "day": true, "week": true}
+	quotaUnits = map[string]bool{"bytes": true, "kbytes": true, "mbytes": true}
 )
 
 // identRe matches an nft identifier (a chain or set name) — emittable bare with

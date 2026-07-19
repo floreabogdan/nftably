@@ -31,7 +31,10 @@ const (
 // paramKeys is the union of every statement parameter, so one fixed set of
 // inputs on the action row can feed any statement; RenderStatement reads only
 // the keys its statement needs and ignores the rest.
-var paramKeys = []string{"target", "addr", "port", "with", "prefix", "level", "rate", "per", "burst", "value"}
+var paramKeys = []string{
+	"target", "addr", "port", "with", "prefix", "level", "rate", "per", "burst", "value",
+	"mss", "wscale", "size", "dir", "amount", "unit", "num", "bypass",
+}
 
 // ── overview ────────────────────────────────────────────────────────────────
 

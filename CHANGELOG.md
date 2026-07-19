@@ -106,6 +106,17 @@ typed, explained control instead of a fixed form.
   monthly. Your own MaxMind file still works. This is the only thing that ever
   makes nftably reach the network, and only when you ask.
 - Catalogue knobs for BGP GTSM (`ip ttl` / `ip6 hoplimit`) and connection marks.
+- **Attack-mitigation knobs most people never find in nftables.** The editor now
+  exposes, each explained in plain language: **SYN-proxy** (`synproxy`) — complete
+  the TCP handshake in the kernel so a SYN flood never reaches the service;
+  **MSS clamping** (`tcp option maxseg size set rt mtu`) — the classic cure when
+  pages hang over a VPN or PPPoE link; **byte quota** (`quota`) — cut a service
+  off after it has served so much; **NFQUEUE** (`queue`, with fail-open) — hand
+  traffic to an inline IDS/IPS such as Suricata; **notrack** — skip connection
+  tracking for high-volume stateless traffic; and **owning-user/-group egress
+  matches** (`meta skuid`/`skgid`) — filter this box's *outbound* traffic by the
+  local user that owns the socket. Every rendered form was verified against
+  `nft` (v1.1.3) in a Linux container.
 
 ### Security
 

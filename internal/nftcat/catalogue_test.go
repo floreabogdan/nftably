@@ -17,6 +17,8 @@ func TestRenderMatch(t *testing.T) {
 		{"meta.iifname", "==", "eth0", `iifname "eth0"`},
 		{"ct.state", "==", "established, related", "ct state { established, related }"},
 		{"tcp.dport", ">", "1024", "tcp dport > 1024"},
+		{"meta.skuid", "==", "0", "meta skuid 0"},
+		{"meta.skgid", "!=", "0", "meta skgid != 0"},
 	}
 	for _, c := range cases {
 		got, err := RenderMatch(c.key, c.op, c.value, Ctx{Family: "inet"})
@@ -48,6 +50,20 @@ func TestRenderStatement(t *testing.T) {
 		// ip family: no qualifier.
 		{"dnat", map[string]string{"addr": "192.168.1.10"}, "ip", "dnat to 192.168.1.10"},
 		{"masquerade", nil, "inet", "masquerade"},
+		// Auto-defense knobs (each rendered form verified valid against nft v1.1.3).
+		{"synproxy", nil, "inet", "synproxy"},
+		{"synproxy", map[string]string{"mss": "1460", "wscale": "7"}, "inet", "synproxy mss 1460 wscale 7"},
+		{"synproxy", map[string]string{"mss": "1460"}, "inet", "synproxy mss 1460"},
+		{"tcp.mss.clamp", nil, "inet", "tcp option maxseg size set rt mtu"},
+		{"tcp.mss.clamp", map[string]string{"size": "1400"}, "inet", "tcp option maxseg size set 1400"},
+		{"quota", map[string]string{"dir": "over", "amount": "500", "unit": "mbytes"}, "inet", "quota over 500 mbytes"},
+		{"quota", map[string]string{"amount": "1", "unit": "kbytes"}, "inet", "quota over 1 kbytes"},
+		{"quota", map[string]string{"dir": "until", "amount": "2", "unit": "bytes"}, "inet", "quota until 2 bytes"},
+		{"queue", nil, "inet", "queue"},
+		{"queue", map[string]string{"num": "2"}, "inet", "queue num 2"},
+		{"queue", map[string]string{"num": "2", "bypass": "bypass"}, "inet", "queue num 2 bypass"},
+		{"queue", map[string]string{"bypass": "bypass"}, "inet", "queue num 0 bypass"},
+		{"notrack", nil, "inet", "notrack"},
 	}
 	for _, c := range cases {
 		got, err := RenderStatement(c.key, c.params, Ctx{Family: c.family})
@@ -87,8 +103,14 @@ func TestRejectsInjection(t *testing.T) {
 		{"ct.mark.set", map[string]string{"value": "}"}},            // brace mark
 		{"log", map[string]string{"level": "info\n drop"}},          // bogus level
 		{"limit", map[string]string{"rate": "10", "per": "minute\n drop"}},
-		{"dnat", map[string]string{"addr": "1.1.1.1\n drop"}}, // non-address target
-		{"redirect", map[string]string{"port": "80\n drop"}},  // non-port
+		{"dnat", map[string]string{"addr": "1.1.1.1\n drop"}},         // non-address target
+		{"redirect", map[string]string{"port": "80\n drop"}},          // non-port
+		{"synproxy", map[string]string{"mss": "abc"}},                 // non-numeric mss
+		{"synproxy", map[string]string{"wscale": "1 drop"}},           // non-numeric wscale
+		{"quota", map[string]string{"amount": "x", "unit": "mbytes"}}, // non-numeric amount
+		{"quota", map[string]string{"amount": "1", "unit": "gbytes"}}, // unit nft rejects
+		{"queue", map[string]string{"num": "0 drop"}},                 // non-numeric queue
+		{"tcp.mss.clamp", map[string]string{"size": "huge"}},          // non-number, non-'rt mtu'
 	}
 	for _, c := range stmtCases {
 		if _, err := RenderStatement(c.key, c.params, Ctx{Family: "inet"}); err == nil {
