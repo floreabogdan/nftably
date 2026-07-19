@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/floreabogdan/nftably/internal/advisor"
+	nftconf "github.com/floreabogdan/nftably/internal/render"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
@@ -53,6 +54,13 @@ func (s *Server) postureView() (inputView, error) {
 	if err != nil {
 		return inputView{}, err
 	}
+	return postureViewFrom(m), nil
+}
+
+// postureViewFrom derives the input-chain view from an already-loaded model, so
+// a caller that needs several model-derived views (the Posture page) can load
+// once instead of once per view.
+func postureViewFrom(m nftconf.Model) inputView {
 	var v inputView
 	for _, t := range m.Tables {
 		if t.Family != "inet" && t.Family != "ip" && t.Family != "ip6" {
@@ -72,7 +80,7 @@ func (s *Server) postureView() (inputView, error) {
 			v.rules = append(v.rules, c.Rules...)
 		}
 	}
-	return v, nil
+	return v
 }
 
 func (v inputView) any(pred func(store.ChainRule) bool) bool {
@@ -118,10 +126,19 @@ func stmtHas(r store.ChainRule, key string) bool {
 // posture runs the checks and returns them with the view (the view carries the
 // chain id the fix handler injects into).
 func (s *Server) posture() ([]postureCheck, inputView, error) {
-	v, err := s.postureView()
+	m, err := s.loadModel()
 	if err != nil {
-		return nil, v, err
+		return nil, inputView{}, err
 	}
+	checks, v := s.postureFrom(m)
+	return checks, v, nil
+}
+
+// postureFrom runs the posture checks against an already-loaded model. The
+// Posture page loads the model once and calls this plus forwardChainFrom /
+// advisorFindingsFrom, instead of each re-loading the whole graph.
+func (s *Server) postureFrom(m nftconf.Model) ([]postureCheck, inputView) {
+	v := postureViewFrom(m)
 
 	loopback := v.any(func(r store.ChainRule) bool { return matchHas(r, "meta.iifname", "lo") && stmtHas(r, "accept") })
 	estab := v.any(func(r store.ChainRule) bool { return matchHas(r, "ct.state", "established") && stmtHas(r, "accept") })
@@ -210,7 +227,7 @@ func (s *Server) posture() ([]postureCheck, inputView, error) {
 			Detail: "No rule accepts SSH (port 22) here. If you administer this box over SSH, allow it from your management network only; if you don't, nothing to do."})
 	}
 
-	return checks, v, nil
+	return checks, v
 }
 
 // boolCheck builds a pass/needs-attention check with an inline fix when it fails.
@@ -270,15 +287,19 @@ type hardenVM struct {
 
 func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
 	vm := hardenVM{nav: s.navFor(r, "harden")}
-	checks, v, err := s.posture()
+	// Load the owned model once and derive every view from it — posture, the
+	// forward-chain probe and the exposure findings all read the same graph, so
+	// one load replaces the three this page used to do.
+	m, err := s.loadModel()
 	if err != nil {
 		vm.LoadErr = err.Error()
 	} else {
+		checks, v := s.postureFrom(m)
 		vm.Checks = checks
 		vm.Pass, vm.Total = postureScore(checks)
 		vm.HaveModel = v.haveInput
 		vm.SSHBanActive = v.has(hasBanRule)
-		if _, fwRules, ok := s.forwardChain(); ok {
+		if _, fwRules, ok := forwardChainFrom(m); ok {
 			vm.HaveForward = true
 			for _, r := range fwRules {
 				if stmtHas(r, "queue") {
@@ -288,8 +309,15 @@ func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// The exposed-services scan is independent of the posture read; a failure
-	// there shouldn't blank the whole page, so it's best-effort.
-	if visible, hidden, note, ferr := s.advisorFindings(); ferr == nil {
+	// there shouldn't blank the whole page, so it's best-effort. When the model
+	// failed to load, fall back to a fresh load inside advisorFindings.
+	findings := func() (visible, hidden []advisor.Finding, note string, e error) {
+		if err != nil {
+			return s.advisorFindings()
+		}
+		return s.advisorFindingsFrom(m)
+	}
+	if visible, hidden, note, ferr := findings(); ferr == nil {
 		vm.Findings, vm.Hidden, vm.ScanNote = visible, hidden, note
 		for _, f := range visible {
 			if f.Severity == "warn" {
@@ -408,6 +436,11 @@ func (s *Server) forwardChain() (int64, []store.ChainRule, bool) {
 	if err != nil {
 		return 0, nil, false
 	}
+	return forwardChainFrom(m)
+}
+
+// forwardChainFrom finds the forward base chain in an already-loaded model.
+func forwardChainFrom(m nftconf.Model) (int64, []store.ChainRule, bool) {
 	for _, t := range m.Tables {
 		for _, c := range t.Chains {
 			if c.IsBase() && c.Hook == "forward" && c.ChainType != "nat" {

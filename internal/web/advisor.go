@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/floreabogdan/nftably/internal/advisor"
+	nftconf "github.com/floreabogdan/nftably/internal/render"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
@@ -27,6 +28,12 @@ func (s *Server) advisorFindings() (visible, hidden []advisor.Finding, scanNote 
 	if err != nil {
 		return nil, nil, "", err
 	}
+	return s.advisorFindingsFrom(m)
+}
+
+// advisorFindingsFrom runs the exposure scan/analysis against an already-loaded
+// model, so the Posture page can share one model load across its views.
+func (s *Server) advisorFindingsFrom(m nftconf.Model) (visible, hidden []advisor.Finding, scanNote string, err error) {
 	scan := advisor.Detect()
 	findings := advisor.Analyze(scan, m, advisor.Options{
 		ListenPort: listenPortOf(s.listenAddr),
