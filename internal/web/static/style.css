@@ -58,13 +58,17 @@
 	--secondary: #7084c7;
 	--secondary-deep: #414f8f;
 	--success: #6ada7d;
-	--success-deep: #2f8f47;
+	/* -deep hues are the ink on light surfaces. Darkened from #2f8f47/#a86a0a so
+	   badge/hint text clears WCAG AA (4.5:1) on both the surface and the tinted
+	   badge background — the old values measured 4.08/4.44 (fail). The pale
+	   --success/--warning fills are unchanged; only the text ink moved. */
+	--success-deep: #237a3a;
 	--info: #58caea;
-	--info-deep: #12799c;
+	--info-deep: #116e8e;
 	--warning: #f7b84b;
-	--warning-deep: #a86a0a;
+	--warning-deep: #8a5808;
 	--danger: #fa896b;
-	--danger-deep: #c8432a;
+	--danger-deep: #b23a24;
 
 	--sidebar-bg: #2e3230;
 	--sidebar-text: #a9b0ad;
