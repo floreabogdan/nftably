@@ -1027,7 +1027,6 @@ textarea {
 }
 .chain-row .icon-action { width: 30px; height: 30px; font-size: 14px; line-height: 1; }
 .chain-row .icon-action[disabled] { opacity: 0.35; cursor: default; }
-.chain-empty { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px; }
 .is-hidden { display: none; }
 /* Several chips per table cell, wrapping rather than stretching the column. */
 .chain-cell { display: flex; flex-wrap: wrap; gap: 4px; max-width: 220px; }
@@ -1197,19 +1196,32 @@ details[open] .collapse-hint::before { content: "hide"; }
 .page-tabs svg { width: 15px; height: 15px; }
 .tab-panel[hidden] { display: none; }
 
-/* ---------- line-numbered config ----------
-   bird -p reports errors by line, so the candidate config is numbered. The
-   gutter lives in ::before and is unselectable, so a drag-select or the Copy
-   button yields the config and nothing else. */
-.code-numbered { padding-left: 0; padding-right: 0; counter-reset: cl; }
-.code-numbered .cl { display: block; min-height: 1.6em; padding-right: 18px; }
-.code-numbered .cl::before {
-	content: counter(cl); counter-increment: cl;
-	display: inline-block; width: 40px; margin-right: 16px;
-	text-align: right; color: var(--text-muted); opacity: 0.5;
+/* ---------- live ruleset viewer ----------
+   The kernel's rules as read by `nft list ruleset`: one bordered block per
+   chain, its rules a numbered monospace list. The number gutter lives in
+   ::before and is unselectable, so a drag-select copies the rules and nothing
+   else. */
+.ruleset-chain { border: 1px solid var(--border); border-radius: var(--radius-card); margin-bottom: 12px; overflow: hidden; }
+.ruleset-chain:last-child { margin-bottom: 0; }
+.ruleset-chain-head {
+	display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+	padding: 8px 12px; background: var(--surface-alt); border-bottom: 1px solid var(--border);
+}
+.ruleset-chain-name { font-weight: 700; }
+.ruleset-hook { font-size: 0.72rem; color: var(--text-muted); }
+.ruleset-count { margin-left: auto; font-size: 0.72rem; }
+.ruleset-rules { margin: 0; padding: 6px 0; list-style: none; counter-reset: rl; }
+.ruleset-rules li {
+	counter-increment: rl; display: grid; grid-template-columns: 2.5em 1fr; gap: 14px;
+	padding: 3px 14px; font-size: 0.8125rem; line-height: 1.5;
+	white-space: pre-wrap; word-break: break-word;
+}
+.ruleset-rules li::before {
+	content: counter(rl); text-align: right; color: var(--text-muted); opacity: 0.5;
 	user-select: none; -webkit-user-select: none;
 }
-.code-numbered .cl:hover { background: var(--surface); }
+.ruleset-rules li:hover { background: var(--surface-alt); }
+.ruleset-empty { padding: 8px 14px; font-size: 0.78rem; color: var(--text-muted); }
 
 /* ---------- section sub-navigation (Library) ---------- */
 .subnav { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
@@ -1221,7 +1233,6 @@ details[open] .collapse-hint::before { content: "hide"; }
 .subnav a.active { color: var(--primary-deep); border-bottom-color: var(--primary-deep); font-weight: 600; }
 
 /* ---------- firewall object model + rule editor ---------- */
-.chain-block { border: 1px solid var(--border); border-radius: var(--radius-card); padding: 12px 14px; margin-bottom: 12px; background: var(--surface-alt); }
 .chain-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .chain-name { font-weight: 600; margin-right: 10px; }
 .chain-head .hint { font-size: 0.75rem; color: var(--text-muted); }

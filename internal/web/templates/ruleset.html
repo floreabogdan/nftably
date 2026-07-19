@@ -5,11 +5,13 @@
 </div>
 <div class="page-header">
 	<div>
-		<h1>Live ruleset</h1>
-		<div class="page-sub">Read straight from <span class="mono">nft list ruleset</span> on every load — this is what the kernel is enforcing right now, not a saved copy.</div>
+		<h1>{{template "icon-list"}} Live ruleset</h1>
+		<div class="page-sub">Everything in the kernel right now, read straight from <span class="mono">nft list ruleset</span>
+		on every load — not a saved copy. This is the ground truth, including any tables nftably doesn't manage.</div>
 	</div>
 	<div class="page-header-actions">
-		<a class="btn btn-sm" href="/ruleset/raw">{{template "icon-copy"}}Raw text</a>
+		<a class="btn btn-sm" href="/ruleset">{{template "icon-changes"}} Refresh</a>
+		<a class="btn btn-sm" href="/ruleset/raw">{{template "icon-copy"}} Raw text</a>
 	</div>
 </div>
 
@@ -21,36 +23,61 @@
 	<div class="code-block mono">{{.Err}}</div>
 </div></div>
 {{else if .Ruleset.IsEmpty}}
-<div class="card"><div class="card-body"><div class="empty">netfilter is empty — no tables are loaded. A clean slate.</div></div></div>
+<div class="card"><div class="card-body"><div class="empty">netfilter is empty — no tables are loaded. A clean slate for nftably to build on.</div></div></div>
 {{else}}
-	{{range .Ruleset.Tables}}{{$t := .}}
-	<div class="card">
-		<div class="card-header">
-			<span class="card-title">{{template "icon-list"}}table <span class="mono">{{.Family}} {{.Name}}</span></span>
-			<span class="text-muted">{{len .Chains}} chains</span>
-		</div>
+
+<div class="stat-grid">
+	<div class="stat tint-primary">
+		<div class="stat-label">Tables</div>
+		<div class="stat-main"><span class="stat-icon">{{template "icon-list"}}</span><span class="stat-value">{{len .Ruleset.Tables}}</span></div>
+		<div class="stat-rule"></div>
+		<span class="stat-note">{{range .Ruleset.Families}}{{.}} {{else}}—{{end}}</span>
+	</div>
+	<div class="stat tint-secondary">
+		<div class="stat-label">Chains</div>
+		<div class="stat-main"><span class="stat-icon">{{template "icon-list"}}</span><span class="stat-value">{{.Ruleset.TotalChains}}</span></div>
+		<div class="stat-rule"></div>
+		<span class="stat-note">base &amp; regular</span>
+	</div>
+	<div class="stat tint-success">
+		<div class="stat-label">Rules</div>
+		<div class="stat-main"><span class="stat-icon">{{template "icon-shield"}}</span><span class="stat-value">{{.Ruleset.TotalRules}}</span></div>
+		<div class="stat-rule"></div>
+		<span class="stat-note">across all chains</span>
+	</div>
+</div>
+
+{{range .Ruleset.Tables}}{{$t := .}}
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-list"}}table <span class="mono">{{.Family}} {{.Name}}</span></span>
+		{{if index $.Managed (printf "%s %s" .Family .Name)}}<span class="badge badge-info">managed by nftably</span>{{else}}<span class="badge badge-muted">external</span>{{end}}
+	</div>
+	<div class="card-body">
 		{{range .Chains}}
-		<div class="chain-block">
-			<div class="section-head">
-				<span class="section-title mono">chain {{.Name}}</span>
+		<div class="ruleset-chain">
+			<div class="ruleset-chain-head">
+				<span class="mono ruleset-chain-name">chain {{.Name}}</span>
 				{{if .IsBase}}
-				<span class="text-muted mono">type {{.Type}} hook {{.Hook}} priority {{.Prio}}</span>
+				<span class="ruleset-hook mono">type {{.Type}} · hook {{.Hook}} · priority {{.Prio}}</span>
 				{{policyBadge .Policy}}
 				{{else}}
-				<span class="badge">regular</span>
+				<span class="badge badge-muted">regular</span>
 				{{end}}
+				<span class="ruleset-count text-muted">{{len .Rules}} rule{{if ne (len .Rules) 1}}s{{end}}</span>
 			</div>
 			{{if .Rules}}
-			<div class="code-block code-numbered mono" data-search-target>
-				{{range .Rules}}<div class="rule-line">{{if .Text}}{{.Text}}{{else}}<span class="text-muted">handle {{.Handle}} (expression not rendered)</span>{{end}}</div>
+			<ol class="ruleset-rules mono" data-search-target>
+				{{range .Rules}}<li>{{if .Text}}{{.Text}}{{else}}<span class="text-muted">handle {{.Handle}} — expression not rendered</span>{{end}}</li>
 				{{end}}
-			</div>
+			</ol>
 			{{else}}
-			<div class="chain-empty">no rules</div>
+			<div class="ruleset-empty">no rules in this chain</div>
 			{{end}}
 		</div>
 		{{end}}
 	</div>
-	{{end}}
+</div>
+{{end}}
 {{end}}
 {{template "shell-close" .}}

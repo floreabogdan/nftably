@@ -77,6 +77,9 @@ type rulesetVM struct {
 	NftAvailable bool
 	Ruleset      *nft.Ruleset
 	Err          string
+	// Managed keys ("<family> <name>") the tables nftably owns, so the live view
+	// can flag which tables are ours versus loaded by something else.
+	Managed map[string]bool
 }
 
 func (s *Server) handleRuleset(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +92,14 @@ func (s *Server) handleRuleset(w http.ResponseWriter, r *http.Request) {
 			vm.Err = err.Error()
 		} else {
 			vm.Ruleset = rs
+		}
+	}
+	// Which live tables are nftably's own (best-effort — a read failure just means
+	// nothing is flagged as managed).
+	vm.Managed = map[string]bool{}
+	if tables, err := s.store.ListTables(); err == nil {
+		for _, t := range tables {
+			vm.Managed[t.Family+" "+t.Name] = true
 		}
 	}
 	render(w, s.log, "ruleset.html", vm)

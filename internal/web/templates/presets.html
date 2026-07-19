@@ -1,11 +1,16 @@
 {{define "presets.html"}}{{template "shell-open" .}}
-
+<div class="page-top">
+	<span class="page-eyebrow">Secure</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Presets</span></div>
+</div>
 <div class="page-header">
-	<h1>{{template "icon-spark"}} Presets</h1>
-	<p class="page-sub">Best-practice starting points. Applying one <strong>replaces your current
-	firewall tables</strong> with a recommended layout and creates the named sets it needs (your
-	existing sets are kept). Nothing goes live until you edit the sets and hit
-	<a href="/changes">Review</a> — with the armed auto-revert, so it's safe to try.</p>
+	<div>
+		<h1>{{template "icon-spark"}} Presets</h1>
+		<div class="page-sub">Best-practice starting points. Applying one <strong>replaces your current
+		firewall tables</strong> with a recommended layout and creates the named sets it needs (your
+		existing sets are kept). Nothing goes live until you edit the sets and hit
+		<a href="/changes">Review</a> — with the armed auto-revert, so it's safe to try.</div>
+	</div>
 </div>
 
 <div class="preset-grid">
