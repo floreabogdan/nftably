@@ -47,6 +47,7 @@ var settingsTabs = []string{"general", "access", "geoip", "metrics", "import", "
 var savedTab = map[string]string{
 	"identity": "general", "access": "access",
 	"geoip": "geoip", "geoip-download": "geoip", "metrics": "metrics",
+	"backup": "backup",
 }
 
 func (s *Server) handleSettingsPage(w http.ResponseWriter, r *http.Request) {
