@@ -113,10 +113,11 @@ typed, explained control instead of a fixed form.
   pages hang over a VPN or PPPoE link; **byte quota** (`quota`) — cut a service
   off after it has served so much; **NFQUEUE** (`queue`, with fail-open) — hand
   traffic to an inline IDS/IPS such as Suricata; **notrack** — skip connection
-  tracking for high-volume stateless traffic; and **owning-user/-group egress
+  tracking for high-volume stateless traffic; **owning-user/-group egress
   matches** (`meta skuid`/`skgid`) — filter this box's *outbound* traffic by the
-  local user that owns the socket. Every rendered form was verified against
-  `nft` (v1.1.3) in a Linux container.
+  local user that owns the socket; and a **reverse-path check** (`fib saddr . iif
+  oif missing`) — drop spoofed source addresses, nftables' answer to `rp_filter`.
+  Every rendered form was verified against `nft` (v1.1.3) in a Linux container.
 
 ### Security
 

@@ -204,6 +204,10 @@ var matches = []Match{
 		Help: "For traffic THIS box sends, the numeric user-id that owns the sending socket. Only meaningful in an output/postrouting chain — genuine egress control: e.g. only the backup user's traffic may leave, or root may not.", Example: "0"},
 	{Key: "meta.skgid", Label: "Owning group (this box's own traffic)", Group: "Owner", Expr: "meta skgid", Kind: KindInt, Ops: []string{"==", "!="},
 		Help: "Like the owning user, but the group-id of the socket that sent the packet. Match this box's outbound traffic by owning group.", Example: "0"},
+
+	// Routing (FIB) — ask the routing table about a packet. No value to type.
+	{Key: "fib.rpf", Label: "Fails reverse-path check (spoofed source)", Group: "Routing", Expr: "fib saddr . iif oif missing", Kind: KindNone,
+		Help: "Matches a packet whose source address would NOT route back out the interface it arrived on — the classic sign of a spoofed source. Pair it with drop near the top of an input or prerouting chain for anti-spoofing (nftables' answer to rp_filter). No value needed.", Example: "fib saddr . iif oif missing"},
 }
 
 var statements = []Statement{
@@ -665,6 +669,11 @@ func RenderMatch(key, op, value string, _ Ctx) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("unknown match %q", key)
 	}
+	// A valueless match (e.g. the reverse-path check) is its expression alone —
+	// no operator, no value.
+	if m.Kind == KindNone {
+		return m.Expr, nil
+	}
 	if err := checkSafe(m.Label, value); err != nil {
 		return "", err
 	}
@@ -819,6 +828,8 @@ func kindName(k Kind) string {
 		return "port"
 	case KindIface:
 		return "iface"
+	case KindNone:
+		return "none"
 	default:
 		return "text"
 	}

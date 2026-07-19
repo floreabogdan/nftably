@@ -262,6 +262,15 @@
 		var info = matches[fieldKey];
 		var kind = info && info.kind;
 
+		// A valueless match (e.g. the reverse-path check) takes no value at all.
+		if (fieldKey && kind === "none") {
+			var note = document.createElement("span");
+			note.className = "knob-noval text-muted";
+			note.textContent = "no value needed";
+			cell.appendChild(note);
+			return null;
+		}
+
 		if (fieldKey && kind === "enum" && info.options) {
 			var sel = document.createElement("select");
 			sel.name = name;
@@ -369,7 +378,12 @@
 			var cur = "";
 			var existing = cell.querySelector("[name='" + name + "']");
 			if (existing) cur = existing.value;
-			if (op) buildOps(op, field.value, op.value);
+			if (op) {
+				buildOps(op, field.value, op.value);
+				// A valueless match compares nothing — hide the operator too.
+				var mi = matches[field.value];
+				if (mi && mi.kind === "none") op.hidden = true;
+			}
 			var valInput = buildValue(cell, name, field.value, cur);
 			remove.hidden = !field.value;
 			renderHelp(help, matches[field.value]);

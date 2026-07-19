@@ -19,6 +19,9 @@ func TestRenderMatch(t *testing.T) {
 		{"tcp.dport", ">", "1024", "tcp dport > 1024"},
 		{"meta.skuid", "==", "0", "meta skuid 0"},
 		{"meta.skgid", "!=", "0", "meta skgid != 0"},
+		// Valueless match: expression only, operator and value ignored.
+		{"fib.rpf", "==", "", "fib saddr . iif oif missing"},
+		{"fib.rpf", "", "anything", "fib saddr . iif oif missing"},
 	}
 	for _, c := range cases {
 		got, err := RenderMatch(c.key, c.op, c.value, Ctx{Family: "inet"})
