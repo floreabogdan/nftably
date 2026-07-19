@@ -149,6 +149,34 @@
 	}
 }
 
+/* ---------- theme style: the second axis (data-theme-style), à la birdy ----------
+   "comfortable" (no attribute) is the default — the base rules below. "compact"
+   tightens spacing and flattens the cards for operators who want more on screen.
+   It's independent of light/dark and works with both. */
+:root[data-theme-style="compact"] {
+	--radius-card: 6px;
+	--radius-control: 5px;
+	--shadow-card: none;
+}
+[data-theme-style="compact"] .page { padding: 14px 20px 40px; }
+[data-theme-style="compact"] .card { margin-bottom: 12px; }
+[data-theme-style="compact"] .card-body { padding: 12px 14px; }
+[data-theme-style="compact"] .card-header { padding: 9px 14px; }
+[data-theme-style="compact"] .page-top { margin-bottom: 8px; }
+[data-theme-style="compact"] .page-header { margin-bottom: 12px; }
+[data-theme-style="compact"] .page-header h1 { font-size: 1.4rem; }
+[data-theme-style="compact"] .stat-grid { gap: 10px; margin-bottom: 12px; }
+[data-theme-style="compact"] th,
+[data-theme-style="compact"] td { padding: 7px 12px; }
+
+/* Theme-style picker cards (Settings → Theme). */
+.theme-choice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-control); cursor: pointer; margin-bottom: 8px; }
+.theme-choice:hover { border-color: var(--primary); }
+.theme-choice input { margin-top: 3px; }
+.theme-choice span { display: flex; flex-direction: column; gap: 2px; }
+.theme-choice small { color: var(--text-muted); }
+.theme-choice:has(input:checked) { border-color: var(--primary); background: var(--surface-alt); }
+
 * { box-sizing: border-box; }
 
 html, body {

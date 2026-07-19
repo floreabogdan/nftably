@@ -102,6 +102,25 @@ func TestGeoIPDownloadFailureStaysOnTab(t *testing.T) {
 	}
 }
 
+// TestThemeTabRenders checks the Settings → Theme panel ships the density picker
+// the client-side theme.js wires up.
+func TestThemeTabRenders(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/settings?tab=theme", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("theme tab: status %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{`data-theme-choice`, `value="comfortable"`, `value="compact"`, "Layout density"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("theme tab missing %q", want)
+		}
+	}
+}
+
 // TestTabParam checks the settings tab selector: a known tab is honoured, an
 // unknown or absent one falls back to the first (default) tab. A regression here
 // lands the operator on a blank/wrong panel.

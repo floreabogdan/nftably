@@ -90,6 +90,11 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **A layout-density theme** (Settings → Theme), a second theme axis alongside
+  light/dark: **Comfortable** (the default — generous spacing, soft rounded cards)
+  or **Compact** (tighter spacing, flatter panels, more on screen). Stored in the
+  browser, applied before first paint (no flash), and works with both light and
+  dark. Follows the two-axis approach from the sister project birdy.
 - **More catalogue knobs.** Transparent proxy (**tproxy**) for handing traffic to a
   local proxy without rewriting its destination; **DSCP/QoS** — matching (`ip`/`ip6
   dscp`) and setting (`… dscp set ef`); a **conntrack-helper** match (`ct helper

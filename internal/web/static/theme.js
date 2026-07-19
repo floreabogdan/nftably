@@ -1,6 +1,26 @@
 // Theme toggle. Reflects the current theme in the button — both visually (the
 // icon shows the theme you'd switch TO) and to assistive tech (aria-pressed +
 // a stateful label), rather than always showing a static sun.
+// Layout-density picker (Settings → Theme): the second theme axis. Persisted in
+// this browser only; independent of light/dark. Runs on every page but only does
+// anything where the radios are present.
+(function () {
+	function currentStyle() {
+		var s = document.documentElement.getAttribute("data-theme-style");
+		return s === "compact" ? "compact" : "comfortable";
+	}
+	function setStyle(value) {
+		var next = value === "compact" ? "compact" : "comfortable";
+		document.documentElement.setAttribute("data-theme-style", next);
+		document.querySelectorAll("[data-theme-choice]").forEach(function (c) { c.checked = c.value === next; });
+		try { localStorage.setItem("nftably-theme-style", next); } catch (_) {}
+	}
+	setStyle(currentStyle()); // reflect the bootstrapped value into the controls
+	document.querySelectorAll("[data-theme-choice]").forEach(function (c) {
+		c.addEventListener("change", function () { setStyle(c.value); });
+	});
+})();
+
 (function () {
 	var btn = document.getElementById("theme-toggle");
 	if (!btn) return;
