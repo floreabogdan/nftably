@@ -1,0 +1,231 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Observe</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Concepts</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>{{template "icon-book"}} How nftables works</h1>
+		<div class="page-sub">A plain-language tour of the ideas behind every rule you'll write — the packet's journey,
+		chains, connection tracking and sets. No prior firewall knowledge assumed. Each idea links to where you
+		act on it in nftably, so you can go from "what's a chain?" to a hardened box.</div>
+	</div>
+</div>
+
+<nav class="learn-toc card" aria-label="On this page">
+	<div class="card-body">
+		<span class="learn-toc-label">On this page</span>
+		<a href="#journey">The packet's journey</a>
+		<a href="#tables">Tables &amp; families</a>
+		<a href="#chains">Chains</a>
+		<a href="#rules">Rules: matches &amp; verdicts</a>
+		<a href="#conntrack">Connection tracking</a>
+		<a href="#sets">Sets &amp; maps</a>
+		<a href="#safety">How nftably keeps you safe</a>
+	</div>
+</nav>
+
+<!-- ── The packet's journey ─────────────────────────────────────────────── -->
+<section id="journey" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-route"}}The packet's journey</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Every packet the kernel handles passes through a fixed set of <strong>hooks</strong> —
+		checkpoints on its way in, out, or through the box. A firewall is just rules attached to those checkpoints.
+		Which hook a packet hits depends on <em>where it's going</em>:</p>
+
+		<div class="packet-flow" role="img" aria-label="Packets are classified at prerouting, then flow to input if bound for this host or forward if passing through, then out via output and postrouting">
+			<div class="flow-node flow-entry">arrives<span class="flow-sub">from the wire</span></div>
+			<div class="flow-arrow" aria-hidden="true">&rarr;</div>
+			<div class="flow-node">prerouting<span class="flow-sub">before routing decision</span></div>
+			<div class="flow-arrow" aria-hidden="true">&rarr;</div>
+			<div class="flow-branch">
+				<div class="flow-node flow-hot">input<span class="flow-sub">for <em>this</em> box</span></div>
+				<div class="flow-node">forward<span class="flow-sub">passing through (router)</span></div>
+			</div>
+			<div class="flow-arrow" aria-hidden="true">&rarr;</div>
+			<div class="flow-node">output<span class="flow-sub">from local apps</span></div>
+			<div class="flow-arrow" aria-hidden="true">&rarr;</div>
+			<div class="flow-node">postrouting<span class="flow-sub">last stop out</span></div>
+			<div class="flow-arrow" aria-hidden="true">&rarr;</div>
+			<div class="flow-node flow-exit">leaves<span class="flow-sub">to the wire</span></div>
+		</div>
+
+		<div class="concept-grid">
+			<div class="concept-card"><strong class="mono">input</strong><p>Traffic addressed <em>to this machine</em> — someone connecting to your SSH, web server, or this UI.
+			This is the hook you'll spend most of your time on when hardening a single host.</p></div>
+			<div class="concept-card"><strong class="mono">forward</strong><p>Traffic <em>routed through</em> this box to somewhere else. Only matters if the machine is a router or gateway.
+			On a plain server it's empty.</p></div>
+			<div class="concept-card"><strong class="mono">output</strong><p>Traffic <em>this machine originates</em>. Usually left open, but you can restrict what your box is allowed to reach —
+			handy for locking down a server that should only talk to a few places.</p></div>
+			<div class="concept-card"><strong class="mono">prerouting / postrouting</strong><p>The very first and very last steps. NAT lives here (rewriting addresses),
+			as does early filtering. Most host firewalls don't need them.</p></div>
+		</div>
+
+		<div class="learn-tip">{{template "icon-route"}}<div><strong>See it for yourself.</strong> The
+			<a href="/simulate?run=1&amp;hook=input&amp;proto=tcp&amp;dport=22&amp;ctstate=new">packet simulator</a>
+			traces a synthetic packet through <em>your</em> rules, hook by hook, and shows exactly which rule decides its fate —
+			no live traffic, no risk.</div></div>
+	</div>
+</section>
+
+<!-- ── Tables & families ───────────────────────────────────────────────── -->
+<section id="tables" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-list"}}Tables &amp; families</span></div>
+	<div class="card-body">
+		<p class="learn-lead">A <strong>table</strong> is a container that holds your chains and rules. Every table belongs to a
+		<strong>family</strong>, which decides what kind of traffic it can see:</p>
+		<div class="concept-grid">
+			<div class="concept-card"><strong class="mono">inet</strong> <span class="badge badge-success">recommended</span>
+				<p>IPv4 <em>and</em> IPv6 together. One set of rules covers both — the modern default, and what nftably's presets use.
+				Write a rule once instead of maintaining two parallel firewalls.</p></div>
+			<div class="concept-card"><strong class="mono">ip</strong> / <strong class="mono">ip6</strong>
+				<p>IPv4-only and IPv6-only. Use these only when a rule genuinely applies to one protocol and not the other.</p></div>
+			<div class="concept-card"><strong class="mono">arp</strong> / <strong class="mono">bridge</strong> / <strong class="mono">netdev</strong>
+				<p>Specialist families for link-layer and bridged traffic, or ultra-early filtering at the driver.
+				Advanced; you'll know when you need them.</p></div>
+		</div>
+		<p class="learn-note">Tables and chains are just names and structure — nothing filters until you add <em>rules</em> to a
+		<em>base</em> chain (next).</p>
+	</div>
+</section>
+
+<!-- ── Chains ──────────────────────────────────────────────────────────── -->
+<section id="chains" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Chains: base vs regular</span></div>
+	<div class="card-body">
+		<p class="learn-lead">A <strong>chain</strong> is an ordered list of rules. There are two kinds, and the difference is the
+		single most common source of confusion:</p>
+
+		<div class="concept-two">
+			<div class="concept-card concept-strong">
+				<strong>Base chain</strong> <span class="badge badge-info">attached to a hook</span>
+				<p>Hooked into the packet journey above, so the kernel actually runs it. A base chain declares four things:</p>
+				<ul class="learn-list">
+					<li><strong class="mono">hook</strong> — which checkpoint (input, forward, output…).</li>
+					<li><strong class="mono">type</strong> — <span class="mono">filter</span> (allow/deny), <span class="mono">nat</span>, or <span class="mono">route</span>.</li>
+					<li><strong class="mono">priority</strong> — the order among chains on the <em>same</em> hook; lower numbers run first. This is how your filtering runs before or after NAT.</li>
+					<li><strong class="mono">policy</strong> — the verdict if <em>no rule matches</em>: <span class="badge badge-warning">accept</span> (permit by default) or <span class="badge badge-success">drop</span> (deny by default).</li>
+				</ul>
+			</div>
+			<div class="concept-card">
+				<strong>Regular chain</strong> <span class="badge badge-muted">not hooked</span>
+				<p>Not attached to any hook, so it never runs on its own. It's a reusable block of rules you <span class="mono">jump</span> to
+				from a base chain — like a function. Great for grouping (e.g. a "web-services" chain you jump to for ports 80/443),
+				keeping big rulesets readable.</p>
+			</div>
+		</div>
+
+		<div class="learn-tip learn-tip-key">{{template "icon-alert"}}<div><strong>The golden rule of a secure host:</strong>
+			set your <span class="mono">input</span> base chain's policy to <span class="badge badge-success">drop</span>, then explicitly
+			<span class="mono">accept</span> only what you need. That's "default-deny" — the firewall permits nothing you didn't ask for.
+			The <a href="/harden">Security check</a> grades exactly this.</div></div>
+	</div>
+</section>
+
+<!-- ── Rules ───────────────────────────────────────────────────────────── -->
+<section id="rules" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-changes"}}Rules: matches &amp; verdicts</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Each rule reads left to right: zero or more <strong>matches</strong> (conditions the packet must meet),
+		then <strong>statements</strong> — usually ending in a <strong>verdict</strong> that decides the packet's fate. If every
+		match is true, the statements run. nftably's editor builds exactly this, one dropdown at a time.</p>
+
+		<div class="rule-anatomy mono">
+			<span class="ra-match">tcp dport 22</span>
+			<span class="ra-match">ip saddr 10.0.0.0/8</span>
+			<span class="ra-verdict">accept</span>
+			<span class="ra-caption">&nbsp;// allow SSH, but only from the 10.x network</span>
+		</div>
+
+		<p class="learn-note">Common <strong>verdicts</strong>:</p>
+		<div class="verdict-grid">
+			<div class="verdict-card"><span class="badge badge-success">accept</span> Let the packet through — stop evaluating this chain.</div>
+			<div class="verdict-card"><span class="badge badge-danger">drop</span> Discard silently. The sender gets nothing back (looks "dark" to a scanner).</div>
+			<div class="verdict-card"><span class="badge badge-warning">reject</span> Refuse politely, sending back an error. Faster failures for legitimate clients, but confirms the box exists.</div>
+			<div class="verdict-card"><span class="badge badge-info">jump / goto</span> Divert to a regular chain (jump returns; goto doesn't).</div>
+			<div class="verdict-card"><span class="badge badge-muted">continue</span> No verdict — keep evaluating. A bare <span class="mono">counter</span> or <span class="mono">log</span> does this.</div>
+		</div>
+
+		<div class="learn-tip">{{template "icon-shield"}}<div>Order matters: rules run top to bottom and the <em>first</em> verdict wins.
+			On the <a href="/firewall">Firewall page</a> you drag rules to reorder them, and every change previews as real
+			<span class="mono">nft</span> syntax before anything is applied.</div></div>
+	</div>
+</section>
+
+<!-- ── Connection tracking ─────────────────────────────────────────────── -->
+<section id="conntrack" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-activity"}}Connection tracking (the "why nothing works" fix)</span></div>
+	<div class="card-body">
+		<p class="learn-lead">This is the idea that trips up every newcomer. Under a default-deny policy, if you only
+		"allow SSH in", the <em>reply</em> packets from your SSH server heading back out — and the return traffic of every
+		connection <em>you</em> start — get dropped, because no rule allows them. Everything breaks.</p>
+		<p>The kernel's <strong>connection tracker</strong> (conntrack) remembers every flow it has seen and labels each packet
+		with a <strong>state</strong>. You accept traffic based on that label instead of writing rules for both directions:</p>
+		<div class="concept-grid">
+			<div class="concept-card"><strong class="mono">new</strong><p>The first packet of a connection nobody's seen yet. This is what your "allow SSH" rule is really matching.</p></div>
+			<div class="concept-card"><strong class="mono">established</strong><p>Part of a connection already accepted. Accept these and every reply flows freely — one rule, both directions.</p></div>
+			<div class="concept-card"><strong class="mono">related</strong><p>A new connection <em>expected by</em> an existing one (e.g. FTP data, ICMP errors). Usually accepted alongside established.</p></div>
+			<div class="concept-card"><strong class="mono">invalid</strong><p>Packets conntrack can't place in any flow — malformed, or out of sequence. A favourite of scanners. Drop these early.</p></div>
+		</div>
+		<div class="learn-tip learn-tip-key">{{template "icon-info"}}<div>The survivable base of almost every host firewall is just two lines near the top:
+			<span class="mono">ct state established,related accept</span> and <span class="mono">ct state invalid drop</span>.
+			The <a href="/harden">Security check</a> verifies you have both, and can add them in one click.</div></div>
+	</div>
+</section>
+
+<!-- ── Sets & maps ─────────────────────────────────────────────────────── -->
+<section id="sets" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-ban"}}Sets &amp; maps</span></div>
+	<div class="card-body">
+		<p class="learn-lead">A <strong>set</strong> is a named collection of values — addresses, ports, countries — that a rule can test against
+		in one shot. Instead of a hundred rules for a hundred bad IPs, you write <span class="mono">ip saddr @blocklist drop</span>
+		and manage the membership separately.</p>
+		<div class="concept-grid">
+			<div class="concept-card"><strong>Named sets</strong><p>Reusable lists you maintain in one place. nftably's
+				<a href="/lists">Named sets</a> page manages these — an allow-list of your networks, a block-list you can add to with
+				one click from the <a href="/connections">Connections</a> view, or a feed pulled from a URL.</p></div>
+			<div class="concept-card"><strong>Maps</strong><p>Like a set, but each value points to a result — e.g. map a destination port to which
+				chain handles it. Powerful for large, table-driven rulesets.</p></div>
+			<div class="concept-card"><strong>Dynamic sets</strong><p>Sets rules can add to <em>at runtime</em>, often with a timeout.
+				This is how native rate-limiting and auto-ban work: an address that trips a limit gets added to a "penalty" set for
+				10 minutes, no external daemon needed.</p></div>
+		</div>
+	</div>
+</section>
+
+<!-- ── Safety ──────────────────────────────────────────────────────────── -->
+<section id="safety" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}How nftably keeps you safe</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Editing a live firewall is how people lock themselves out of a remote box. nftably is built so that
+		can't happen by accident:</p>
+		<ul class="learn-list learn-list-lg">
+			<li><strong>Model first, apply later.</strong> Everything you build on the Firewall page is a <em>model</em> — nothing
+			touches the kernel until you go to <a href="/changes">Review &amp; apply</a>.</li>
+			<li><strong>See the diff.</strong> Before applying, you get the exact <span class="mono">nft</span> commands and a diff against
+			what's live. No surprises.</li>
+			<li><strong>Armed auto-revert.</strong> When you apply, nftably arms a timer and loads the new ruleset. If you don't
+			confirm within the window — because you just locked yourself out — it automatically rolls back to the previous ruleset.
+			Get it wrong and you're back in a minute.</li>
+		</ul>
+	</div>
+</section>
+
+<div class="card card-cta learn-cta">
+	<div class="card-body setup-cta">
+		<div>
+			<strong>Ready to put it to work?</strong>
+			<div class="text-muted">{{if .HaveModel}}Grade what you've built against best practice, or trace a packet through it.{{else}}The fastest safe start is a preset — a hardened base you can read, understand, and adjust.{{end}}</div>
+		</div>
+		<div class="setup-cta-actions">
+			{{if .HaveModel}}
+			<a class="btn btn-primary" href="/harden">{{template "icon-shield"}}Run the Security check</a>
+			<a class="btn" href="/simulate">{{template "icon-route"}}Simulate a packet</a>
+			{{else}}
+			<a class="btn btn-primary" href="/presets">{{template "icon-spark"}}Start from a preset</a>
+			<a class="btn" href="/simulate">{{template "icon-route"}}Simulate a packet</a>
+			{{end}}
+		</div>
+	</div>
+</div>
+{{template "shell-close" .}}

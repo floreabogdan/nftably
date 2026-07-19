@@ -81,6 +81,13 @@ make** and **easy to get right**:
   you what your firewall really does about it — *"PostgreSQL is reachable from the
   internet"* or *"sshd is listening but a connection from outside would be dropped"* —
   each with a one-click fix and a link to the full trace.
+- **Learn while you harden.** A **Security check** grades your model against what a
+  solid host firewall needs — default-deny, the survivable base, IPv6's ICMP,
+  anti-spoofing, scoped SSH — explaining *why each matters* and offering safe
+  one-click fixes; and a **Concepts** page teaches how nftables actually works (the
+  packet's journey through the hooks, chains, connection tracking, sets) in plain
+  language, so someone new to firewalls can go from *"what's a chain?"* to a
+  hardened box.
 
 ## The BGP edge router preset
 

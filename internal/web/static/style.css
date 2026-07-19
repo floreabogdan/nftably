@@ -787,6 +787,59 @@ td.num, th.num { text-align: right; }
 .posture-summary.posture-attn { border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
 .posture-arrow { color: var(--text-muted); font-size: 1.1rem; }
 
+/* ---------- Concepts / Learn page ---------- */
+.learn-toc .card-body { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 18px; }
+.learn-toc-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; }
+.learn-toc a { font-size: 0.85rem; padding: 3px 2px; border-bottom: 1px solid transparent; }
+.learn-toc a:hover { border-bottom-color: var(--primary); }
+.learn-section { scroll-margin-top: 16px; }
+.learn-lead { font-size: 0.95rem; line-height: 1.6; margin: 0 0 14px; max-width: 78ch; }
+.learn-section p { line-height: 1.6; max-width: 78ch; }
+.learn-note { font-size: 0.9rem; color: var(--text-muted); margin: 14px 0 8px; }
+
+/* packet flow diagram */
+.packet-flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 6px 0 20px; }
+.flow-node { flex: 0 1 auto; display: flex; flex-direction: column; justify-content: center; gap: 2px;
+	background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-control);
+	padding: 9px 13px; font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600; }
+.flow-sub { font-family: var(--font-sans, inherit); font-weight: 400; font-size: 0.7rem; color: var(--text-muted); }
+.flow-hot { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); background: color-mix(in srgb, var(--primary) 12%, var(--surface)); }
+.flow-entry, .flow-exit { background: color-mix(in srgb, var(--success) 12%, var(--surface)); border-color: color-mix(in srgb, var(--success) 35%, var(--border)); }
+.flow-branch { display: flex; flex-direction: column; gap: 6px; }
+.flow-arrow { align-self: center; color: var(--text-muted); font-size: 1.1rem; }
+
+/* concept cards */
+.concept-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 6px 0 4px; }
+.concept-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 6px 0; }
+.concept-card { background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 13px 15px; }
+.concept-card p { font-size: 0.85rem; line-height: 1.55; margin: 6px 0 0; color: var(--text); }
+.concept-card strong.mono, .concept-card > strong { font-size: 0.92rem; }
+.concept-strong { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
+
+.learn-list { margin: 8px 0 0; padding-left: 20px; }
+.learn-list li { font-size: 0.85rem; line-height: 1.7; }
+.learn-list-lg li { font-size: 0.92rem; line-height: 1.6; margin-bottom: 8px; max-width: 80ch; }
+
+/* rule anatomy */
+.rule-anatomy { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 14px 16px; margin: 4px 0 14px;
+	background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-control); font-size: 0.9rem; }
+.ra-match { padding: 2px 8px; border-radius: var(--radius-badge); background: color-mix(in srgb, var(--info) 15%, var(--surface)); color: var(--info-deep); }
+.ra-verdict { padding: 2px 8px; border-radius: var(--radius-badge); background: color-mix(in srgb, var(--success) 18%, var(--surface)); color: var(--success-deep); font-weight: 700; }
+.ra-caption { color: var(--text-muted); }
+
+.verdict-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px; margin: 4px 0; }
+.verdict-card { font-size: 0.85rem; line-height: 1.5; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-control); }
+.verdict-card .badge { margin-right: 6px; }
+
+/* tip / callout */
+.learn-tip { display: flex; gap: 12px; align-items: flex-start; margin: 16px 0 2px; padding: 13px 15px;
+	background: color-mix(in srgb, var(--info) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--info) 28%, var(--border));
+	border-radius: var(--radius-control); font-size: 0.88rem; line-height: 1.55; }
+.learn-tip svg { flex: 0 0 20px; width: 20px; height: 20px; color: var(--info-deep); margin-top: 1px; }
+.learn-tip-key { background: color-mix(in srgb, var(--warning) 10%, var(--surface)); border-color: color-mix(in srgb, var(--warning) 32%, var(--border)); }
+.learn-tip-key svg { color: var(--warning-deep); }
+.learn-cta { margin-top: 4px; }
+
 /* ---------- value chips: network data reads as a token, not prose ---------- */
 .chip {
 	display: inline-flex;

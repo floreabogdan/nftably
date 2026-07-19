@@ -56,7 +56,7 @@ func newTestServer(t *testing.T) (*Server, *http.Cookie) {
 func TestPagesRender(t *testing.T) {
 	srv, cookie := newTestServer(t)
 
-	pages := []string{"/", "/ruleset", "/ruleset/raw", "/import", "/timeline", "/connections", "/firewall", "/presets", "/lists", "/changes", "/settings", "/profile", "/api/status"}
+	pages := []string{"/", "/ruleset", "/ruleset/raw", "/import", "/timeline", "/connections", "/firewall", "/presets", "/lists", "/changes", "/harden", "/learn", "/settings", "/profile", "/api/status"}
 	for _, p := range pages {
 		req := httptest.NewRequest(http.MethodGet, p, nil)
 		req.AddCookie(cookie)

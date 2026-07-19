@@ -63,6 +63,13 @@ typed, explained control instead of a fixed form.
   missing rule and drops you on Review & apply (behind the armed auto-revert); the
   fixes only ever add an accept or drop clearly-bad traffic, so a fix can't lock
   you out. A compact score card on the Dashboard links straight to it.
+- **Concepts** (`/learn`) — a plain-language guide to how nftables actually works,
+  for someone who has never written a firewall rule: the packet's journey through
+  the hooks (input/forward/output/pre-/postrouting), base vs regular chains,
+  matches and verdicts, connection tracking (the "why does nothing work?" idea),
+  address families, and sets. Every concept links to where you act on it — the
+  packet simulator, the Security check, the Firewall page — so a newcomer can go
+  from "what's a chain?" to a hardened box.
 - **Packet-path simulator** (`/simulate`). Describe a packet — hook, protocol,
   source/destination, ports, interfaces, connection state — and see a step-by-step
   trace of which rule decides it, ending in ACCEPT/DROP/REJECT. It walks the
