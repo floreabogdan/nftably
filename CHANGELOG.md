@@ -75,6 +75,11 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **One-click IDS/IPS inspection.** A Posture-page recipe sends forwarded traffic to
+  an NFQUEUE for an inline Suricata/Snort to inspect. It's fail-open (a stopped
+  inspector lets traffic through rather than blackholing transit) and touches only
+  the forward chain, so the operator's own session is never queued — built on the
+  existing `queue` action.
 - **WireGuard VPN server preset.** The basic secure-server base plus the WireGuard
   essentials: UDP 51820 accepted (the tunnel is key-authenticated), the wg0
   interface trusted for traffic to this box, and a default-drop forward chain that

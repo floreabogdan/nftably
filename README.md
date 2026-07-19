@@ -94,6 +94,10 @@ make** and **easy to get right**:
   (the packet's journey through the hooks, chains, connection tracking, sets) in
   plain language, so someone new to firewalls can go from *"what's a chain?"* to a
   hardened box.
+- **Send traffic to an IDS/IPS.** One click sends forwarded traffic to an NFQUEUE
+  for **Suricata** or **Snort** to inspect inline — fail-open, so a stopped inspector
+  never blackholes transit, and only the forward chain is touched. Built on the
+  general *Send to userspace program* (`queue`) action.
 - **Graph it in Grafana.** An opt-in Prometheus **`/metrics`** endpoint turns every
   rule with a *Count* action into a time series (`nftably_rule_packets_total` /
   `_bytes_total`) — watch drops and accepts move — plus table/chain/rule counts and

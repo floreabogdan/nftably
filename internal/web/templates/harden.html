@@ -90,6 +90,36 @@
 </div>
 {{end}}
 
+{{if .HaveForward}}
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-route"}}Inspect transit with an IDS/IPS</span>
+		{{if .IDSActive}}<span class="badge badge-success">on</span>{{end}}
+	</div>
+	<div class="card-body">
+		<p class="check-detail">Hand forwarded traffic to an inline intrusion detector — <strong>Suricata</strong> or
+		<strong>Snort</strong> running on an NFQUEUE — so it can flag or block known-bad flows. It's <strong>fail-open</strong>:
+		if the inspector isn't running, traffic keeps flowing, so a stopped Suricata never blackholes your transit. Only the
+		forward chain is touched — your own session is never queued.</p>
+		{{if .IDSActive}}
+		<div class="check check-pass">
+			<div class="check-icon" aria-hidden="true">&#10003;</div>
+			<div class="check-body"><strong>Active.</strong>
+			<p class="check-detail">Forwarded traffic is sent to NFQUEUE 0. Run your IDS against it (e.g.
+			<span class="mono">suricata -q 0</span>). Tune the queue on the <a href="/firewall">Firewall</a> page (the
+			<em>Send to userspace program</em> action).</p></div>
+		</div>
+		{{else}}
+		<form method="post" action="/harden/ids">
+			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-route"}} Send transit to an IDS</button>
+		</form>
+		<p class="field-hint text-muted">Adds one fail-open <span class="mono">queue num 0 bypass</span> rule at the top of
+		the forward chain and drops you on <a href="/changes">Review</a>. Your IDS attaches to queue 0.</p>
+		{{end}}
+	</div>
+</div>
+{{end}}
+
 <div class="card">
 	<div class="card-header">
 		<span class="card-title">{{template "icon-bulb"}}Exposed services</span>

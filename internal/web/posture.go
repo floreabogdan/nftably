@@ -243,6 +243,10 @@ type hardenVM struct {
 	// SSHBanActive is true once the brute-force auto-ban rules are in the input
 	// chain, so the recipe card shows "on" instead of offering to add them.
 	SSHBanActive bool
+	// HaveForward gates the IDS recipe (it only makes sense for a routing/IPS
+	// setup); IDSActive is true once a forward rule sends traffic to NFQUEUE.
+	HaveForward bool
+	IDSActive   bool
 	// Exposed-services section (the merged-in advisor): every live listener run
 	// through the simulator against the model.
 	Findings []advisor.Finding
@@ -262,6 +266,15 @@ func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
 		vm.Pass, vm.Total = postureScore(checks)
 		vm.HaveModel = v.haveInput
 		vm.SSHBanActive = v.any(hasBanRule)
+		if fwID, fwRules, ok := s.forwardChain(); ok {
+			vm.HaveForward = true
+			for _, r := range fwRules {
+				if r.Enabled && stmtHas(r, "queue") {
+					vm.IDSActive = true
+				}
+			}
+			_ = fwID
+		}
 	}
 	// The exposed-services scan is independent of the posture read; a failure
 	// there shouldn't blank the whole page, so it's best-effort.
@@ -374,5 +387,54 @@ func (s *Server) handleHardenSSHBan(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.audit(r, "enabled SSH brute-force auto-ban")
+	http.Redirect(w, r, "/changes", http.StatusSeeOther)
+}
+
+// forwardChain returns the first base forward filter chain with its rules — where
+// an inline IDS/IPS inspects transit traffic.
+func (s *Server) forwardChain() (int64, []store.ChainRule, bool) {
+	m, err := s.loadModel()
+	if err != nil {
+		return 0, nil, false
+	}
+	for _, t := range m.Tables {
+		for _, c := range t.Chains {
+			if c.IsBase() && c.Hook == "forward" && c.ChainType != "nat" {
+				return c.ID, c.Rules, true
+			}
+		}
+	}
+	return 0, nil, false
+}
+
+// handleHardenIDS sends transit traffic to an NFQUEUE for inspection by an inline
+// IDS/IPS (Suricata, Snort). It inserts one `queue num 0 bypass` rule at the top
+// of the forward chain: fail-open, so if no inspector is attached traffic simply
+// continues through the rest of the chain — the box never blackholes transit
+// because Suricata is down. It deliberately never touches the input chain, so the
+// operator's own session is never queued. Model-only; the armed apply still gates
+// the kernel.
+func (s *Server) handleHardenIDS(w http.ResponseWriter, r *http.Request) {
+	fwID, rules, ok := s.forwardChain()
+	if !ok {
+		redirectErr(w, r, "/harden", "There's no forward chain to inspect — this is for a routing/IPS setup. Start from a preset that routes (BGP or WireGuard).")
+		return
+	}
+	for _, rl := range rules {
+		if rl.Enabled && stmtHas(rl, "queue") {
+			http.Redirect(w, r, "/harden", http.StatusSeeOther)
+			return
+		}
+	}
+	rule := store.ChainRule{
+		ChainID: fwID, Enabled: true,
+		Comment:    "inspect transit with an IDS/IPS (fail-open)",
+		Statements: []store.RuleStatement{stmtP("queue", map[string]string{"num": "0", "bypass": "bypass"})},
+	}
+	if _, err := s.store.CreateChainRuleAtStart(rule); err != nil {
+		redirectErr(w, r, "/harden", "Could not add the inspection rule: "+err.Error())
+		return
+	}
+	s.audit(r, "enabled IDS/IPS traffic inspection (NFQUEUE)")
 	http.Redirect(w, r, "/changes", http.StatusSeeOther)
 }

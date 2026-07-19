@@ -228,6 +228,68 @@ func TestHardenSSHBanRecipe(t *testing.T) {
 	}
 }
 
+// TestHardenIDSRecipe drives POST /harden/ids: with a forward chain it inserts a
+// single fail-open queue rule at the top and is idempotent; with no forward chain
+// it's refused rather than writing nowhere. The fail-open placement is a safety
+// property, so the wiring needs coverage.
+func TestHardenIDSRecipe(t *testing.T) {
+	srv, cookie := newTestServer(t)
+
+	// A BGP preset gives us a forward base chain to inspect.
+	if rec := postForm(srv, "/presets/apply", url.Values{"preset": {"bgp-router"}}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("apply preset: %d", rec.Code)
+	}
+
+	rec := postForm(srv, "/harden/ids", url.Values{}, cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("ids: status %d, want 303", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/changes" {
+		t.Errorf("ids redirect = %q, want /changes", loc)
+	}
+	_, rules, ok := srv.forwardChain()
+	if !ok {
+		t.Fatal("forward chain vanished")
+	}
+	var queued int
+	for _, r := range rules {
+		if stmtHas(r, "queue") {
+			queued++
+		}
+	}
+	if queued != 1 {
+		t.Errorf("forward chain has %d queue rules, want 1", queued)
+	}
+
+	// Idempotent: a second click adds no further queue rule.
+	if rec := postForm(srv, "/harden/ids", url.Values{}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("second ids: status %d, want 303", rec.Code)
+	}
+	_, rules2, _ := srv.forwardChain()
+	queued = 0
+	for _, r := range rules2 {
+		if stmtHas(r, "queue") {
+			queued++
+		}
+	}
+	if queued != 1 {
+		t.Errorf("second apply left %d queue rules, want 1", queued)
+	}
+}
+
+// TestHardenIDSNoForwardChain checks the guard: a host with only an input chain
+// can't send transit to an IDS, so the recipe is refused.
+func TestHardenIDSNoForwardChain(t *testing.T) {
+	srv, cookie, _ := dropInputServer(t) // input-only model, no forward chain
+	rec := postForm(srv, "/harden/ids", url.Values{}, cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("no-forward ids: status %d, want 303", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc == "/changes" {
+		t.Error("no-forward ids redirected to /changes; expected refusal")
+	}
+}
+
 func TestPostureScoreExcludesInfo(t *testing.T) {
 	checks := []postureCheck{
 		{Status: posturePass}, {Status: posturePass}, {Status: postureWarn}, {Status: postureInfo},
