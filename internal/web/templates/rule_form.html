@@ -19,7 +19,6 @@
 <script type="application/json" id="pagedata">{{.PageDataJSON}}</script>
 
 <form id="rule-form" method="post" action="{{if .IsNew}}/firewall/chains/{{.Chain.ID}}/rules/new{{else}}/firewall/rules/{{.RuleID}}/edit{{end}}" class="split">
-<input type="hidden" name="chain_id" value="{{.Chain.ID}}">
 <div class="split-main">
 
 	<div class="card">
@@ -145,6 +144,13 @@
 
 	<div class="card">
 		<div class="card-body">
+			<div class="field">
+				<label for="chain_id">Chain{{if not .IsNew}} <span class="text-muted">(change to move this rule)</span>{{end}}</label>
+				<select name="chain_id" id="chain_id">
+					{{range .Chains}}<option value="{{.ID}}"{{if eq .ID $.Chain.ID}} selected{{end}}>{{.Name}}</option>{{end}}
+				</select>
+				<div class="hint">{{if .IsNew}}Which chain this rule is added to — any chain in table <span class="mono">{{.Table.Family}} {{.Table.Name}}</span>.{{else}}Pick a different chain in this table to move the rule there; it lands at the bottom, ready to reorder.{{end}}</div>
+			</div>
 			<div class="field-row">
 				<div class="field">
 					<label for="comment">Comment <span class="text-muted">(optional, helps you remember what this rule is for)</span></label>

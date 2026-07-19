@@ -677,6 +677,25 @@ func (s *Store) MoveChainRule(id int64, dir int) error {
 	return s.moveScoped("nft_rules", "chain_id", id, dir)
 }
 
+// ReassignChainRule moves a rule to the end of a different chain. The editor's
+// chain selector uses it so a rule authored in the wrong chain can be relocated
+// without re-entering it. The row lands at the bottom of the target (position
+// past its current last rule); the caller is responsible for keeping the target
+// in the same table, so the rendered family stays compatible. The MAX(position)
+// subquery reads the target chain, which does not yet contain this row, so it
+// computes the target's real tail.
+func (s *Store) ReassignChainRule(ruleID, targetChainID int64) error {
+	res, err := s.db.Exec(`UPDATE nft_rules
+		SET chain_id = ?,
+		    position = (SELECT COALESCE(MAX(position), 0) + 1 FROM nft_rules WHERE chain_id = ?),
+		    updated_at = ?
+		WHERE id = ?`, targetChainID, targetChainID, now(), ruleID)
+	if err != nil {
+		return fmt.Errorf("store: reassign rule: %w", err)
+	}
+	return notFoundIfZero(res)
+}
+
 // moveScoped is moveInOrder restricted to a parent scope: it swaps positions
 // with the neighbour that shares the same scopeCol value (table_id for chains,
 // chain_id for rules), so moving never crosses into another table/chain.

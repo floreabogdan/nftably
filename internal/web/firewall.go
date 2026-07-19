@@ -391,6 +391,7 @@ type actRow struct {
 type ruleFormVM struct {
 	nav
 	Chain           store.Chain
+	Chains          []store.Chain // sibling chains in the same table, for the "move to chain" selector
 	Table           store.Table
 	RuleID          int64
 	Comment         string
@@ -462,6 +463,12 @@ func (s *Server) ruleForm(w http.ResponseWriter, r *http.Request, vm ruleFormVM)
 	vm.nav = s.navFor(r, "firewall")
 	if t, err := s.store.GetTable(vm.Chain.TableID); err == nil {
 		vm.Table = t
+	}
+	// Sibling chains in this table power the editor's chain selector — a rule can
+	// be moved (or, when new, placed) into any chain of the same table, keeping
+	// the rendered family compatible.
+	if chains, err := s.store.ListChains(vm.Chain.TableID); err == nil {
+		vm.Chains = chains
 	}
 	vm.MatchGroups = nftcat.MatchGroups()
 	vm.StatementGroups = nftcat.StatementGroups()
@@ -649,11 +656,26 @@ func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The editor's chain selector can retarget the rule to another chain in the
+	// same table. The render check above used this table's family, and the target
+	// shares it, so a move can't turn a valid rule invalid. A different-table (and
+	// thus different-family) selection is ignored — it would need re-authoring.
+	target := chain
+	if selID, _ := strconv.ParseInt(r.FormValue("chain_id"), 10, 64); selID != 0 && selID != chain.ID {
+		if tc, err := s.store.GetChain(selID); err == nil && tc.TableID == chain.TableID {
+			target = tc
+		}
+	}
+
 	var err error
 	if isNew {
+		rule.ChainID = target.ID
 		_, err = s.store.CreateChainRule(rule)
 	} else {
 		err = s.store.UpdateChainRule(rule)
+		if err == nil && target.ID != rule.ChainID {
+			err = s.store.ReassignChainRule(rule.ID, target.ID)
+		}
 	}
 	if err != nil {
 		vm.Errors = []string{err.Error()}
@@ -662,7 +684,7 @@ func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
 		s.ruleForm(w, r, vm)
 		return
 	}
-	s.audit(r, "saved a rule in chain "+chain.Name)
+	s.audit(r, "saved a rule in chain "+target.Name)
 	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
 }
 
@@ -732,6 +754,8 @@ func (s *Server) handleRuleDuplicate(w http.ResponseWriter, r *http.Request) {
 		ChainID:    src.ChainID,
 		Comment:    strings.TrimSpace(src.Comment + " (copy)"),
 		Enabled:    src.Enabled,
+		Raw:        src.Raw,
+		Tags:       src.Tags,
 		Matches:    append([]store.RuleMatch(nil), src.Matches...),
 		Statements: append([]store.RuleStatement(nil), src.Statements...),
 	}
