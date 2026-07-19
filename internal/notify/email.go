@@ -32,60 +32,86 @@ func sendSMTP(d store.Destination, tos []string, msg string) error {
 	if d.SMTPUsername != "" {
 		auth = smtp.PlainAuth("", d.SMTPUsername, d.SMTPPassword, d.SMTPHost)
 	}
-	client, err := dialSMTP(d, addr)
+	client, conn, err := dialSMTP(d, addr)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 
+	// net/smtp sets no deadline once the connection is up, so a server that
+	// completes the handshake then stalls mid-conversation would hang this
+	// goroutine forever — and deliverLoop drains the whole alert queue on a
+	// single goroutine, so one stuck email would freeze every other alert.
+	// Give each step its own fresh budget.
+	step := func() { _ = conn.SetDeadline(time.Now().Add(smtpTimeout)) }
+
 	if d.SMTPSecurity == store.SMTPStartTLS {
-		if ok, _ := client.Extension("STARTTLS"); ok {
-			if err := client.StartTLS(&tls.Config{ServerName: d.SMTPHost}); err != nil {
-				return fmt.Errorf("starttls: %w", err)
-			}
+		step()
+		// The operator explicitly asked for STARTTLS; if the server doesn't
+		// offer it, fail loudly rather than silently sending the mail in the
+		// clear (a stripped capability is exactly the MITM this guards against).
+		if ok, _ := client.Extension("STARTTLS"); !ok {
+			return fmt.Errorf("starttls requested but the server does not offer it")
+		}
+		if err := client.StartTLS(&tls.Config{ServerName: d.SMTPHost}); err != nil {
+			return fmt.Errorf("starttls: %w", err)
 		}
 	}
 	if auth != nil {
+		step()
 		if err := client.Auth(auth); err != nil {
 			return fmt.Errorf("auth: %w", err)
 		}
 	}
+	step()
 	if err := client.Mail(d.SMTPFrom); err != nil {
 		return fmt.Errorf("mail from: %w", err)
 	}
 	for _, to := range tos {
+		step()
 		if err := client.Rcpt(to); err != nil {
 			return fmt.Errorf("rcpt %s: %w", to, err)
 		}
 	}
+	step()
 	wc, err := client.Data()
 	if err != nil {
 		return fmt.Errorf("data: %w", err)
 	}
+	step()
 	if _, err := wc.Write([]byte(msg)); err != nil {
 		return err
 	}
 	if err := wc.Close(); err != nil {
 		return err
 	}
+	step()
 	return client.Quit()
 }
 
 // dialSMTP opens a connection with a timeout — net/smtp's own Dial has none, and
-// a dead mailserver must not hang the sender.
-func dialSMTP(d store.Destination, addr string) (*smtp.Client, error) {
+// a dead mailserver must not hang the sender. It returns the underlying conn so
+// the caller can set per-step deadlines for the rest of the conversation.
+func dialSMTP(d store.Destination, addr string) (*smtp.Client, net.Conn, error) {
+	var conn net.Conn
+	var err error
 	if d.SMTPSecurity == store.SMTPTLS {
-		conn, err := tls.DialWithDialer(&net.Dialer{Timeout: smtpTimeout}, "tcp", addr, &tls.Config{ServerName: d.SMTPHost})
+		conn, err = tls.DialWithDialer(&net.Dialer{Timeout: smtpTimeout}, "tcp", addr, &tls.Config{ServerName: d.SMTPHost})
 		if err != nil {
-			return nil, fmt.Errorf("tls dial: %w", err)
+			return nil, nil, fmt.Errorf("tls dial: %w", err)
 		}
-		return smtp.NewClient(conn, d.SMTPHost)
+	} else {
+		conn, err = net.DialTimeout("tcp", addr, smtpTimeout)
+		if err != nil {
+			return nil, nil, fmt.Errorf("dial: %w", err)
+		}
 	}
-	conn, err := net.DialTimeout("tcp", addr, smtpTimeout)
+	client, err := smtp.NewClient(conn, d.SMTPHost)
 	if err != nil {
-		return nil, fmt.Errorf("dial: %w", err)
+		conn.Close()
+		return nil, nil, err
 	}
-	return smtp.NewClient(conn, d.SMTPHost)
+	return client, conn, nil
 }
 
 // buildMIME assembles a multipart/alternative message.

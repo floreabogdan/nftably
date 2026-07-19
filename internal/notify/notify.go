@@ -55,19 +55,30 @@ func NewDispatcher(st *store.Store, log *slog.Logger, cooldown time.Duration) *D
 	}
 }
 
-func (d *Dispatcher) throttle(kind, subject string) bool {
+// recentlySent reports whether a throttled (kind, subject) was delivered within
+// the cooldown. It only reads — the stamp is written by markSent after a send
+// actually succeeds, so a failed delivery never suppresses a later retry.
+func (d *Dispatcher) recentlySent(kind, subject string) bool {
 	if d.cooldown <= 0 || !throttled[kind] {
 		return false
 	}
 	key := kind + "|" + subject
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	nowT := time.Now()
-	if last, ok := d.last[key]; ok && nowT.Sub(last) < d.cooldown {
-		return true
+	last, ok := d.last[key]
+	return ok && time.Since(last) < d.cooldown
+}
+
+// markSent records that a throttled (kind, subject) was just delivered, opening
+// the cooldown window for it.
+func (d *Dispatcher) markSent(kind, subject string) {
+	if d.cooldown <= 0 || !throttled[kind] {
+		return
 	}
-	d.last[key] = nowT
-	return false
+	key := kind + "|" + subject
+	d.mu.Lock()
+	d.last[key] = time.Now()
+	d.mu.Unlock()
 }
 
 // alert is one thing worth telling the operator, in platform-neutral form.
@@ -191,7 +202,7 @@ func (d *Dispatcher) deliverLoop() {
 }
 
 func (d *Dispatcher) deliverAllSync(kind, subject, message string) {
-	if d.throttle(kind, subject) {
+	if d.recentlySent(kind, subject) {
 		return
 	}
 	dests, err := d.store.EnabledAlertDestinations()
@@ -209,13 +220,21 @@ func (d *Dispatcher) deliverAllSync(kind, subject, message string) {
 		filterKind = store.AlertNftDown
 	}
 	a := d.build(kind, subject, message)
+	delivered := false
 	for _, dest := range dests {
 		if !dest.Wants(filterKind) {
 			continue
 		}
 		if err := d.deliver(dest, a); err != nil {
 			d.log.Warn("alert delivery failed", "destination", dest.Name, "type", dest.Type, "error", err)
+			continue
 		}
+		delivered = true
+	}
+	// Start the cooldown only once the alert actually went out to someone, so a
+	// transient outage doesn't swallow the alerts that follow it.
+	if delivered {
+		d.markSent(kind, subject)
 	}
 }
 
