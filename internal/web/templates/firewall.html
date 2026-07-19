@@ -31,6 +31,42 @@
 {{if .Saved}}<div class="flash">Saved to the model. Go to <a href="/changes">Changes</a> to make it live.</div>{{end}}
 {{if .Err}}<div class="flash flash-error">{{.Err}}</div>{{end}}
 
+<details class="card">
+	<summary class="card-header"><span class="card-title">{{template "icon-route"}} Port forward (wizard)</span></summary>
+	<div class="card-body">
+		<p class="field-hint text-muted">Expose an external port to an internal host. nftably builds the <span class="mono">dnat</span> rule in a
+		nat prerouting chain (creating an <span class="mono">inet nat</span> table if there isn't one) and, if you run a drop-policy forward chain,
+		an accept so the redirected traffic passes it. Review and apply on <a href="/changes">Changes</a>.</p>
+		<form method="post" action="/firewall/port-forward">
+			<div class="field-row">
+				<div class="field">
+					<label for="pf-proto">Protocol</label>
+					<select name="proto" id="pf-proto"><option value="tcp">tcp</option><option value="udp">udp</option></select>
+				</div>
+				<div class="field">
+					<label for="pf-ext">External port</label>
+					<input type="text" name="ext_port" id="pf-ext" placeholder="443" required>
+				</div>
+			</div>
+			<div class="field-row">
+				<div class="field">
+					<label for="pf-host">Internal host</label>
+					<input type="text" name="dest_host" id="pf-host" class="mono" placeholder="192.168.1.10" required>
+				</div>
+				<div class="field">
+					<label for="pf-dport">Internal port <span class="text-muted">(blank = same)</span></label>
+					<input type="text" name="dest_port" id="pf-dport" placeholder="8443">
+				</div>
+			</div>
+			<div class="field">
+				<label for="pf-iface">Only on interface <span class="text-muted">(optional)</span></label>
+				<input type="text" name="iface" id="pf-iface" class="mono" placeholder="wan / eth0" autocomplete="off">
+			</div>
+			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-route"}} Build port forward</button>
+		</form>
+	</div>
+</details>
+
 {{if .LintWarns}}
 <div class="card card-warning">
 	<div class="card-header"><span class="card-title">{{template "icon-alert"}}Heads-up before you apply</span></div>

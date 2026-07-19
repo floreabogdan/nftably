@@ -245,6 +245,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /firewall/rules/{id}/toggle", s.requireAuth(s.handleRuleToggle))
 	s.mux.Handle("POST /firewall/rules/{id}/move", s.requireAuth(s.handleRuleMove))
 	s.mux.Handle("POST /firewall/rules/{id}/duplicate", s.requireAuth(s.handleRuleDuplicate))
+	s.mux.Handle("POST /firewall/port-forward", s.requireAuth(s.handlePortForward))
 	s.mux.Handle("GET /changes", s.requireAuth(s.handleChanges))
 
 	// Simulate: trace a synthetic packet through the candidate model (no kernel).

@@ -92,6 +92,53 @@ func TestVersionRestoreRoundTrip(t *testing.T) {
 	}
 }
 
+// TestPortForwardWizard checks the wizard builds a DNAT rule in a nat
+// prerouting chain and a matching forward-accept, and validates input.
+func TestPortForwardWizard(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	// secure-server gives a drop-policy forward chain to accept the forward into.
+	if rec := postForm(srv, "/presets/apply", url.Values{"preset": {"secure-server"}}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("apply preset: %d", rec.Code)
+	}
+	rec := postForm(srv, "/firewall/port-forward", url.Values{
+		"proto": {"tcp"}, "ext_port": {"443"}, "dest_host": {"192.168.1.10"}, "dest_port": {"8443"},
+	}, cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("port-forward: code=%d, want 303", rec.Code)
+	}
+	m, _ := srv.loadModel()
+	var haveDNAT, haveNatChain, haveForwardAccept bool
+	for _, tbl := range m.Tables {
+		for _, c := range tbl.Chains {
+			if c.IsBase() && c.Hook == "prerouting" && c.ChainType == "nat" {
+				haveNatChain = true
+			}
+			for _, rl := range c.Rules {
+				if stmtHas(rl, "dnat") && matchHas(rl, "tcp.dport", "443") {
+					haveDNAT = true
+				}
+				if c.Hook == "forward" && matchHas(rl, "ip.daddr", "192.168.1.10") && stmtHas(rl, "accept") {
+					haveForwardAccept = true
+				}
+			}
+		}
+	}
+	if !haveNatChain || !haveDNAT {
+		t.Errorf("missing nat chain (%v) or dnat rule (%v)", haveNatChain, haveDNAT)
+	}
+	if !haveForwardAccept {
+		t.Error("no forward-accept for the internal host")
+	}
+
+	// A non-IP destination is rejected.
+	rec = postForm(srv, "/firewall/port-forward", url.Values{
+		"proto": {"tcp"}, "ext_port": {"80"}, "dest_host": {"example.com"},
+	}, cookie)
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "err=") {
+		t.Errorf("non-IP destination should error, got %q", loc)
+	}
+}
+
 // TestUnbanValidation checks canonicalAddr canonicalizes real addresses and
 // rejects anything that could inject nft tokens, and that the unban handler
 // refuses a malformed reference.
