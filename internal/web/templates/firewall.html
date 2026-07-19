@@ -44,7 +44,7 @@
 {{range $t := .Tables}}
 <div class="card">
 	<div class="card-header">
-		<div class="card-title">{{template "icon-shield"}} <span class="mono">{{$t.Family}} {{$t.Name}}</span></div>
+		<span class="card-title">{{template "icon-shield"}} <span class="mono">{{$t.Family}} {{$t.Name}}</span></span>
 		<div class="row-actions">
 			<form method="post" action="/firewall/tables/{{$t.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up" aria-label="Move table {{$t.Name}} up">{{template "icon-up"}}</button></form>
 			<form method="post" action="/firewall/tables/{{$t.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down" aria-label="Move table {{$t.Name}} down">{{template "icon-down"}}</button></form>

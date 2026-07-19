@@ -23,7 +23,7 @@
 <div class="split-main">
 
 	<div class="card">
-		<div class="card-header"><div class="card-title">{{template "icon-info"}} Conditions <span class="text-muted">— what traffic this matches</span></div></div>
+		<div class="card-header"><span class="card-title">{{template "icon-info"}} Conditions <span class="text-muted">— what traffic this matches</span></span></div>
 		<div class="card-body">
 			<div id="conds">
 			{{range $i, $c := .Conds}}
@@ -45,7 +45,7 @@
 	</div>
 
 	<div class="card">
-		<div class="card-header"><div class="card-title">{{template "icon-spark"}} Actions <span class="text-muted">— what to do with it</span></div></div>
+		<div class="card-header"><span class="card-title">{{template "icon-spark"}} Actions <span class="text-muted">— what to do with it</span></span></div>
 		<div class="card-body">
 			<div id="acts">
 			{{range $j, $a := .Acts}}
@@ -120,7 +120,7 @@
 
 <aside class="split-side">
 	<div class="card sticky-preview">
-		<div class="card-header"><div class="card-title">{{template "icon-changes"}} Renders as</div></div>
+		<div class="card-header"><span class="card-title">{{template "icon-changes"}} Renders as</span></div>
 		<div class="card-body">
 			<p class="hint">The exact nftables line this rule becomes, in its chain:</p>
 			<pre class="code-block mono" id="rule-preview" data-chain="{{.Chain.Name}}">{{if .Preview}}{{.Preview}}{{else}}(add a condition or action){{end}}</pre>

@@ -663,9 +663,6 @@ svg.sparkline[data-spark] { cursor: crosshair; }
 .live-badge::before {
 	content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success);
 }
-.tabs { display: flex; gap: 4px; }
-.tab-btn { font-weight: 500; }
-.tab-btn.active { background: var(--btn-primary-bg); border-color: var(--btn-primary-bg); color: #fff; }
 .card-body { padding: var(--space-5); }
 .card-intro { padding: var(--space-4) var(--space-5) 0; color: var(--text-muted); font-size: var(--fs-sm); max-width: 110ch; }
 
@@ -1059,18 +1056,6 @@ td.num, th.num { text-align: right; }
 .a-success { color: var(--success-deep); border-color: color-mix(in srgb, var(--success) 45%, transparent); }
 .a-success:hover { background: color-mix(in srgb, var(--success) 12%, var(--surface)); }
 
-/* ---------- quick actions ---------- */
-.quick-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 20px; }
-.quick-action {
-	display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center;
-	background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card);
-	box-shadow: var(--shadow-card);
-	padding: 24px 12px; color: var(--text); font-size: var(--fs-sm); font-weight: 600;
-}
-.quick-action:hover { text-decoration: none; border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); background: var(--surface-alt); }
-.quick-action-icon { display: flex; align-items: center; justify-content: center; color: var(--secondary-deep); }
-.quick-action-icon svg { width: 24px; height: 24px; }
-
 /* ---------- progress (goal-tracking) ---------- */
 .progress-track { width: 100%; height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--text) 12%, transparent); overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 999px; background: var(--success); }
@@ -1262,7 +1247,7 @@ details.collapse-card:not([open]) > summary.card-header { border-bottom: none; }
 details[open] .collapse-hint::before { content: "hide"; }
 
 /* ---------- motion ---------- */
-.btn, .icon-btn, .sidebar-nav a, .quick-action, .tab-btn {
+.btn, .icon-btn, .sidebar-nav a {
 	transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 
@@ -1306,12 +1291,12 @@ details[open] .collapse-hint::before { content: "hide"; }
    can be bookmarked, and works with JavaScript off. tabs.js upgrades them into
    instant, history-aware swaps. */
 .page-tabs {
-	display: flex; gap: 4px; margin-bottom: 18px; overflow-x: auto;
+	display: flex; gap: var(--space-1); margin-bottom: var(--space-4); overflow-x: auto;
 	border-bottom: 1px solid var(--border);
 }
 .page-tabs a {
-	display: flex; align-items: center; gap: 8px; white-space: nowrap;
-	padding: 9px 15px; font-size: var(--fs-sm); font-weight: 500; color: var(--text-muted);
+	display: flex; align-items: center; gap: var(--space-2); white-space: nowrap;
+	padding: var(--space-2) var(--space-4); font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted);
 	border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
 .page-tabs a:hover { color: var(--text); text-decoration: none; }
@@ -1422,8 +1407,8 @@ details[open] .collapse-hint::before { content: "hide"; }
 .combo-option-help { font-size: var(--fs-2xs); color: var(--text-muted); }
 
 /* ---------- chains as tabs ---------- */
-.chain-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 14px; }
-.chain-tab { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid transparent; border-bottom: none;
+.chain-tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); border-bottom: 2px solid var(--border); margin-bottom: var(--space-4); }
+.chain-tab { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); border: 1px solid transparent; border-bottom: none;
 	border-radius: var(--radius-control) var(--radius-control) 0 0; background: transparent; color: var(--text-muted);
 	font-size: var(--fs-sm); font-weight: 600; cursor: pointer; margin-bottom: -2px; }
 .chain-tab:hover { color: var(--text); background: var(--surface-alt); }
