@@ -100,6 +100,8 @@ var matches = []Match{
 		Help: "Where the packet is headed (IPv4). Same value forms as the source.", Example: "203.0.113.10"},
 	{Key: "ip.ttl", Label: "TTL (IPv4)", Group: "IPv4", Expr: "ip ttl", Kind: KindInt, Ops: []string{"==", "!=", "<", ">", "<=", ">="}, Families: []string{"inet", "ip"},
 		Help: "IPv4 time-to-live. For BGP GTSM, directly-connected peers send TTL 255 — accepting only ttl 255 rejects spoofed BGP from farther away.", Example: "255"},
+	{Key: "ip.dscp", Label: "DSCP / QoS class (IPv4)", Group: "IPv4", Expr: "ip dscp", Kind: KindText, Ops: []string{"==", "!="}, Families: []string{"inet", "ip"},
+		Help: "The IPv4 Differentiated Services (QoS) class — a keyword like ef, af11, cs0, or a number 0-63. Match it to prioritise or police traffic marked by an upstream device.", Example: "ef"},
 
 	// IPv6
 	{Key: "ip6.saddr", Label: "Source address (IPv6)", Group: "IPv6", Expr: "ip6 saddr", Kind: KindText, Ops: []string{"==", "!="}, Families: []string{"inet", "ip6"},
@@ -108,6 +110,8 @@ var matches = []Match{
 		Help: "Where the packet is headed, IPv6.", Example: "2001:db8::1"},
 	{Key: "ip6.hoplimit", Label: "Hop limit (IPv6)", Group: "IPv6", Expr: "ip6 hoplimit", Kind: KindInt, Ops: []string{"==", "!=", "<", ">", "<=", ">="}, Families: []string{"inet", "ip6"},
 		Help: "IPv6 hop limit (the v6 equivalent of TTL). For BGP GTSM over IPv6, accept only hoplimit 255 from directly-connected peers.", Example: "255"},
+	{Key: "ip6.dscp", Label: "DSCP / QoS class (IPv6)", Group: "IPv6", Expr: "ip6 dscp", Kind: KindText, Ops: []string{"==", "!="}, Families: []string{"inet", "ip6"},
+		Help: "The IPv6 Differentiated Services (QoS) class — a keyword like ef, af11, cs0, or a number 0-63.", Example: "ef"},
 
 	// Ports
 	{Key: "tcp.dport", Label: "Destination port (TCP)", Group: "Ports", Expr: "tcp dport", Kind: KindPort, Ops: []string{"==", "!=", "<", ">", "<=", ">="}, NeedsL4: "tcp",
@@ -148,6 +152,8 @@ var matches = []Match{
 			{"dnat", "dnat", "The destination address was rewritten (a port-forward)."},
 			{"snat", "snat", "The source address was rewritten (masquerade/SNAT)."},
 		}},
+	{Key: "ct.helper", Label: "Connection helper", Group: "Connection", Expr: "ct helper", Kind: KindText, Quote: true, Ops: []string{"==", "!="},
+		Help: "Match a connection being tracked by a named conntrack helper (e.g. \"ftp\", \"sip\") — the assistants that follow protocols which open extra data channels. Use it to accept the related channels a helper predicts.", Example: "ftp"},
 
 	// ICMP
 	{Key: "icmp.type", Label: "ICMP type (IPv4)", Group: "ICMP", Expr: "icmp type", Kind: KindFlags, Ops: []string{"==", "!="}, NeedsL4: "icmp",
@@ -298,6 +304,9 @@ var statements = []Statement{
 		}},
 	{Key: "counter", Label: "Count", Group: "Observe", Help: "Tally the packets and bytes that match this rule. Once applied, the running total shows next to the rule on the Firewall page.", Example: "counter",
 		render: func(_ map[string]string, _ Ctx) (string, error) { return "counter", nil }},
+	{Key: "meta.nftrace.set", Label: "Trace (for nft monitor trace)", Group: "Observe", Example: "meta nftrace set 1",
+		Help:   "Flag matching packets for tracing, so `nft monitor trace` prints every rule they hit as they cross the ruleset — a powerful last-resort debugging aid. Match it to the traffic you're chasing, apply, then watch the trace. Remove it when you're done; it's noisy.",
+		render: func(_ map[string]string, _ Ctx) (string, error) { return "meta nftrace set 1", nil }},
 
 	// Rate limiting
 	{Key: "limit", Label: "Rate limit", Group: "Rate limiting", Example: "limit rate 10/minute burst 5 packets",
@@ -357,6 +366,30 @@ var statements = []Statement{
 				return "", err
 			}
 			return "ct mark set " + v, nil
+		}},
+	{Key: "dscp.set", Label: "Set DSCP / QoS class", Group: "Marking", Example: "ip dscp set ef",
+		Help: "Stamp a Differentiated Services (QoS) class on the packet so downstream devices can prioritise it — e.g. mark VoIP as 'ef' (expedited forwarding). DSCP lives in the IP header, so pick the family.",
+		Params: []Param{
+			{Key: "family", Label: "Family", Kind: KindEnum, Help: "Which IP header to stamp.",
+				Options: []Option{{"ip", "IPv4", ""}, {"ip6", "IPv6", ""}}},
+			{Key: "value", Label: "Class", Kind: KindText, Placeholder: "ef", Help: "A DSCP keyword (ef, af11, cs0…) or a number 0-63."},
+		},
+		render: func(p map[string]string, _ Ctx) (string, error) {
+			fam := strings.TrimSpace(p["family"])
+			if fam == "" {
+				fam = "ip"
+			}
+			if fam != "ip" && fam != "ip6" {
+				return "", fmt.Errorf("DSCP family must be ip or ip6")
+			}
+			v := strings.TrimSpace(p["value"])
+			if v == "" {
+				return "", fmt.Errorf("DSCP needs a class (a keyword or 0-63)")
+			}
+			if err := checkSafe("DSCP class", v); err != nil {
+				return "", err
+			}
+			return fam + " dscp set " + v, nil
 		}},
 
 	// NAT (only meaningful in nat-type chains)
@@ -512,6 +545,34 @@ var statements = []Statement{
 	{Key: "notrack", Label: "Don't track (skip connection tracking)", Group: "Advanced", Example: "notrack",
 		Help:   "Exempt matching packets from connection tracking — a performance win for high-volume stateless traffic (e.g. an authoritative DNS server). Only works in a chain at 'raw' priority (prerouting or output).",
 		render: func(_ map[string]string, _ Ctx) (string, error) { return "notrack", nil }},
+	{Key: "tproxy", Label: "Transparent proxy (TPROXY)", Group: "Advanced", Example: "tproxy ip to :50080",
+		Help: "Hand the packet to a local transparent proxy without rewriting its destination — the proxy sees the original target. Belongs in a prerouting chain at mangle priority, matched on the transport/port you're intercepting; the proxy listens on the port here with IP_TRANSPARENT. Needs the kernel's TPROXY support.",
+		Params: []Param{
+			{Key: "family", Label: "Family", Kind: KindEnum, Optional: true, Help: "In an inet table TPROXY must name the family; ignored in ip/ip6 tables.",
+				Options: []Option{{"ip", "IPv4", ""}, {"ip6", "IPv6", ""}}},
+			{Key: "port", Label: "To local port", Kind: KindPort, Placeholder: "50080", Help: "The port your transparent proxy listens on."},
+		},
+		render: func(p map[string]string, ctx Ctx) (string, error) {
+			port := strings.TrimSpace(p["port"])
+			if port == "" {
+				return "", fmt.Errorf("tproxy needs a local port")
+			}
+			if err := checkPort("tproxy port", port); err != nil {
+				return "", err
+			}
+			qual := ""
+			if ctx.Family == "inet" {
+				fam := strings.TrimSpace(p["family"])
+				if fam == "" {
+					fam = "ip"
+				}
+				if fam != "ip" && fam != "ip6" {
+					return "", fmt.Errorf("tproxy family must be ip or ip6")
+				}
+				qual = fam + " "
+			}
+			return fmt.Sprintf("tproxy %sto :%s", qual, port), nil
+		}},
 }
 
 // ── lookups ─────────────────────────────────────────────────────────────────

@@ -41,7 +41,7 @@ All notable changes to nftably are recorded here. The format follows
   cryptic error. The Firewall and Changes pages now warn about that specific combo
   before you apply — surfaced by a full real-kernel sweep that applied every
   catalogue knob and tweak to an isolated nftables container, now repeatable via
-  `scripts/validate-catalogue.sh` (95 variations load cleanly on nft 1.0.9).
+  `scripts/validate-catalogue.sh` (103 variations load cleanly on nft 1.0.9).
 - **Prometheus label values were double-escaped.** A rule comment (or table/chain
   name) containing a quote or backslash came out escaped twice in `/metrics`,
   storing the wrong value in Prometheus. The purpose-built escaper now runs once.
@@ -86,6 +86,14 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **More catalogue knobs.** Transparent proxy (**tproxy**) for handing traffic to a
+  local proxy without rewriting its destination; **DSCP/QoS** — matching (`ip`/`ip6
+  dscp`) and setting (`… dscp set ef`); a **conntrack-helper** match (`ct helper
+  "ftp"`); and a **trace toggle** (`meta nftrace set 1`) that lights up
+  `nft monitor trace` for debugging. Each is fully explained like every other knob
+  and verified against nft 1.0.9 (tproxy needs the kernel's TPROXY module, like
+  synproxy/queue). Left out for now: numgen/jhash load-balancing and secmark, which
+  need map/object or SELinux support that doesn't fit the single-knob model.
 - **Three more presets for the hosts people actually run.** A **web server** (HTTP/
   HTTPS open, SSH from @mgmt); a **database server** (PostgreSQL/MySQL scoped to an
   @app tier, never the internet); and a **Docker / container host** — which

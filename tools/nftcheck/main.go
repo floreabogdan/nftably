@@ -74,6 +74,9 @@ func stmtCtx(key string) ctx {
 		return ctx{family: "inet", hook: "postrouting", ctype: "nat", prio: "srcnat", policy: "accept"}
 	case "notrack":
 		return ctx{family: "inet", hook: "prerouting", ctype: "filter", prio: "raw", policy: "accept"}
+	case "tproxy":
+		return ctx{family: "inet", hook: "prerouting", ctype: "filter", prio: "mangle", policy: "accept",
+			extra: []store.RuleMatch{mt("tcp.dport", "==", "80")}}
 	case "synproxy":
 		c.extra = []store.RuleMatch{mt("tcp.dport", "==", "80"), mt("ct.state", "==", "new")}
 	case "tcp.mss.clamp":
@@ -116,6 +119,10 @@ func stmtParams(key string) map[string]string {
 		return map[string]string{"num": "0", "bypass": "bypass"}
 	case "ban.rate":
 		return map[string]string{"set": "abusers", "family": "ip", "rate": "10", "per": "minute", "burst": "5", "timeout": "1h"}
+	case "dscp.set":
+		return map[string]string{"family": "ip", "value": "ef"}
+	case "tproxy":
+		return map[string]string{"family": "ip", "port": "50080"}
 	}
 	return map[string]string{}
 }
@@ -187,7 +194,7 @@ func main() {
 	emit("tweak:ip6-family", render(ctx{family: "ip6", hook: "input", ctype: "filter", prio: "filter", policy: "drop"},
 		store.ChainRule{Enabled: true, Matches: []store.RuleMatch{mt("ip6.saddr", "==", "2001:db8::/32")}, Statements: acc}))
 	emit("tweak:combo-ssh", render(base(), store.ChainRule{Enabled: true,
-		Matches: []store.RuleMatch{mt("ip.saddr", "==", "192.168.0.0/16"), mt("tcp.dport", "==", "22"), mt("ct.state", "==", "new")},
+		Matches:    []store.RuleMatch{mt("ip.saddr", "==", "192.168.0.0/16"), mt("tcp.dport", "==", "22"), mt("ct.state", "==", "new")},
 		Statements: []store.RuleStatement{stmt("limit", map[string]string{"rate": "10", "per": "minute", "burst": "5"}), stmt("log", map[string]string{"prefix": "ssh "}), {Key: "accept", Params: "{}"}}}))
 
 	// A named-set reference needs a backing list to render its set block.

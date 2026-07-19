@@ -22,6 +22,10 @@ func TestRenderMatch(t *testing.T) {
 		// Valueless match: expression only, operator and value ignored.
 		{"fib.rpf", "==", "", "fib saddr . iif oif missing"},
 		{"fib.rpf", "", "anything", "fib saddr . iif oif missing"},
+		// Broadened catalogue.
+		{"ct.helper", "==", "ftp", `ct helper "ftp"`},
+		{"ip.dscp", "==", "ef", "ip dscp ef"},
+		{"ip6.dscp", "!=", "cs0", "ip6 dscp != cs0"},
 	}
 	for _, c := range cases {
 		got, err := RenderMatch(c.key, c.op, c.value, Ctx{Family: "inet"})
@@ -72,6 +76,12 @@ func TestRenderStatement(t *testing.T) {
 			"meter ssh_abusers_m4 { ip saddr limit rate over 10/minute burst 5 packets } add @ssh_abusers { ip saddr timeout 1h } drop"},
 		{"ban.rate", map[string]string{"set": "ssh_abusers6", "family": "ip6", "rate": "20", "per": "second"}, "inet",
 			"meter ssh_abusers6_m6 { ip6 saddr limit rate over 20/second } add @ssh_abusers6 { ip6 saddr timeout 1h } drop"},
+		// Broadened catalogue (each rendered form verified against nft v1.0.9).
+		{"dscp.set", map[string]string{"family": "ip", "value": "ef"}, "inet", "ip dscp set ef"},
+		{"dscp.set", map[string]string{"family": "ip6", "value": "cs0"}, "inet", "ip6 dscp set cs0"},
+		{"meta.nftrace.set", nil, "inet", "meta nftrace set 1"},
+		{"tproxy", map[string]string{"family": "ip", "port": "50080"}, "inet", "tproxy ip to :50080"},
+		{"tproxy", map[string]string{"port": "50080"}, "ip", "tproxy to :50080"},
 	}
 	for _, c := range cases {
 		got, err := RenderStatement(c.key, c.params, Ctx{Family: c.family})
@@ -123,6 +133,9 @@ func TestRejectsInjection(t *testing.T) {
 		{"ban.rate", map[string]string{"set": "ok", "family": "arp", "rate": "10"}},                     // family nft can't ban by
 		{"ban.rate", map[string]string{"set": "ok", "family": "ip", "rate": "x"}},                       // non-numeric rate
 		{"ban.rate", map[string]string{"set": "ok", "family": "ip", "rate": "10", "timeout": "1 drop"}}, // bad duration
+		{"dscp.set", map[string]string{"family": "arp", "value": "ef"}},                                 // family nft can't dscp
+		{"dscp.set", map[string]string{"family": "ip", "value": "ef; drop"}},                            // separator in value
+		{"tproxy", map[string]string{"family": "ip", "port": "80 drop"}},                                // non-port
 	}
 	for _, c := range stmtCases {
 		if _, err := RenderStatement(c.key, c.params, Ctx{Family: "inet"}); err == nil {
