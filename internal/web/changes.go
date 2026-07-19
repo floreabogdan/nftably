@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,6 +10,33 @@ import (
 	nftconf "github.com/floreabogdan/nftably/internal/render"
 	"github.com/floreabogdan/nftably/internal/store"
 )
+
+// handleVersionRestore loads a past version's model snapshot back into the
+// object model. Model-only: it lands the operator on Changes to review and
+// apply behind the armed auto-revert, exactly like a backup restore — nothing
+// touches the kernel here.
+func (s *Server) handleVersionRestore(w http.ResponseWriter, r *http.Request) {
+	v, err := s.store.GetConfigVersion(pathID(r))
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	if !v.HasSnapshot() {
+		redirectErr(w, r, "/changes", fmt.Sprintf("Version #%d has no saved snapshot to restore (it predates snapshots).", v.ID))
+		return
+	}
+	var doc backupDoc
+	if err := json.Unmarshal([]byte(v.Snapshot), &doc); err != nil {
+		redirectErr(w, r, "/changes", "That version's snapshot is unreadable.")
+		return
+	}
+	if err := s.restoreBackup(doc); err != nil {
+		redirectErr(w, r, "/changes", "Restore failed: "+err.Error())
+		return
+	}
+	s.audit(r, fmt.Sprintf("restored the model from version #%d", v.ID))
+	http.Redirect(w, r, "/changes?saved=Restored+into+the+model+—+review+and+apply+below.", http.StatusSeeOther)
+}
 
 type changesVM struct {
 	nav
@@ -30,6 +58,7 @@ type changesVM struct {
 	LintWarns []string            // footgun warnings shown next to the apply button
 	Summary   []applyTableSummary // a scannable outline of the candidate model
 	ApplyErr  string              // why the last apply attempt failed, if it did
+	Flash     string              // a success banner carried on a redirect (?saved=)
 	// Pending is the armed apply awaiting confirmation; nil when none.
 	Pending *pendingVM
 	History []store.ConfigVersion
@@ -122,6 +151,8 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 		Candidate: nftconf.Config(m),
 		LintWarns: append(nftconf.Lint(m, s.listenAddr), s.simulatedLockoutWarnings(r, m)...),
 		SetupDone: r.URL.Query().Get("setup") == "1",
+		Flash:     r.URL.Query().Get("saved"),
+		ApplyErr:  r.URL.Query().Get("err"),
 	}
 	for _, t := range m.Tables {
 		for _, c := range t.Chains {

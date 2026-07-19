@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -48,6 +49,46 @@ func TestRuleSaveCreatesAndRejects(t *testing.T) {
 	}
 	if rules, _ := srv.store.ListChainRules(chainID); len(rules) != 1 {
 		t.Errorf("an invalid rule was persisted: chain now has %d rules", len(rules))
+	}
+}
+
+// TestVersionRestoreRoundTrip checks that a stored version snapshot can be
+// restored back into the model after the model has been wiped.
+func TestVersionRestoreRoundTrip(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	// Build a model, snapshot it into a config version, then wipe the model.
+	if rec := postForm(srv, "/presets/apply", url.Values{"preset": {"secure-server"}}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("apply preset: %d", rec.Code)
+	}
+	doc, err := srv.buildBackup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, _ := json.Marshal(doc)
+	vid, err := srv.store.InsertConfigVersion("admin", "config-text", string(snap), store.VersionConfirmed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.resetTables(); err != nil {
+		t.Fatal(err)
+	}
+	if tbls, _ := srv.store.ListTables(); len(tbls) != 0 {
+		t.Fatalf("expected wiped model, got %d tables", len(tbls))
+	}
+
+	rec := postForm(srv, "/changes/restore/"+strconv.FormatInt(vid, 10), nil, cookie)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") == "" {
+		t.Fatalf("restore: code=%d, want 303 redirect", rec.Code)
+	}
+	if tbls, _ := srv.store.ListTables(); len(tbls) == 0 {
+		t.Error("restore did not bring the model back")
+	}
+
+	// A version with no snapshot cannot be restored.
+	vid2, _ := srv.store.InsertConfigVersion("admin", "config-text", "", store.VersionConfirmed)
+	rec = postForm(srv, "/changes/restore/"+strconv.FormatInt(vid2, 10), nil, cookie)
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "err=") {
+		t.Errorf("restoring a snapshot-less version should error, got loc=%q", loc)
 	}
 }
 

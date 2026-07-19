@@ -234,6 +234,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /apply", s.requireAuth(s.handleApply))
 	s.mux.Handle("POST /apply/confirm", s.requireAuth(s.handleApplyConfirm))
 	s.mux.Handle("POST /apply/rollback", s.requireAuth(s.handleApplyRollback))
+	s.mux.Handle("POST /changes/restore/{id}", s.requireAuth(s.handleVersionRestore))
 
 	// Connections: the live conntrack view with one-click block.
 	s.mux.Handle("GET /connections", s.requireAuth(s.handleConnections))

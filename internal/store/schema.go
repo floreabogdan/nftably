@@ -71,12 +71,13 @@ CREATE TABLE IF NOT EXISTS events (
 -- fired or the operator rolled back), or failed (nft -f rejected it).
 CREATE TABLE IF NOT EXISTS config_versions (
 	id         INTEGER PRIMARY KEY AUTOINCREMENT,
-	ts         TEXT NOT NULL,
-	actor      TEXT NOT NULL DEFAULT '',
-	config     TEXT NOT NULL,
-	status     TEXT NOT NULL,
-	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL
+	ts             TEXT NOT NULL,
+	actor          TEXT NOT NULL DEFAULT '',
+	config         TEXT NOT NULL,
+	model_snapshot TEXT NOT NULL DEFAULT '',
+	status         TEXT NOT NULL,
+	created_at     TEXT NOT NULL,
+	updated_at     TEXT NOT NULL
 );
 
 -- M6 named address lists, rendered as nft sets (<name>4 / <name>6). The

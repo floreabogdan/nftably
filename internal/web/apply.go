@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -108,7 +109,17 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actor := s.currentUser(r).Username
-	versionID, err := s.store.InsertConfigVersion(actor, candidate, store.VersionPending)
+	// Capture the model as a backup document alongside the rendered config, so
+	// this version can later be restored into the object model exactly. A
+	// snapshot failure must not block the apply — it just means this version
+	// won't be restorable.
+	var snapshot string
+	if doc, berr := s.buildBackup(); berr == nil {
+		if b, jerr := json.Marshal(doc); jerr == nil {
+			snapshot = string(b)
+		}
+	}
+	versionID, err := s.store.InsertConfigVersion(actor, candidate, snapshot, store.VersionPending)
 	if err != nil {
 		s.serverError(w, "record config version", err)
 		return

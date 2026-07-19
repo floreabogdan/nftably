@@ -23,14 +23,22 @@ type ConfigVersion struct {
 	Actor  string
 	Config string
 	Status string
+	// Snapshot is the full object model as a backup JSON document, captured at
+	// apply time so a past version can be restored into the model exactly.
+	// Empty for versions recorded before snapshots were kept.
+	Snapshot string
 }
 
-// InsertConfigVersion records a new version and returns its id.
-func (s *Store) InsertConfigVersion(actor, config, status string) (int64, error) {
+// HasSnapshot reports whether this version can be restored into the model.
+func (v ConfigVersion) HasSnapshot() bool { return v.Snapshot != "" }
+
+// InsertConfigVersion records a new version and returns its id. snapshot is the
+// backup-JSON of the model being applied (may be empty).
+func (s *Store) InsertConfigVersion(actor, config, snapshot, status string) (int64, error) {
 	ts := now()
 	res, err := s.db.Exec(`
-		INSERT INTO config_versions (ts, actor, config, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)`, ts, actor, config, status, ts, ts)
+		INSERT INTO config_versions (ts, actor, config, model_snapshot, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, ts, actor, config, snapshot, status, ts, ts)
 	if err != nil {
 		return 0, fmt.Errorf("store: insert config version: %w", err)
 	}
@@ -50,8 +58,8 @@ func (s *Store) SetConfigVersionStatus(id int64, status string) error {
 func (s *Store) GetConfigVersion(id int64) (ConfigVersion, error) {
 	var v ConfigVersion
 	var ts string
-	row := s.db.QueryRow(`SELECT id, ts, actor, config, status FROM config_versions WHERE id = ?`, id)
-	err := row.Scan(&v.ID, &ts, &v.Actor, &v.Config, &v.Status)
+	row := s.db.QueryRow(`SELECT id, ts, actor, config, model_snapshot, status FROM config_versions WHERE id = ?`, id)
+	err := row.Scan(&v.ID, &ts, &v.Actor, &v.Config, &v.Snapshot, &v.Status)
 	if err == sql.ErrNoRows {
 		return ConfigVersion{}, ErrNotFound
 	}
@@ -65,7 +73,12 @@ func (s *Store) GetConfigVersion(id int64) (ConfigVersion, error) {
 // ListConfigVersions returns the most recent versions, newest first, without
 // their config text (the list view doesn't need the payload).
 func (s *Store) ListConfigVersions(limit int) ([]ConfigVersion, error) {
-	rows, err := s.db.Query(`SELECT id, ts, actor, status FROM config_versions ORDER BY id DESC LIMIT ?`, limit)
+	// model_snapshot can be large, so the list only carries a presence marker in
+	// Snapshot ("1"/"") — enough for HasSnapshot() to gate the Restore button.
+	// The full payload is loaded by GetConfigVersion at restore time.
+	rows, err := s.db.Query(`
+		SELECT id, ts, actor, status, CASE WHEN model_snapshot != '' THEN '1' ELSE '' END
+		FROM config_versions ORDER BY id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: list config versions: %w", err)
 	}
@@ -75,7 +88,7 @@ func (s *Store) ListConfigVersions(limit int) ([]ConfigVersion, error) {
 	for rows.Next() {
 		var v ConfigVersion
 		var ts string
-		if err := rows.Scan(&v.ID, &ts, &v.Actor, &v.Status); err != nil {
+		if err := rows.Scan(&v.ID, &ts, &v.Actor, &v.Status, &v.Snapshot); err != nil {
 			return nil, fmt.Errorf("store: scan config version: %w", err)
 		}
 		v.Ts, _ = time.Parse(time.RFC3339Nano, ts)

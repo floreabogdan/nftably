@@ -14,6 +14,8 @@
 <div class="card card-success"><div class="card-body"><strong>Setup saved.</strong> Below is exactly what will be loaded into the kernel — review the diff, then apply. The auto-revert stays armed until you confirm, so even a bad choice cannot lock you out.</div></div>
 {{end}}
 
+{{if .Flash}}<div class="card card-success"><div class="card-body">{{.Flash}}</div></div>{{end}}
+
 {{if .ApplyErr}}
 <div class="card card-danger"><div class="card-body">
 	<strong>Apply failed.</strong> The kernel ruleset was not changed.
@@ -128,7 +130,7 @@
 	<div class="card-header"><span class="card-title">{{template "icon-clock"}}Recent applies</span></div>
 	<div class="table-scroll">
 		<table>
-			<thead><tr><th>#</th><th>When</th><th>By</th><th>Outcome</th></tr></thead>
+			<thead><tr><th>#</th><th>When</th><th>By</th><th>Outcome</th><th></th></tr></thead>
 			<tbody>
 				{{range .History}}
 				<tr>
@@ -140,6 +142,9 @@
 						{{else if eq .Status "pending"}}<span class="badge badge-warning">pending</span>
 						{{else if eq .Status "reverted"}}<span class="badge badge-secondary">reverted</span>
 						{{else}}<span class="badge badge-danger">{{.Status}}</span>{{end}}
+					</td>
+					<td>
+						{{if .HasSnapshot}}<form method="post" action="/changes/restore/{{.ID}}" data-confirm="Load version #{{.ID}} back into the model? Nothing is applied until you review and apply it below."><button type="submit" class="btn btn-sm">{{template "icon-changes"}} Restore</button></form>{{end}}
 					</td>
 				</tr>
 				{{end}}

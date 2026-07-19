@@ -13,7 +13,7 @@ import (
 //
 // nftably's database is a single file the user can snapshot and restore, so
 // migrations must be forward-only and safe to re-run.
-const schemaVersion = 11
+const schemaVersion = 12
 
 func migrate(db *sql.DB) error {
 	var version int
@@ -59,6 +59,9 @@ func migrate(db *sql.DB) error {
 		{"settings", "theme_mode", `TEXT NOT NULL DEFAULT ''`},
 		{"settings", "theme_accent", `TEXT NOT NULL DEFAULT 'ocean'`},
 		{"settings", "theme_density", `TEXT NOT NULL DEFAULT 'comfortable'`},
+		// version < 12: per-version model snapshot, so a past version can be
+		// restored back into the object model.
+		{"config_versions", "model_snapshot", `TEXT NOT NULL DEFAULT ''`},
 	}
 	for _, a := range adds {
 		if err := addColumnIfMissing(tx, a.table, a.column, a.ddl); err != nil {
