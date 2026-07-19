@@ -1,6 +1,9 @@
 package nftcat
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRenderMatch(t *testing.T) {
 	cases := []struct {
@@ -94,8 +97,38 @@ func TestRejectsInjection(t *testing.T) {
 	}
 }
 
+// TestRejectsBadOperator verifies a match only accepts the operators its field
+// offers — so an ordered comparison on an address (which nft rejects) is caught
+// at the model boundary, not left to nft --check.
+func TestRejectsBadOperator(t *testing.T) {
+	rejected := []struct{ key, op string }{
+		{"ip.saddr", ">"},      // addresses aren't ordered
+		{"ip.saddr", "<="},     //
+		{"meta.iifname", "<"},  // interfaces aren't ordered
+		{"ct.mark", ">"},       // marks are bitmasks, == / != only
+		{"ct.state", ">="},     // flag sets, == / != only
+		{"tcp.dport", "badop"}, // not an operator at all
+	}
+	for _, c := range rejected {
+		if _, err := RenderMatch(c.key, c.op, "1", Ctx{Family: "inet"}); err == nil {
+			t.Errorf("RenderMatch(%s, %q) accepted an operator the field does not offer", c.key, c.op)
+		}
+	}
+	// The ordered operators are still fine on a numeric field.
+	for _, op := range []string{"==", "!=", "<", ">", "<=", ">="} {
+		if _, err := RenderMatch("tcp.dport", op, "22", Ctx{Family: "inet"}); err != nil {
+			t.Errorf("RenderMatch(tcp.dport, %q): unexpected error %v", op, err)
+		}
+	}
+}
+
 func TestCatalogueJSONValid(t *testing.T) {
 	if s := CatalogueJSON(); len(s) < 2 || s[0] != '{' {
 		t.Fatalf("catalogue JSON looks wrong: %q", s)
+	}
+	// The editor needs each match's operator set to present only sensible
+	// operators; assert it is carried in the JSON.
+	if !strings.Contains(CatalogueJSON(), `"ops"`) {
+		t.Error("catalogue JSON is missing per-match operator sets")
 	}
 }

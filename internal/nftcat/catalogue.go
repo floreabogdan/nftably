@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/netip"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -531,6 +532,17 @@ func checkPort(label, value string) error {
 
 // ── rendering ───────────────────────────────────────────────────────────────
 
+// matchOps is the operator set this match offers, applying the documented
+// default (== then !=) when a knob does not name its own. It is the single
+// source both the editor (to present only sensible operators) and RenderMatch
+// (to reject the rest) read.
+func (m Match) matchOps() []string {
+	if len(m.Ops) > 0 {
+		return m.Ops
+	}
+	return []string{"==", "!="}
+}
+
 // RenderMatch turns a stored match into an nft expression fragment.
 func RenderMatch(key, op, value string, _ Ctx) (string, error) {
 	m, ok := matchByKey[key]
@@ -544,15 +556,22 @@ func RenderMatch(key, op, value string, _ Ctx) (string, error) {
 	if val == "" && m.Kind != KindNone {
 		return "", fmt.Errorf("%s needs a value", m.Label)
 	}
-	switch strings.TrimSpace(op) {
-	case "", "==":
+	op = strings.TrimSpace(op)
+	if op == "" {
+		op = "=="
+	}
+	// Reject an operator this field does not support (e.g. ip saddr > …) at the
+	// model boundary, so it never reaches nft --check as a broken candidate.
+	if !slices.Contains(m.matchOps(), op) {
+		return "", fmt.Errorf("%s: operator %q not allowed here", m.Label, op)
+	}
+	switch op {
+	case "==":
 		return m.Expr + " " + val, nil
 	case "!=":
 		return m.Expr + " != " + val, nil
-	case "<", ">", "<=", ">=":
+	default: // <, >, <=, >= — already checked against the field's allowed set
 		return m.Expr + " " + op + " " + val, nil
-	default:
-		return "", fmt.Errorf("%s: unsupported operator %q", m.Label, op)
 	}
 }
 
@@ -647,6 +666,11 @@ type knobInfo struct {
 	Example string   `json:"example"`
 	Kind    string   `json:"kind,omitempty"`
 	Options []Option `json:"options,omitempty"`
+	// Ops are the operators this match offers, so the editor can present only the
+	// ones that make sense for the field (== / != for an address; the full
+	// ordered set for a port or TTL) instead of a fixed list that lets an operator
+	// build a rule nft then rejects. Empty for statements.
+	Ops []string `json:"ops,omitempty"`
 }
 
 // CatalogueJSON is the whole catalogue as compact JSON, keyed by knob id, for
@@ -654,7 +678,7 @@ type knobInfo struct {
 func CatalogueJSON() string {
 	ms := map[string]knobInfo{}
 	for _, m := range matches {
-		ms[m.Key] = knobInfo{Help: m.Help, Example: m.Example, Kind: kindName(m.Kind), Options: m.Options}
+		ms[m.Key] = knobInfo{Help: m.Help, Example: m.Example, Kind: kindName(m.Kind), Options: m.Options, Ops: m.matchOps()}
 	}
 	ss := map[string]knobInfo{}
 	for _, s := range statements {

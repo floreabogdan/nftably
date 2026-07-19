@@ -17,6 +17,12 @@
 
 	var ADDR_KEYS = { "ip.saddr": 1, "ip.daddr": 1, "ip6.saddr": 1, "ip6.daddr": 1 };
 
+	// Friendlier words for the operator dropdown. The value stays the real nft
+	// operator (so the "Renders as" panel and the save are unaffected); only the
+	// label reads in plain language.
+	var OP_LABEL = { "==": "is", "!=": "is not", "<": "<", "<=": "≤", ">": ">", ">=": "≥" };
+	var DEFAULT_OPS = ["==", "!="];
+
 	function readJSON(id) {
 		var el = document.getElementById(id);
 		if (!el) return null;
@@ -129,20 +135,61 @@
 		return input;
 	}
 
+	// buildOps repopulates a condition row's operator dropdown with only the
+	// operators the chosen field supports (== / != for an address; the full
+	// ordered set for a port or TTL), labelled in plain words. The current
+	// operator is kept when the new field still allows it, else it falls back to
+	// the field's first. With no field chosen the operator is hidden — it has
+	// nothing to compare yet.
+	function buildOps(sel, fieldKey, current) {
+		var info = matches[fieldKey];
+		var ops = (info && info.ops && info.ops.length) ? info.ops : DEFAULT_OPS;
+		sel.hidden = !fieldKey;
+		sel.innerHTML = "";
+		var keep = ops.indexOf(current) !== -1 ? current : ops[0];
+		ops.forEach(function (op) { sel.appendChild(opt(op, OP_LABEL[op] || op, op === keep)); });
+	}
+
+	// makeRemove builds the per-row "remove" control (an ×) and wires it to the
+	// given clear function. Injected by JS so the no-JS form (which drops empty
+	// rows on save) is unaffected.
+	function makeRemove(clear) {
+		var btn = document.createElement("button");
+		btn.type = "button";
+		btn.className = "knob-remove";
+		btn.textContent = "×";
+		btn.title = "Remove";
+		btn.setAttribute("aria-label", "Remove this row");
+		btn.addEventListener("click", clear);
+		return btn;
+	}
+
 	function wireCondRow(row) {
 		var field = row.querySelector(".knob-field");
+		var op = row.querySelector(".knob-op");
 		var cell = row.querySelector(".knob-val-cell");
 		var help = row.querySelector(".knob-help");
 		if (!field || !cell) return;
 		var name = "c_val_" + row.getAttribute("data-index");
-		function update() {
+		var remove = makeRemove(function () {
+			field.value = "";
+			update();
+			row.classList.add("extra"); // hide it; empty rows are ignored on save
+			refreshAddButtons();
+			schedulePreview();
+		});
+		cell.insertAdjacentElement("afterend", remove);
+		function update(focusVal) {
 			var cur = "";
 			var existing = cell.querySelector("[name='" + name + "']");
 			if (existing) cur = existing.value;
+			if (op) buildOps(op, field.value, op.value);
 			var valInput = buildValue(cell, name, field.value, cur);
+			remove.hidden = !field.value;
 			renderHelp(help, matches[field.value], valInput || null);
+			if (focusVal && valInput && valInput.focus) valInput.focus();
 		}
-		field.addEventListener("change", update);
+		field.addEventListener("change", function () { update(true); });
 		update();
 	}
 
@@ -154,12 +201,26 @@
 		// jump/goto target suggests sibling chains.
 		var target = row.querySelector("[name^='a_target_']");
 		if (target) target.setAttribute("list", "chain-list");
+		// Put the action select and its remove control on one line.
+		var head = document.createElement("div");
+		head.className = "act-head";
+		action.parentNode.insertBefore(head, action);
+		head.appendChild(action);
+		var remove = makeRemove(function () {
+			action.value = "";
+			update();
+			row.classList.add("extra");
+			refreshAddButtons();
+			schedulePreview();
+		});
+		head.appendChild(remove);
 		function update() {
 			var key = action.value;
 			params.forEach(function (p) {
 				var forList = (p.getAttribute("data-for") || "").split(",");
 				p.style.display = key && forList.indexOf(key) !== -1 ? "" : "none";
 			});
+			remove.hidden = !key;
 			renderHelp(help, statements[key], null);
 		}
 		action.addEventListener("change", update);
@@ -169,17 +230,31 @@
 	document.querySelectorAll(".cond-row").forEach(wireCondRow);
 	document.querySelectorAll(".act-row").forEach(wireActRow);
 
-	// "Add condition" / "Add action" reveal the next hidden (.extra) row.
+	// "Add condition" / "Add action" reveal the next hidden (.extra) row, move
+	// focus into it, and disable the button once no slots remain (a removed row
+	// becomes a slot again).
+	var addCond = document.getElementById("add-cond");
+	var addAct = document.getElementById("add-act");
+
+	function refreshAddButtons() {
+		if (addCond) addCond.disabled = !document.querySelector("#conds .knob-row.extra");
+		if (addAct) addAct.disabled = !document.querySelector("#acts .knob-row.extra");
+	}
+
 	function revealNext(containerId) {
 		var container = document.getElementById(containerId);
 		if (!container) return;
 		var hidden = container.querySelector(".knob-row.extra");
-		if (hidden) hidden.classList.remove("extra");
+		if (!hidden) return;
+		hidden.classList.remove("extra");
+		var focusable = hidden.querySelector(".knob-field, .knob-action");
+		if (focusable) focusable.focus();
+		refreshAddButtons();
 	}
-	var addCond = document.getElementById("add-cond");
+
 	if (addCond) addCond.addEventListener("click", function () { revealNext("conds"); updatePreview(); });
-	var addAct = document.getElementById("add-act");
 	if (addAct) addAct.addEventListener("click", function () { revealNext("acts"); updatePreview(); });
+	refreshAddButtons();
 
 	// ── live "renders as" preview ────────────────────────────────────────────
 	// As the form changes, ask the server to render the rule (the same renderer

@@ -73,6 +73,14 @@ typed, explained control instead of a fixed form.
 - **Live rule preview.** The editor's "renders as" panel now updates as you type
   (debounced, server-rendered so it can't drift from what applies) and shows the
   rule inside its chain — `chain input { … <your rule> … }`.
+- **A smarter rule editor.** Each condition now offers only the operators its
+  field actually supports — *is* / *is not* for an address or interface, the full
+  ordered set (`is`, `is not`, `<`, `≤`, `>`, `≥`) for a port or TTL — instead of
+  a fixed list that let you build a rule nft then rejected. Operators read in
+  plain words (the "renders as" panel still shows the true nft), the operator
+  stays hidden until you pick a field, choosing a field jumps focus to its value,
+  every condition and action has an explicit **remove (×)**, and *Add
+  condition*/*Add action* grey out when no slots remain.
 - **Live per-rule hit counters.** A rule that carries a *Count* action now shows
   its running packet/byte total next to it on the Firewall page, read live from
   the kernel — build a rule, apply it, and watch it catch traffic. Counters are
@@ -95,7 +103,10 @@ typed, explained control instead of a fixed form.
 - **Rule values are validated before they render.** Match values and statement
   params are checked against nft's structural characters (and, where the grammar
   is known, typed: jump/goto targets must be chain identifiers, marks numeric,
-  NAT targets real addresses, log levels and rate units against fixed sets). This
+  NAT targets real addresses, log levels and rate units against fixed sets). The
+  match **operator** is now checked the same way — a field only accepts the
+  operators it offers, so an ordered comparison on an address (`ip saddr > …`) is
+  refused at the model boundary instead of slipping through to `nft --check`. This
   closes a path by which an authenticated admin could inject nft that escaped the
   owned-table model — and so escaped the pre-apply snapshot and the auto-revert.
 - **Session tokens are hashed (SHA-256) at rest**, so a database read no longer

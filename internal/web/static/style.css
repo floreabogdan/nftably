@@ -1150,10 +1150,19 @@ details[open] .collapse-hint::before { content: "hide"; }
 /* rule editor rows */
 .knob-row { padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-control); margin-bottom: 8px; background: var(--surface); }
 .knob-row.extra { display: none; }
-.cond-row { display: grid; grid-template-columns: minmax(0, 2fr) auto minmax(0, 2fr); gap: 8px; align-items: center; }
+.cond-row { display: grid; grid-template-columns: minmax(0, 2fr) auto minmax(0, 2fr) auto; gap: 8px; align-items: center; }
 .cond-row .knob-help { grid-column: 1 / -1; }
-.knob-op { width: 64px; text-align: center; }
+.knob-op { min-width: 72px; text-align: center; }
 .act-row .knob-action { width: 100%; margin-bottom: 8px; }
+.act-head { display: flex; gap: 8px; align-items: center; }
+.act-head .knob-action { flex: 1 1 auto; margin-bottom: 0; }
+
+/* per-row remove (×) — quiet until hovered, turns danger-red */
+.knob-remove { flex: 0 0 auto; width: 30px; height: 30px; line-height: 1; padding: 0; font-size: 1.15rem;
+	border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-alt);
+	color: var(--text-muted); cursor: pointer; }
+.knob-remove:hover { border-color: var(--danger); color: var(--danger); background: var(--surface); }
+.knob-remove:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .knob-params { display: flex; flex-wrap: wrap; gap: 10px; }
 .param { display: inline-flex; flex-direction: column; gap: 3px; min-width: 140px; }
 .param label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 600; }
