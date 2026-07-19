@@ -268,6 +268,47 @@
 			</form>
 		</div>
 	</div>
+
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">{{template "icon-clock"}}Scheduled backups</span>
+			{{if .BackupAuto}}<span class="badge badge-success">on</span>{{end}}
+		</div>
+		<div class="card-body">
+			<p class="field-hint text-muted">Automatically snapshot your configuration to disk once a day, keeping the last
+			{{/* keep in sync with autoBackupKeep */}}14. Saved under the data directory as <span class="mono">backups/nftably-&lt;date&gt;.json</span> —
+			download any of them below and restore above.</p>
+			{{if not .BackupDirOK}}
+			<p class="field-hint text-muted">Unavailable: nftably has no writable data directory. Start it with <span class="mono">--data-dir</span> to enable this.</p>
+			{{else}}
+			<form method="post" action="/settings/backup/auto">
+				{{if .BackupAuto}}
+				<input type="hidden" name="auto" value="off">
+				<button type="submit" class="btn btn-ghost">Turn off scheduled backups</button>
+				{{else}}
+				<input type="hidden" name="auto" value="on">
+				<button type="submit" class="btn btn-primary">{{template "icon-clock"}} Turn on daily backups</button>
+				{{end}}
+			</form>
+			{{end}}
+			{{if .AutoBackups}}
+			<div class="table-scroll mt-md">
+				<table>
+					<thead><tr><th>Snapshot</th><th>When</th><th></th></tr></thead>
+					<tbody>
+						{{range .AutoBackups}}
+						<tr>
+							<td class="mono">{{.Name}}</td>
+							<td class="text-muted"><span data-ts="{{isotime .Mod}}">{{fmttime .Mod}}</span></td>
+							<td><a class="btn btn-sm" href="/settings/backup/file/{{.Name}}">Download</a></td>
+						</tr>
+						{{end}}
+					</tbody>
+				</table>
+			</div>
+			{{end}}
+		</div>
+	</div>
 </section>
 
 <section data-tab-panel="alerts" id="panel-alerts" role="tabpanel" aria-labelledby="tab-alerts" {{if ne .Tab "alerts"}}hidden{{end}} class="tab-panel">

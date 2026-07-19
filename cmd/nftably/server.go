@@ -101,6 +101,9 @@ Fix it with:
 	// auto-bans. Does nothing until an alert destination is configured.
 	srv.StartAlertPoller(60 * time.Second)
 
+	// Daily local config backup to the data dir, when the operator opts in.
+	srv.StartBackupScheduler(0)
+
 	// Said once, at startup: nftably binds every interface by default, so an
 	// allow-all access list means anyone who finds the port reaches the login —
 	// and without TLS, the login crosses the network in the clear.

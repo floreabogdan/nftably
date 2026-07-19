@@ -36,6 +36,8 @@ type Settings struct {
 	// APIToken, when non-empty, enables the automation API (POST /api/block etc.),
 	// which then requires "Authorization: Bearer <token>". Empty disables it.
 	APIToken string
+	// BackupAuto turns on the daily local config backup to the data directory.
+	BackupAuto bool
 }
 
 // GetSettings returns the single settings row, or (Settings{}, false, nil) if
@@ -44,10 +46,10 @@ func (s *Store) GetSettings() (Settings, bool, error) {
 	var st Settings
 	row := s.db.QueryRow(`
 		SELECT router_label, listen_addr, nft_binary, access_whitelist, geoip_db, geoip_autoupdate, metrics_token,
-			theme_mode, theme_accent, theme_density, api_token
+			theme_mode, theme_accent, theme_density, api_token, backup_auto
 		FROM settings WHERE id = 1`)
 	err := row.Scan(&st.RouterLabel, &st.ListenAddr, &st.NftBinary, &st.AccessWhitelist, &st.GeoIPDB, &st.GeoIPAutoUpdate, &st.MetricsToken,
-		&st.ThemeMode, &st.ThemeAccent, &st.ThemeDensity, &st.APIToken)
+		&st.ThemeMode, &st.ThemeAccent, &st.ThemeDensity, &st.APIToken, &st.BackupAuto)
 	if err == sql.ErrNoRows {
 		return Settings{}, false, nil
 	}
@@ -121,6 +123,15 @@ func (s *Store) SaveAPIToken(token string) error {
 	res, err := s.db.Exec(`UPDATE settings SET api_token = ?, updated_at = ? WHERE id = 1`, token, now())
 	if err != nil {
 		return fmt.Errorf("store: save api token: %w", err)
+	}
+	return notFoundIfZero(res)
+}
+
+// SaveBackupAuto turns the daily local backup on or off.
+func (s *Store) SaveBackupAuto(on bool) error {
+	res, err := s.db.Exec(`UPDATE settings SET backup_auto = ?, updated_at = ? WHERE id = 1`, on, now())
+	if err != nil {
+		return fmt.Errorf("store: save backup_auto: %w", err)
 	}
 	return notFoundIfZero(res)
 }

@@ -32,6 +32,10 @@ type settingsVM struct {
 	Destinations []store.Destination
 	Flash        string
 	FlashErr     string
+	// Backup tab: scheduled-backup state and the on-disk snapshots.
+	BackupAuto   bool
+	BackupDirOK  bool
+	AutoBackups  []autoBackupFile
 }
 
 // settingsTabs are the settings tab keys in display order; the first is the
@@ -68,6 +72,9 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, saved st
 	// Alerts tab: the configured destinations, and a flash from a "Test" click
 	// (carried on the redirect query, not the save path).
 	vm.Destinations, _ = s.store.ListAlertDestinations()
+	vm.BackupAuto = st.BackupAuto
+	vm.BackupDirOK = s.backupDir() != ""
+	vm.AutoBackups = s.listAutoBackups()
 	if m := r.URL.Query().Get("saved"); m != "" && saved == "" {
 		vm.Flash = m
 	}

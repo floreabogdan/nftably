@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS settings (
 	-- detect out-of-band (drift) changes.
 	applied_fingerprint TEXT NOT NULL DEFAULT '',
 	api_token        TEXT NOT NULL DEFAULT '',
+	backup_auto      INTEGER NOT NULL DEFAULT 0,
 	created_at       TEXT NOT NULL,
 	updated_at       TEXT NOT NULL
 );

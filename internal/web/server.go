@@ -302,6 +302,8 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /settings/geoip", s.requireAuth(s.handleSettingsGeoIP))
 	s.mux.Handle("POST /settings/metrics", s.requireAuth(s.handleSettingsMetrics))
 	s.mux.Handle("POST /settings/api", s.requireAuth(s.handleSettingsAPI))
+	s.mux.Handle("POST /settings/backup/auto", s.requireAuth(s.handleBackupAuto))
+	s.mux.Handle("GET /settings/backup/file/{name}", s.requireAuth(s.handleBackupFileDownload))
 	s.mux.Handle("POST /settings/geoip/download", s.requireAuth(s.handleGeoIPDownload))
 	s.mux.Handle("POST /settings/theme", s.requireAuth(s.handleThemeSave))
 	s.mux.Handle("POST /settings/theme/mode", s.requireAuth(s.handleThemeMode))
