@@ -101,6 +101,9 @@ func TestRenderStatement(t *testing.T) {
 			"ip saddr vmap { 10.0.0.0/8 : jump internal, 0.0.0.0/0 : drop }"},
 		{"vmap", map[string]string{"vmapkey": "meta iifname", "vmapentries": "lo : accept, eth0 : jump wan_in"}, "inet",
 			`meta iifname vmap { "lo" : accept, "eth0" : jump wan_in }`},
+		// named counter + flow offload.
+		{"counter", map[string]string{"cname": "web_hits"}, "inet", "counter name web_hits"},
+		{"flow", map[string]string{"ft": "@ft"}, "inet", "flow add @ft"},
 	}
 	for _, c := range cases {
 		got, err := RenderStatement(c.key, c.params, Ctx{Family: c.family})

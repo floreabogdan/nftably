@@ -34,6 +34,8 @@ type TableTree struct {
 	// (an `add @set` ban statement) — declared empty with flags dynamic,timeout.
 	// Populated by ResolveDynSets.
 	DynSets []DynSetDef
+	// Flowtables are the fast-path offload objects this table declares.
+	Flowtables []store.Flowtable
 }
 
 // DynSetDef is one dynamic timeout set to emit: its nft name and element type.
@@ -90,6 +92,9 @@ func writeTable(b *strings.Builder, t TableTree) {
 	fmt.Fprintf(b, "table %s %s {\n", t.Family, t.Name)
 	for _, name := range namedCountersOf(t) {
 		fmt.Fprintf(b, "\tcounter %s {\n\t}\n", name)
+	}
+	for _, ft := range t.Flowtables {
+		writeFlowtable(b, ft)
 	}
 	for _, s := range t.DynSets {
 		writeDynSet(b, s)

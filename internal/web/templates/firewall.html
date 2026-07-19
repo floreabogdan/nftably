@@ -149,6 +149,33 @@
 		{{else}}
 		<p class="empty">This table has no chains yet. <a href="/firewall/tables/{{$t.ID}}/chains/new">Add a chain</a> to start filtering traffic.</p>
 		{{end}}
+
+		{{if $t.Flowtables}}
+		<div class="flowtable-list mt-md">
+			{{range $t.Flowtables}}
+			<div class="flowtable-row">
+				<span class="mono"><strong>flowtable {{.Name}}</strong> · devices {{.Devices}}{{if .HWOffload}} · <span class="badge badge-secondary">hw offload</span>{{end}}</span>
+				<form method="post" action="/firewall/flowtables/{{.ID}}/delete" data-confirm="Delete flowtable {{.Name}}?"><button class="icon-action a-danger" title="Delete flowtable" aria-label="Delete flowtable {{.Name}}">{{template "icon-trash"}}</button></form>
+			</div>
+			{{end}}
+		</div>
+		{{end}}
+		<details class="flowtable-add mt-md">
+			<summary>{{template "icon-route"}} Add flowtable (offload)</summary>
+			<div class="mt-sm">
+				<p class="field-hint text-muted">A flowtable offloads established connections to the fast path — a big throughput win for a router.
+				Bind it to the interfaces traffic forwards between, then reference it from a forward-chain rule with the <span class="mono">flow add</span> action.</p>
+				<form method="post" action="/firewall/flowtables/new">
+					<input type="hidden" name="table_id" value="{{$t.ID}}">
+					<div class="field-row">
+						<div class="field"><label>Name</label><input type="text" name="name" placeholder="ft" required></div>
+						<div class="field"><label>Devices (comma-separated)</label><input type="text" name="devices" class="mono" placeholder="eth0, eth1" required></div>
+					</div>
+					<label class="check-label"><input type="checkbox" name="hw_offload"> Hardware offload (<span class="mono">flags offload</span>) — only if your NIC/driver supports it</label>
+					<div class="form-actions"><button type="submit" class="btn btn-sm btn-primary">Add flowtable</button></div>
+				</form>
+			</div>
+		</details>
 	</div>
 </div>
 {{else}}

@@ -370,6 +370,19 @@ var statements = []Statement{
 			}
 			return "counter name " + name, nil
 		}},
+	{Key: "flow", Label: "Offload to flowtable (flow add)", Group: "Observe", Example: "flow add @ft",
+		Help: "Hand established connections to a flowtable's fast path — later packets of the flow skip the rest of the ruleset for a big throughput win on a router. Put it in a forward chain (e.g. after 'ct state established related'); the flowtable must exist on the table.",
+		Params: []Param{{Key: "ft", Label: "Flowtable", Kind: KindText, Placeholder: "ft", Help: "The flowtable to offload into (its name, without the @)."}},
+		render: func(p map[string]string, _ Ctx) (string, error) {
+			ft := strings.TrimSpace(strings.TrimPrefix(p["ft"], "@"))
+			if ft == "" {
+				return "", fmt.Errorf("flow offload needs a flowtable name")
+			}
+			if !identRe.MatchString(ft) {
+				return "", fmt.Errorf("flowtable name must be letters, digits and underscores")
+			}
+			return "flow add @" + ft, nil
+		}},
 	{Key: "meta.nftrace.set", Label: "Trace (for nft monitor trace)", Group: "Observe", Example: "meta nftrace set 1",
 		Help:   "Flag matching packets for tracing, so `nft monitor trace` prints every rule they hit as they cross the ruleset — a powerful last-resort debugging aid. Match it to the traffic you're chasing, apply, then watch the trace. Remove it when you're done; it's noisy.",
 		render: func(_ map[string]string, _ Ctx) (string, error) { return "meta nftrace set 1", nil }},

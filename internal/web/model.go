@@ -26,9 +26,13 @@ func (s *Server) loadModel() (nftconf.Model, error) {
 	if err != nil {
 		return m, err
 	}
+	flowtablesByTable, err := s.store.AllFlowtables()
+	if err != nil {
+		return m, err
+	}
 
 	for _, t := range tables {
-		tt := nftconf.TableTree{Table: t}
+		tt := nftconf.TableTree{Table: t, Flowtables: flowtablesByTable[t.ID]}
 		for _, c := range chainsByTable[t.ID] {
 			tt.Chains = append(tt.Chains, nftconf.ChainTree{Chain: c, Rules: rulesByChain[c.ID]})
 		}

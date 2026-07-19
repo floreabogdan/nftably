@@ -35,7 +35,7 @@ const (
 var paramKeys = []string{
 	"target", "addr", "port", "with", "prefix", "level", "rate", "per", "burst", "value",
 	"mss", "wscale", "size", "dir", "amount", "unit", "num", "bypass", "name", "group",
-	"lmode", "lunit", "vmapkey", "vmapentries", "cname",
+	"lmode", "lunit", "vmapkey", "vmapentries", "cname", "ft",
 }
 
 // ── overview ────────────────────────────────────────────────────────────────
@@ -52,7 +52,8 @@ type fwVM struct {
 
 type fwTable struct {
 	store.Table
-	Chains []fwChain
+	Chains     []fwChain
+	Flowtables []store.Flowtable
 }
 
 type fwChain struct {
@@ -99,7 +100,7 @@ func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
 		counters = s.readCounters(r.Context(), m)
 	}
 	for _, t := range m.Tables {
-		ft := fwTable{Table: t.Table}
+		ft := fwTable{Table: t.Table, Flowtables: t.Flowtables}
 		tblCounters := counters[t.Family+"/"+t.Name]
 		for _, c := range t.Chains {
 			fc := fwChain{Chain: c.Chain, HookLine: hookLine(c.Chain)}

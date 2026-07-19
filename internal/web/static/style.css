@@ -681,6 +681,11 @@ svg.sparkline[data-spark] { cursor: crosshair; }
 	content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success);
 }
 
+/* Flowtable list + add form on a table card. */
+.flowtable-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; font-size: var(--fs-sm); border-top: 1px solid var(--border); }
+.flowtable-add > summary { cursor: pointer; color: var(--primary-deep); font-size: var(--fs-sm); font-weight: 600; list-style: none; display: inline-flex; align-items: center; gap: var(--space-1); }
+.flowtable-add > summary::-webkit-details-marker { display: none; }
+
 /* Freeform rule tags, shown as small pills under a rule. */
 .rule-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1); }
 .tag-chip {

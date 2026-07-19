@@ -13,7 +13,7 @@ import (
 //
 // nftably's database is a single file the user can snapshot and restore, so
 // migrations must be forward-only and safe to re-run.
-const schemaVersion = 17
+const schemaVersion = 18
 
 func migrate(db *sql.DB) error {
 	var version int

@@ -55,6 +55,31 @@ func TestRenderRuleNegationAndSet(t *testing.T) {
 	}
 }
 
+func TestFlowtableRender(t *testing.T) {
+	m := Model{Tables: []TableTree{{
+		Table:      store.Table{Family: "inet", Name: "filter"},
+		Flowtables: []store.Flowtable{{Name: "ft", Priority: "filter", Devices: "eth0, eth1", HWOffload: true}},
+		Chains: []ChainTree{{
+			Chain: store.Chain{Name: "forward", Kind: "base", Hook: "forward", ChainType: "filter", Priority: "filter", Policy: "accept"},
+			Rules: []store.ChainRule{rule("offload",
+				[]store.RuleMatch{{Key: "ct.state", Op: "==", Value: "established, related"}},
+				[]store.RuleStatement{{Key: "flow", Params: `{"ft":"ft"}`}})},
+		}},
+	}}}
+	out := Config(m)
+	for _, want := range []string{
+		"\tflowtable ft {",
+		"hook ingress priority filter;",
+		`devices = { "eth0", "eth1" };`,
+		"flags offload;",
+		"flow add @ft",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("config missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestNamedCounters(t *testing.T) {
 	// Two rules sharing the named counter "web" plus one anonymous counter.
 	m := model("accept",

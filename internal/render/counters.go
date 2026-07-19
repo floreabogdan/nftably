@@ -1,6 +1,29 @@
 package render
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/floreabogdan/nftably/internal/store"
+)
+
+// writeFlowtable emits a flowtable declaration: its ingress hook, priority, the
+// interfaces it binds, and `flags offload` when hardware offload is requested.
+func writeFlowtable(b *strings.Builder, f store.Flowtable) {
+	fmt.Fprintf(b, "\tflowtable %s {\n", f.Name)
+	fmt.Fprintf(b, "\t\thook ingress priority %s;\n", f.Priority)
+	devs := f.DeviceList()
+	quoted := make([]string, len(devs))
+	for i, d := range devs {
+		quoted[i] = fmt.Sprintf("%q", d)
+	}
+	fmt.Fprintf(b, "\t\tdevices = { %s };\n", strings.Join(quoted, ", "))
+	if f.HWOffload {
+		b.WriteString("\t\tflags offload;\n")
+	}
+	b.WriteString("\t}\n")
+}
 
 // counters.go derives the named counters a table must declare from how its rules
 // use them: a `counter` statement with a name references a table-level named

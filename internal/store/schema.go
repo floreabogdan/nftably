@@ -168,6 +168,22 @@ CREATE TABLE IF NOT EXISTS nft_tables (
 -- A chain in a table. A base chain hooks into netfilter (type+hook+priority+
 -- policy); a regular chain is just a named jump/goto target (those four are
 -- empty). position is render/eval order within the table.
+-- Flowtables: fast-path offload objects bound to interfaces at ingress. A
+-- flow-add statement in a forward chain hands established connections to the
+-- flow fast path. Owned per table, like chains.
+CREATE TABLE IF NOT EXISTS nft_flowtables (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	table_id   INTEGER NOT NULL REFERENCES nft_tables(id) ON DELETE CASCADE,
+	name       TEXT NOT NULL,
+	priority   TEXT NOT NULL DEFAULT 'filter',
+	devices    TEXT NOT NULL DEFAULT '',   -- comma-separated interface names
+	hw_offload INTEGER NOT NULL DEFAULT 0, -- 1 = flags offload (hardware)
+	position   INTEGER NOT NULL,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	UNIQUE(table_id, name)
+);
+
 CREATE TABLE IF NOT EXISTS nft_chains (
 	id         INTEGER PRIMARY KEY AUTOINCREMENT,
 	table_id   INTEGER NOT NULL REFERENCES nft_tables(id) ON DELETE CASCADE,

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	nftconf "github.com/floreabogdan/nftably/internal/render"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
@@ -115,6 +116,45 @@ func TestRuleTags(t *testing.T) {
 	}
 	if tl := rules[0].TagList(); len(tl) != 2 || tl[0] != "ssh" {
 		t.Errorf("TagList = %v", tl)
+	}
+}
+
+// TestFlowtableCreate checks a flowtable is created on a table and renders into
+// the config, and that a bad one is rejected.
+func TestFlowtableCreate(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	if rec := postForm(srv, "/presets/apply", url.Values{"preset": {"secure-server"}}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("apply preset: %d", rec.Code)
+	}
+	m, _ := srv.loadModel()
+	if len(m.Tables) == 0 {
+		t.Fatal("preset produced no table")
+	}
+	tid := m.Tables[0].ID
+
+	rec := postForm(srv, "/firewall/flowtables/new", url.Values{
+		"table_id": {strconv.FormatInt(tid, 10)}, "name": {"ft"}, "devices": {"eth0, eth1"}, "hw_offload": {"on"},
+	}, cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("flowtable create: code=%d, want 303", rec.Code)
+	}
+	m2, _ := srv.loadModel()
+	cfg := nftconf.Config(m2)
+	if !strings.Contains(cfg, "flowtable ft {") || !strings.Contains(cfg, "flags offload;") {
+		t.Errorf("flowtable did not render:\n%s", cfg)
+	}
+
+	// A flowtable with no devices is rejected without adding anything.
+	before := strings.Count(cfg, "flowtable ")
+	rec = postForm(srv, "/firewall/flowtables/new", url.Values{
+		"table_id": {strconv.FormatInt(tid, 10)}, "name": {"bad"}, "devices": {""},
+	}, cookie)
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "err=") {
+		t.Errorf("flowtable with no devices should error, got %q", loc)
+	}
+	m3, _ := srv.loadModel()
+	if after := strings.Count(nftconf.Config(m3), "flowtable "); after != before {
+		t.Errorf("a rejected flowtable was created")
 	}
 }
 
