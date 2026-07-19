@@ -69,7 +69,6 @@ func (s *Server) handleListCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	l := store.IPList{
 		Name:        strings.TrimSpace(r.FormValue("name")),
-		Role:        r.FormValue("role"),
 		Note:        strings.TrimSpace(r.FormValue("note")),
 		Source:      r.FormValue("source"),
 		SourceArg:   sourceArgFromForm(r),
@@ -80,7 +79,7 @@ func (s *Server) handleListCreate(w http.ResponseWriter, r *http.Request) {
 		redirectMsg(w, r, "/lists", "err", err.Error())
 		return
 	}
-	s.audit(r, fmt.Sprintf("created list %q (%s)", l.Name, roleLabel(l.Role)))
+	s.audit(r, fmt.Sprintf("created list %q", l.Name))
 	// A sourced list is empty until its first refresh — do it now so the operator
 	// lands on a populated page. Best-effort: the outcome (an error or a count) is
 	// recorded on the list and shown on its page.
@@ -196,7 +195,6 @@ func (s *Server) handleListUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	back := fmt.Sprintf("/lists/%d", l.ID)
 	l.Name = strings.TrimSpace(r.FormValue("name"))
-	l.Role = r.FormValue("role")
 	l.Note = strings.TrimSpace(r.FormValue("note"))
 	l.Source = r.FormValue("source")
 	l.SourceArg = sourceArgFromForm(r)
@@ -205,7 +203,7 @@ func (s *Server) handleListUpdate(w http.ResponseWriter, r *http.Request) {
 		redirectMsg(w, r, back, "err", err.Error())
 		return
 	}
-	s.audit(r, fmt.Sprintf("updated list %q (%s)", l.Name, roleLabel(l.Role)))
+	s.audit(r, fmt.Sprintf("updated list %q", l.Name))
 	redirectMsg(w, r, back, "saved", "1")
 }
 
@@ -237,7 +235,10 @@ func (s *Server) handleListEntryAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cidr := r.FormValue("cidr")
-	if l.Role == store.RoleBlock {
+	// The conventional "blacklist" set is what the Block button and presets drop,
+	// so guard against hand-adding the address you're connecting from — that would
+	// cut your own session the moment you apply.
+	if l.Name == blockListName {
 		if msg := s.refuseSelfBlock(r, cidr); msg != "" {
 			redirectMsg(w, r, back, "err", msg)
 			return
@@ -275,9 +276,9 @@ func (s *Server) handleListEntryDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleQuickBlock is the one-click block: used by the Connections page (and
-// anything else) to put a single address on the first block-role list. Same
-// review-then-apply flow — nothing reaches the kernel until /changes. The
-// caller can name a local page to return to via "back".
+// anything else) to put a single address on the conventional "blacklist" set
+// (created on demand). Same review-then-apply flow — nothing reaches the kernel
+// until /changes. The caller can name a local page to return to via "back".
 func (s *Server) handleQuickBlock(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
@@ -293,7 +294,7 @@ func (s *Server) handleQuickBlock(w http.ResponseWriter, r *http.Request) {
 		redirectMsg(w, r, back, "err", msg)
 		return
 	}
-	bl, err := s.blockRoleList()
+	bl, err := s.blockList()
 	if err != nil {
 		s.serverError(w, "find block list", err)
 		return
@@ -319,20 +320,19 @@ func (s *Server) handleQuickBlock(w http.ResponseWriter, r *http.Request) {
 	redirectMsg(w, r, back, "saved", "1")
 }
 
-// blockRoleList returns the first block-role list, creating the default
-// "blacklist" if the operator deleted them all.
-func (s *Server) blockRoleList() (store.IPList, error) {
-	lists, err := s.store.ListLists()
-	if err != nil {
-		return store.IPList{}, err
+// blockListName is the conventional set the Connections "Block" button appends
+// to. Presets create it and reference it in an early drop rule; if it doesn't
+// exist yet, blockList creates it on demand.
+const blockListName = "blacklist"
+
+// blockList returns the conventional "blacklist" set, creating it if missing, so
+// the Connections "Block" button always has somewhere to append.
+func (s *Server) blockList() (store.IPList, error) {
+	if l, err := s.store.GetListByName(blockListName); err == nil {
+		return l, nil
 	}
-	for _, l := range lists {
-		if l.Role == store.RoleBlock {
-			return l, nil
-		}
-	}
-	id, err := s.store.CreateList(store.IPList{Name: "blacklist", Role: store.RoleBlock,
-		Note: "Dropped before established connections — blocking also cuts live sessions."})
+	id, err := s.store.CreateList(store.IPList{Name: blockListName,
+		Note: "Addresses to drop outright. The Connections page's Block button appends here; a preset's early drop rule (or one you add) does the blocking."})
 	if err != nil {
 		return store.IPList{}, err
 	}
@@ -387,14 +387,4 @@ func (s *Server) listFromPath(w http.ResponseWriter, r *http.Request) (store.IPL
 
 func redirectMsg(w http.ResponseWriter, r *http.Request, back, key, val string) {
 	http.Redirect(w, r, back+"?"+key+"="+url.QueryEscape(val), http.StatusSeeOther)
-}
-
-func roleLabel(role string) string {
-	switch role {
-	case store.RoleAllow:
-		return "always allow"
-	case store.RoleBlock:
-		return "always block"
-	}
-	return "address group"
 }

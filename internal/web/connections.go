@@ -71,7 +71,7 @@ func (s *Server) handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 	var blocked []netip.Prefix
 	for _, l := range lists {
-		if l.Role != store.RoleBlock {
+		if l.Name != blockListName {
 			continue
 		}
 		for _, e := range entries[l.ID] {

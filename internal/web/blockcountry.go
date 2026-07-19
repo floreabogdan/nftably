@@ -38,10 +38,10 @@ func (s *Server) handleBlockCountry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure the GeoIP-sourced set for this country. It is a plain address group
-	// (not a block-role list): the drop rule below does the blocking, and a
-	// role-block list of a whole country would slow the Connections view's
-	// per-row "is this blocked?" check to a crawl.
+	// Ensure the GeoIP-sourced set for this country. It's its own set, separate
+	// from the "blacklist" the Block button uses: the drop rule below does the
+	// blocking, and folding a whole country into the blacklist would slow the
+	// Connections view's per-row "is this blocked?" check to a crawl.
 	name := "blk_" + strings.ToLower(iso)
 	list, err := s.store.GetListByName(name)
 	if err == store.ErrNotFound {

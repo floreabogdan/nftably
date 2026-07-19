@@ -75,17 +75,14 @@ CREATE TABLE IF NOT EXISTS config_versions (
 );
 
 -- M6 named address lists, rendered as nft sets (<name>4 / <name>6). The
--- operator creates as many as they want. role gives a list instant
--- behaviour: 'allow' is accepted before everything, even before block lists
--- (a management network that can never be locked out); 'block' is dropped
--- before established/related (blocking also cuts live connections); '' is a
--- plain address group that rules reference as their source. The name doubles
--- as the nft set name, so it is set-safe by validation. Two lists are seeded
--- on migration: management (allow) and blacklist (block).
+-- operator creates as many as they want; each is a plain address group that
+-- rules reference as their source or destination. The name doubles as the nft
+-- set name, so it is set-safe by validation. (Older databases may still carry a
+-- now-unused role column from before roles were removed; it is left in place
+-- and never read.)
 CREATE TABLE IF NOT EXISTS ip_lists (
 	id         INTEGER PRIMARY KEY AUTOINCREMENT,
 	name       TEXT NOT NULL UNIQUE,      -- ^[a-z][a-z0-9_]{0,23}$
-	role       TEXT NOT NULL DEFAULT '',  -- '' | allow | block
 	note       TEXT NOT NULL DEFAULT '',
 	position   INTEGER NOT NULL,
 	-- Where the entries come from: 'manual' (hand-edited), 'geoip' (a country's

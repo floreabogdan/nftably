@@ -6,136 +6,190 @@
 <div class="page-header">
 	<div>
 		<h1>Settings</h1>
-		<div class="page-sub">How this box is labelled, where the UI listens, and who may reach it.</div>
+		<div class="page-sub">How this box is labelled and reached, the GeoIP database, the Prometheus endpoint, and the one-time iptables import — grouped by scope.</div>
 	</div>
 </div>
 
 {{if .Saved}}<div class="card card-success"><div class="card-body">Saved.</div></div>{{end}}
 
-<div class="card">
-	<div class="card-header"><span class="card-title">{{template "icon-settings"}}Identity</span></div>
-	<div class="card-body">
-		<form method="post" action="/settings/identity">
-			<div class="field">
-				<label for="router_label">Router label</label>
-				<input type="text" id="router_label" name="router_label" value="{{.Settings.RouterLabel}}" placeholder="e.g. edge-router-01" autocomplete="off">
-			</div>
-			<div class="field">
-				<label for="listen_addr">Listen address</label>
-				<input type="text" id="listen_addr" name="listen_addr" value="{{.Settings.ListenAddr}}" class="mono" autocomplete="off">
-				<div class="field-hint text-muted">Takes effect on the next restart. Use <span class="mono">127.0.0.1:8080</span> for loopback-only (reach it over an SSH tunnel).</div>
-			</div>
-			<div class="field">
-				<label for="nft_binary">nft binary override</label>
-				<input type="text" id="nft_binary" name="nft_binary" value="{{.Settings.NftBinary}}" class="mono" placeholder="nft" autocomplete="off">
-				<div class="field-hint text-muted">Leave blank to use <span class="mono">nft</span> from PATH.</div>
-			</div>
-			<div class="form-actions"><button type="submit" class="btn btn-primary">Save identity</button></div>
-		</form>
-	</div>
-</div>
+<nav class="page-tabs" data-tabs role="tablist">
+	<a href="?tab=general" data-tab="general" role="tab" aria-selected="{{if eq .Tab "general"}}true{{else}}false{{end}}">{{template "icon-settings"}}General</a>
+	<a href="?tab=access" data-tab="access" role="tab" aria-selected="{{if eq .Tab "access"}}true{{else}}false{{end}}">{{template "icon-shield"}}Access</a>
+	<a href="?tab=geoip" data-tab="geoip" role="tab" aria-selected="{{if eq .Tab "geoip"}}true{{else}}false{{end}}">{{template "icon-activity"}}GeoIP</a>
+	<a href="?tab=metrics" data-tab="metrics" role="tab" aria-selected="{{if eq .Tab "metrics"}}true{{else}}false{{end}}">{{template "icon-activity"}}Metrics</a>
+	<a href="?tab=import" data-tab="import" role="tab" aria-selected="{{if eq .Tab "import"}}true{{else}}false{{end}}">{{template "icon-import"}}Import</a>
+</nav>
 
-<div class="card">
-	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Access control</span></div>
-	<div class="card-body">
-		{{if .WideOpen}}
-		<div class="lint-warn">{{template "icon-alert"}} nftably is currently reachable from any IP, with no TLS. Add your management network below.</div>
-		{{end}}
-		{{range .AccessErrs}}<div class="field-error">{{.}}</div>{{end}}
-		<form method="post" action="/settings/access">
-			<div class="field">
-				<label for="access_whitelist">Allowed IPs / CIDRs</label>
-				<textarea id="access_whitelist" name="access_whitelist" rows="5" class="mono" placeholder="203.0.113.0/24&#10;2001:db8::/32">{{.Settings.AccessWhitelist}}</textarea>
-				<div class="field-hint text-muted">One per line or comma-separated. Loopback is always allowed, so an SSH tunnel can never be locked out. Empty means no restriction.</div>
-			</div>
-			<div class="form-actions"><button type="submit" class="btn btn-primary">Save access list</button></div>
-		</form>
-	</div>
-</div>
-
-<div class="card">
-	<div class="card-header"><span class="card-title">{{template "icon-activity"}}GeoIP database</span></div>
-	<div class="card-body">
-		{{if eq .Saved "geoip"}}<div class="field-hint hint-ok">Saved.</div>{{end}}
-		{{if eq .Saved "geoip-download"}}<div class="field-hint hint-ok">Downloaded and enabled. The <a href="/connections">Connections</a> view now shows countries.</div>{{end}}
-		{{if .GeoIPErr}}<div class="field-error">{{.GeoIPErr}}</div>{{end}}
-
-		<p class="field-hint text-muted">A country database lets the <a href="/connections">Connections</a> view show a flag and
-		country next to each remote address. Lookups are entirely offline. There are two ways to get one:</p>
-
-		<div class="panel">
-			<div class="panel-head">Free — download it here <span class="badge badge-info">no account needed</span></div>
-			<div class="card-body">
-				<p class="field-hint text-muted">Fetches the free <strong>DB-IP Lite</strong> IP-to-Country database (updated monthly). This is the
-				<strong>only</strong> time nftably reaches the network, and only when you ask. IP-to-country data
-				&copy; <a href="https://db-ip.com" rel="noopener">DB-IP.com</a>, licensed under
-				<a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC-BY 4.0</a>.</p>
-				{{if .GeoIPManaged}}<div class="field-hint">Currently using the downloaded database{{if not .GeoIPModTime.IsZero}} (updated {{fmttime .GeoIPModTime}}){{end}}.</div>{{end}}
-				<form method="post" action="/settings/geoip/download">
-					<div class="form-actions"><button type="submit" class="btn btn-primary"{{if not .CanDownload}} disabled{{end}}>{{template "icon-import"}} {{if .GeoIPManaged}}Update now{{else}}Download free database{{end}}</button></div>
-				</form>
-				{{if not .CanDownload}}<div class="field-hint text-muted">Unavailable: nftably has no writable data directory.</div>{{end}}
-			</div>
-		</div>
-
-		<form method="post" action="/settings/geoip" class="mt-md">
-			<label class="check-label"><input type="checkbox" name="geoip_autoupdate"{{if .Settings.GeoIPAutoUpdate}} checked{{end}}> Keep the downloaded database updated automatically (checks at startup, refreshes when it's over a month old)</label>
-			<div class="field mt-sm">
-				<label for="geoip_db">Or point at your own database (.mmdb)</label>
-				<input type="text" id="geoip_db" name="geoip_db" value="{{.Settings.GeoIPDB}}" class="mono" placeholder="/var/lib/GeoIP/GeoLite2-Country.mmdb" autocomplete="off">
-				<div class="field-hint text-muted">For a MaxMind GeoLite2/GeoIP2 file you already have. Leave empty to disable countries. (The download above fills this in for you.)</div>
-			</div>
-			<div class="form-actions"><button type="submit" class="btn btn-primary">Save GeoIP settings</button></div>
-		</form>
-	</div>
-</div>
-
-<div class="card">
-	<div class="card-header"><span class="card-title">{{template "icon-activity"}}Prometheus metrics</span></div>
-	<div class="card-body">
-		{{if eq .Saved "metrics"}}<div class="field-hint hint-ok">Saved.</div>{{end}}
-		<p class="field-hint text-muted">Expose a Prometheus <span class="mono">/metrics</span> endpoint so your firewall can be graphed
-		and alerted on in Grafana/Prometheus. Every rule with a <strong>Count</strong> action becomes a time series
-		(<span class="mono">nftably_rule_packets_total</span>, <span class="mono">nftably_rule_bytes_total</span>), alongside
-		table/chain/rule counts, an <span class="mono">nftably_up</span> health gauge, and build info.</p>
-
-		{{if .Settings.MetricsToken}}
-		<div class="panel">
-			<div class="panel-head">Endpoint enabled <span class="badge badge-success">on</span></div>
-			<div class="card-body">
+<section data-tab-panel="general" {{if ne .Tab "general"}}hidden{{end}} class="tab-panel">
+	<div class="card">
+		<div class="card-header"><span class="card-title">{{template "icon-settings"}}Identity</span></div>
+		<div class="card-body">
+			<form method="post" action="/settings/identity">
 				<div class="field">
-					<label for="metrics_token_view">Bearer token</label>
-					<input type="text" id="metrics_token_view" class="mono" value="{{.Settings.MetricsToken}}" readonly autocomplete="off" spellcheck="false">
-					<div class="field-hint text-muted">Scrapers must send this as <span class="mono">Authorization: Bearer &lt;token&gt;</span>. Keep it secret; treat it like a password.</div>
+					<label for="router_label">Router label</label>
+					<input type="text" id="router_label" name="router_label" value="{{.Settings.RouterLabel}}" placeholder="e.g. edge-router-01" autocomplete="off">
 				</div>
-				<p class="field-hint text-muted">Example Prometheus scrape config:</p>
-				<pre class="code-block mono">scrape_configs:
+				<div class="field">
+					<label for="listen_addr">Listen address</label>
+					<input type="text" id="listen_addr" name="listen_addr" value="{{.Settings.ListenAddr}}" class="mono" autocomplete="off">
+					<div class="field-hint text-muted">Takes effect on the next restart. Use <span class="mono">127.0.0.1:8080</span> for loopback-only (reach it over an SSH tunnel).</div>
+				</div>
+				<div class="field">
+					<label for="nft_binary">nft binary override</label>
+					<input type="text" id="nft_binary" name="nft_binary" value="{{.Settings.NftBinary}}" class="mono" placeholder="nft" autocomplete="off">
+					<div class="field-hint text-muted">Leave blank to use <span class="mono">nft</span> from PATH.</div>
+				</div>
+				<div class="form-actions"><button type="submit" class="btn btn-primary">Save identity</button></div>
+			</form>
+		</div>
+	</div>
+</section>
+
+<section data-tab-panel="access" {{if ne .Tab "access"}}hidden{{end}} class="tab-panel">
+	<div class="card">
+		<div class="card-header"><span class="card-title">{{template "icon-shield"}}Access control</span>{{if .WideOpen}}<span class="badge badge-warning">open to any IP</span>{{end}}</div>
+		<div class="card-body">
+			{{if .WideOpen}}
+			<div class="lint-warn">{{template "icon-alert"}} nftably is currently reachable from any IP, with no TLS. Add your management network below.</div>
+			{{end}}
+			{{range .AccessErrs}}<div class="field-error">{{.}}</div>{{end}}
+			<form method="post" action="/settings/access">
+				<div class="field">
+					<label for="access_whitelist">Allowed IPs / CIDRs</label>
+					<textarea id="access_whitelist" name="access_whitelist" rows="5" class="mono" placeholder="203.0.113.0/24&#10;2001:db8::/32">{{.Settings.AccessWhitelist}}</textarea>
+					<div class="field-hint text-muted">One per line or comma-separated. Loopback is always allowed, so an SSH tunnel can never be locked out. Empty means no restriction.</div>
+				</div>
+				<div class="form-actions"><button type="submit" class="btn btn-primary">Save access list</button></div>
+			</form>
+		</div>
+	</div>
+</section>
+
+<section data-tab-panel="geoip" {{if ne .Tab "geoip"}}hidden{{end}} class="tab-panel">
+	<div class="card">
+		<div class="card-header"><span class="card-title">{{template "icon-activity"}}GeoIP database</span></div>
+		<div class="card-body">
+			{{if eq .Saved "geoip"}}<div class="field-hint hint-ok">Saved.</div>{{end}}
+			{{if eq .Saved "geoip-download"}}<div class="field-hint hint-ok">Downloaded and enabled. The <a href="/connections">Connections</a> view now shows countries.</div>{{end}}
+			{{if .GeoIPErr}}<div class="field-error">{{.GeoIPErr}}</div>{{end}}
+
+			<p class="field-hint text-muted">A country database lets the <a href="/connections">Connections</a> view show a flag and
+			country next to each remote address. Lookups are entirely offline. There are two ways to get one:</p>
+
+			<div class="panel">
+				<div class="panel-head">Free — download it here <span class="badge badge-info">no account needed</span></div>
+				<div class="card-body">
+					<p class="field-hint text-muted">Fetches the free <strong>DB-IP Lite</strong> IP-to-Country database (updated monthly). This is the
+					<strong>only</strong> time nftably reaches the network, and only when you ask. IP-to-country data
+					&copy; <a href="https://db-ip.com" rel="noopener">DB-IP.com</a>, licensed under
+					<a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC-BY 4.0</a>.</p>
+					{{if .GeoIPManaged}}<div class="field-hint">Currently using the downloaded database{{if not .GeoIPModTime.IsZero}} (updated {{fmttime .GeoIPModTime}}){{end}}.</div>{{end}}
+					<form method="post" action="/settings/geoip/download">
+						<div class="form-actions"><button type="submit" class="btn btn-primary"{{if not .CanDownload}} disabled{{end}}>{{template "icon-import"}} {{if .GeoIPManaged}}Update now{{else}}Download free database{{end}}</button></div>
+					</form>
+					{{if not .CanDownload}}<div class="field-hint text-muted">Unavailable: nftably has no writable data directory.</div>{{end}}
+				</div>
+			</div>
+
+			<form method="post" action="/settings/geoip" class="mt-md">
+				<label class="check-label"><input type="checkbox" name="geoip_autoupdate"{{if .Settings.GeoIPAutoUpdate}} checked{{end}}> Keep the downloaded database updated automatically (checks at startup, refreshes when it's over a month old)</label>
+				<div class="field mt-sm">
+					<label for="geoip_db">Or point at your own database (.mmdb)</label>
+					<input type="text" id="geoip_db" name="geoip_db" value="{{.Settings.GeoIPDB}}" class="mono" placeholder="/var/lib/GeoIP/GeoLite2-Country.mmdb" autocomplete="off">
+					<div class="field-hint text-muted">For a MaxMind GeoLite2/GeoIP2 file you already have. Leave empty to disable countries. (The download above fills this in for you.)</div>
+				</div>
+				<div class="form-actions"><button type="submit" class="btn btn-primary">Save GeoIP settings</button></div>
+			</form>
+		</div>
+	</div>
+</section>
+
+<section data-tab-panel="metrics" {{if ne .Tab "metrics"}}hidden{{end}} class="tab-panel">
+	<div class="card">
+		<div class="card-header"><span class="card-title">{{template "icon-activity"}}Prometheus metrics</span></div>
+		<div class="card-body">
+			{{if eq .Saved "metrics"}}<div class="field-hint hint-ok">Saved.</div>{{end}}
+			<p class="field-hint text-muted">Expose a Prometheus <span class="mono">/metrics</span> endpoint so your firewall can be graphed
+			and alerted on in Grafana/Prometheus. Every rule with a <strong>Count</strong> action becomes a time series
+			(<span class="mono">nftably_rule_packets_total</span>, <span class="mono">nftably_rule_bytes_total</span>), alongside
+			table/chain/rule counts, an <span class="mono">nftably_up</span> health gauge, and build info.</p>
+
+			{{if .Settings.MetricsToken}}
+			<div class="panel">
+				<div class="panel-head">Endpoint enabled <span class="badge badge-success">on</span></div>
+				<div class="card-body">
+					<div class="field">
+						<label for="metrics_token_view">Bearer token</label>
+						<input type="text" id="metrics_token_view" class="mono" value="{{.Settings.MetricsToken}}" readonly autocomplete="off" spellcheck="false">
+						<div class="field-hint text-muted">Scrapers must send this as <span class="mono">Authorization: Bearer &lt;token&gt;</span>. Keep it secret; treat it like a password.</div>
+					</div>
+					<p class="field-hint text-muted">Example Prometheus scrape config:</p>
+					<pre class="code-block mono">scrape_configs:
   - job_name: nftably
     scheme: http
     authorization:
       credentials: {{.Settings.MetricsToken}}
     static_configs:
       - targets: ['{{if .Settings.ListenAddr}}{{.Settings.ListenAddr}}{{else}}127.0.0.1:8080{{end}}']</pre>
-				<p class="field-hint text-muted">Note: <span class="mono">/metrics</span> is still behind the access list above — add your Prometheus server's
-				IP there if it scrapes from another host.</p>
-				<div class="form-actions">
-					<form method="post" action="/settings/metrics"><input type="hidden" name="generate" value="1"><button type="submit" class="btn">Regenerate token</button></form>
-					<form method="post" action="/settings/metrics"><input type="hidden" name="metrics_token" value=""><button type="submit" class="btn btn-ghost">Disable</button></form>
+					<p class="field-hint text-muted">Note: <span class="mono">/metrics</span> is still behind the access list — add your Prometheus server's
+					IP there if it scrapes from another host.</p>
+					<div class="form-actions">
+						<form method="post" action="/settings/metrics"><input type="hidden" name="generate" value="1"><button type="submit" class="btn">Regenerate token</button></form>
+						<form method="post" action="/settings/metrics"><input type="hidden" name="metrics_token" value=""><button type="submit" class="btn btn-ghost">Disable</button></form>
+					</div>
 				</div>
 			</div>
-		</div>
-		{{else}}
-		<div class="panel">
-			<div class="panel-head">Endpoint disabled <span class="badge badge-muted">off</span></div>
-			<div class="card-body">
-				<p class="field-hint text-muted">Off by default. Enabling mints a random bearer token; the endpoint returns
-				<span class="mono">404</span> until then, and rejects any request without the token.</p>
-				<div class="form-actions">
-					<form method="post" action="/settings/metrics"><input type="hidden" name="generate" value="1"><button type="submit" class="btn btn-primary">{{template "icon-activity"}} Generate token &amp; enable</button></form>
+			{{else}}
+			<div class="panel">
+				<div class="panel-head">Endpoint disabled <span class="badge badge-muted">off</span></div>
+				<div class="card-body">
+					<p class="field-hint text-muted">Off by default. Enabling mints a random bearer token; the endpoint returns
+					<span class="mono">404</span> until then, and rejects any request without the token.</p>
+					<div class="form-actions">
+						<form method="post" action="/settings/metrics"><input type="hidden" name="generate" value="1"><button type="submit" class="btn btn-primary">{{template "icon-activity"}} Generate token &amp; enable</button></form>
+					</div>
 				</div>
 			</div>
+			{{end}}
 		</div>
-		{{end}}
 	</div>
-</div>
+</section>
+
+<section data-tab-panel="import" {{if ne .Tab "import"}}hidden{{end}} class="tab-panel">
+	<div class="card card-warning">
+		<div class="card-body">
+			{{template "icon-info"}} A one-time <strong>preview</strong> of this box's existing iptables ruleset translated to
+			nftables syntax — nothing here is applied. Use it as a reference while you rebuild the rules in the
+			<a href="/firewall">Firewall</a> editor, where every change goes out under the armed auto-revert. The translation
+			comes from <span class="mono">iptables-restore-translate</span>.
+		</div>
+	</div>
+
+	<div class="card">
+		<div class="card-body">
+			{{if or .Iptables.V4Available .Iptables.V6Available}}
+			<p>Found <strong>{{.Iptables.V4Rules}}</strong> IPv4 and <strong>{{.Iptables.V6Rules}}</strong> IPv6 iptables rules{{if .Iptables.Mode}}
+			via the <span class="mono">{{.Iptables.Mode}}</span> backend{{end}}.</p>
+			{{else}}
+			<div class="empty">The iptables save tools aren't installed — this looks like a pure nftables host, nothing to import.</div>
+			{{end}}
+			{{if .Iptables.Err}}<div class="lint-warn">Note: {{.Iptables.Err}}</div>{{end}}
+		</div>
+	</div>
+
+	{{range .Blocks}}
+	<div class="card">
+		<div class="card-header"><span class="card-title">{{template "icon-import"}}{{.Family}} → nftables</span></div>
+		<div class="card-body">
+			{{if .Err}}
+			<div class="lint-warn">Could not translate: {{.Err}}</div>
+			{{else}}
+			<pre class="code-block mono pre-scroll">{{.Text}}</pre>
+			{{end}}
+		</div>
+	</div>
+	{{end}}
+</section>
+
+<script src="/static/tabs.js"></script>
 {{template "shell-close" .}}

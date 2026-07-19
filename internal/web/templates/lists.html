@@ -23,14 +23,6 @@
 					<input id="l-name" type="text" name="name" class="mono" placeholder="office, partners…" autocomplete="off" required>
 				</div>
 				<div class="field">
-					<label for="l-role">Behaviour</label>
-					<select id="l-role" name="role">
-						<option value="">address group — a rule matches it as a source/destination</option>
-						<option value="allow">allow list — presets accept it before everything</option>
-						<option value="block">block list — the Connections “Block” button drops it early</option>
-					</select>
-				</div>
-				<div class="field">
 					<label for="l-source">Addresses come from</label>
 					<select id="l-source" name="source" data-source-select>
 						<option value="manual">Manual — you add them</option>
@@ -49,8 +41,8 @@
 				<label for="l-url">Feed URL</label>
 				<input id="l-url" type="text" name="feed_url" class="mono" placeholder="https://example.com/blocklist.txt" list="known-feeds" autocomplete="off">
 				<div class="field-hint">A text feed of IPs/CIDRs, one per line (<span class="mono">#</span>/<span class="mono">;</span> comments tolerated).
-				Pick a well-known public blocklist from the suggestions, or paste your own. Set the <strong>role</strong> to
-				<em>block</em> above so its addresses are dropped.</div>
+				Pick a well-known public blocklist from the suggestions, or paste your own. Reference it from a
+				<a href="/firewall">rule</a> (<span class="mono">ip saddr @name drop</span>) to actually block it.</div>
 				<datalist id="known-feeds">
 					<option value="https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset" label="FireHOL Level 1 — safe aggregate blocklist (recommended)"></option>
 					<option value="https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level2.netset" label="FireHOL Level 2 — attackers seen in the last 48h"></option>
@@ -68,7 +60,7 @@
 			</div>
 			<div class="form-actions"><button type="submit" class="btn btn-primary">{{template "icon-plus"}}Create list</button></div>
 		</form>
-		<div class="field-hint text-muted">The name becomes the nft set name (<span class="mono">@name4</span> / <span class="mono">@name6</span>) — lowercase letters, digits, underscore. Order of behaviour: <strong>allow lists beat block lists</strong>, and block lists beat established connections.</div>
+		<div class="field-hint text-muted">The name becomes the nft set name (<span class="mono">@name4</span> / <span class="mono">@name6</span>) — lowercase letters, digits, underscore. A set does nothing on its own; a <a href="/firewall">rule</a> that references it (<span class="mono">ip saddr @name accept</span> / <span class="mono">drop</span>) is what allows or blocks the addresses.</div>
 	</div>
 </div>
 
@@ -77,16 +69,11 @@
 	{{if .Lists}}
 	<div class="table-scroll">
 		<table data-search-target>
-			<thead><tr><th>Name</th><th>Behaviour</th><th>Entries</th><th>Used by rules</th><th>Note</th><th></th></tr></thead>
+			<thead><tr><th>Name</th><th>Entries</th><th>Used by rules</th><th>Note</th><th></th></tr></thead>
 			<tbody>
 				{{range .Lists}}
 				<tr>
 					<td><a href="/lists/{{.ID}}" class="mono">{{.Name}}</a></td>
-					<td>
-						{{if eq .Role "allow"}}<span class="badge badge-success">always allow</span>
-						{{else if eq .Role "block"}}<span class="badge badge-danger">always block</span>
-						{{else}}<span class="badge">address group</span>{{end}}
-					</td>
 					<td class="mono">{{.Entries}}{{if .FirstCIDR}} <span class="text-muted">({{.FirstCIDR}}{{if gt .Entries 1}}, &hellip;{{end}})</span>{{end}}
 						{{if eq .Source "geoip"}}<span class="badge badge-info" title="Populated from GeoIP: {{.SourceArg}}">GeoIP {{.SourceArg}}</span>{{else if eq .Source "url"}}<span class="badge badge-info" title="Fetched from {{.SourceArg}}">feed</span>{{end}}
 					</td>
@@ -101,7 +88,7 @@
 		</table>
 	</div>
 	{{else}}
-	<div class="card-body"><div class="empty">No lists yet. Create one above — a <span class="mono">management</span> allow list is the classic first move.</div></div>
+	<div class="card-body"><div class="empty">No sets yet. Create one above, or apply a <a href="/presets">preset</a> — it builds the management and blacklist sets for you.</div></div>
 	{{end}}
 </div>
 {{template "shell-close" .}}

@@ -77,3 +77,16 @@ func (s *Server) navFor(r *http.Request, active string) nav {
 	}
 	return n
 }
+
+// tabParam returns the requested ?tab= value if it is one of the allowed tabs,
+// otherwise the first allowed tab (the default). Used by pages with a tabbed
+// layout so a bad or missing value lands on a sensible default.
+func tabParam(r *http.Request, allowed ...string) string {
+	want := r.URL.Query().Get("tab")
+	for _, a := range allowed {
+		if a == want {
+			return a
+		}
+	}
+	return allowed[0]
+}

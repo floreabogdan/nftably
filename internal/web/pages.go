@@ -122,39 +122,10 @@ type translateBlock struct {
 	Err    string
 }
 
-type importVM struct {
-	nav
-	Report nft.IptablesReport
-	Blocks []translateBlock
-}
-
+// handleImport redirects the retired standalone /import page to its new home, a
+// tab on the Settings page.
 func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := reqCtx(r)
-	defer cancel()
-	vm := importVM{
-		nav:    s.navFor(r, "import"),
-		Report: nft.ProbeIptables(ctx, s.iptablesSave, s.ip6tablesSave, s.iptablesBin),
-	}
-	// Only bother translating when there is actually something to import.
-	if vm.Report.V4Rules > 0 {
-		b := translateBlock{Family: "IPv4"}
-		if txt, err := nft.TranslateIptables(ctx, s.iptablesSave, s.iptablesTranslate); err != nil {
-			b.Err = err.Error()
-		} else {
-			b.Text = txt
-		}
-		vm.Blocks = append(vm.Blocks, b)
-	}
-	if vm.Report.V6Rules > 0 {
-		b := translateBlock{Family: "IPv6"}
-		if txt, err := nft.TranslateIptables(ctx, s.ip6tablesSave, s.ip6tablesTranslate); err != nil {
-			b.Err = err.Error()
-		} else {
-			b.Text = txt
-		}
-		vm.Blocks = append(vm.Blocks, b)
-	}
-	render(w, s.log, "import.html", vm)
+	http.Redirect(w, r, "/settings?tab=import", http.StatusMovedPermanently)
 }
 
 // ---- timeline ----

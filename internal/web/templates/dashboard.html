@@ -100,7 +100,7 @@
 		<div class="stat-label">iptables rules</div>
 		<div class="stat-main"><span class="stat-icon">{{template "icon-import"}}</span><span class="stat-value">{{addRules .Iptables.V4Rules .Iptables.V6Rules}}</span></div>
 		<div class="stat-rule"></div>
-		{{if .Iptables.HasRules}}<a class="stat-link" href="/import"><span class="arr" aria-hidden="true">&#8599;</span>Import them</a>{{else}}<span class="stat-note">pure nftables</span>{{end}}
+		{{if .Iptables.HasRules}}<a class="stat-link" href="/settings?tab=import"><span class="arr" aria-hidden="true">&#8599;</span>Import them</a>{{else}}<span class="stat-note">pure nftables</span>{{end}}
 	</div>
 </div>
 
@@ -133,7 +133,7 @@
 	<div class="card-body">
 		{{template "icon-info"}} This host has <strong>{{.Iptables.V4Rules}} IPv4</strong> and
 		<strong>{{.Iptables.V6Rules}} IPv6</strong> iptables rules{{if .Iptables.Mode}} (the <span class="mono">{{.Iptables.Mode}}</span> backend){{end}}.
-		They live in the same kernel netfilter as nftables. <a href="/import">Preview the import</a> so nftably can
+		They live in the same kernel netfilter as nftables. <a href="/settings?tab=import">Preview the import</a> so nftably can
 		take ownership and nothing ends up double-managed.
 	</div>
 </div>

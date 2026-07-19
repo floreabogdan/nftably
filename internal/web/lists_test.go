@@ -15,7 +15,7 @@ func TestListsCreateEntriesDeleteFlow(t *testing.T) {
 
 	// Create a plain group and land on its page.
 	rec := postForm(srv, "/lists/create", url.Values{
-		"name": {"office"}, "role": {""}, "note": {"the office"},
+		"name": {"office"}, "note": {"the office"},
 	}, cookie)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("create: %d", rec.Code)
@@ -81,20 +81,20 @@ func TestListsCreateEntriesDeleteFlow(t *testing.T) {
 	}
 }
 
-func TestListUpdateRole(t *testing.T) {
+func TestListUpdate(t *testing.T) {
 	srv, cookie := newTestServer(t)
 	office, err := srv.store.CreateList(store.IPList{Name: "office"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rec := postForm(srv, "/lists/"+itoa(office)+"/update", url.Values{
-		"name": {"office"}, "role": {"allow"}, "note": {"now management"},
+		"name": {"hq"}, "note": {"renamed"},
 	}, cookie)
 	if rec.Code != http.StatusSeeOther || strings.Contains(rec.Header().Get("Location"), "err=") {
 		t.Fatalf("update: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
 	l, _ := srv.store.GetList(office)
-	if l.Role != store.RoleAllow || l.Note != "now management" {
+	if l.Name != "hq" || l.Note != "renamed" {
 		t.Fatalf("update lost: %+v", l)
 	}
 }
@@ -106,7 +106,7 @@ func TestQuickBlockAndSelfGuard(t *testing.T) {
 	if rec.Code != http.StatusSeeOther || strings.Contains(rec.Header().Get("Location"), "err=") {
 		t.Fatalf("quick block: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
-	// It landed on the seeded block-role list.
+	// The Block button created the conventional "blacklist" set on demand.
 	bl, err := srv.store.GetListByName("blacklist")
 	if err != nil {
 		t.Fatal(err)

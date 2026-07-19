@@ -7,13 +7,13 @@
 	<div>
 		<h1><span class="mono">{{.List.Name}}</span></h1>
 		<div class="page-sub">
-			{{if eq .List.Role "allow"}}Always allowed: these sources are accepted before every rule, before even block lists — on the input chain and, with forwarding on, through the router. A network here can never be locked out.
-			{{else if eq .List.Role "block"}}Always blocked: these sources are dropped before established connections are accepted, so a new entry also cuts sessions that are already open, the moment you apply.
-			{{else}}An address group. It does nothing by itself — <a href="/firewall">rules</a> that name it as their source match exactly these addresses, and every rule follows when the list changes.{{end}}
+			A named address group. It does nothing by itself — <a href="/firewall">rules</a> that name it as their source or
+			destination (<span class="mono">ip saddr @{{.List.Name}} accept</span> / <span class="mono">drop</span>) match exactly
+			these addresses, and every rule follows when the set changes.
 		</div>
 	</div>
 	<div class="page-header-actions">
-		{{if not .List.Role}}<a class="btn btn-sm btn-primary" href="/firewall">{{template "icon-plus"}}Add rule using this list</a>{{end}}
+		<a class="btn btn-sm btn-primary" href="/firewall">{{template "icon-plus"}}Add rule using this set</a>
 	</div>
 </div>
 
@@ -93,14 +93,6 @@
 				<label for="name">Name</label>
 				<input type="text" id="name" name="name" class="mono" value="{{.List.Name}}" autocomplete="off">
 				<div class="field-hint text-muted">Also the nft set name — renaming updates every rule that uses the list.</div>
-			</div>
-			<div class="field">
-				<label for="role">Behaviour</label>
-				<select id="role" name="role">
-					<option value="" {{if not .List.Role}}selected{{end}}>address group — a rule matches it as a source/destination</option>
-					<option value="allow" {{if eq .List.Role "allow"}}selected{{end}}>allow list — presets accept it before everything</option>
-					<option value="block" {{if eq .List.Role "block"}}selected{{end}}>block list — the Connections “Block” button drops it early</option>
-				</select>
 			</div>
 			<div class="field">
 				<label for="note">Note</label>

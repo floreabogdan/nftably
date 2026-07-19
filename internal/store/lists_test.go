@@ -29,17 +29,13 @@ func TestNormalizeCIDR(t *testing.T) {
 	}
 }
 
-func TestSeededListsAndCRUD(t *testing.T) {
+func TestListsCRUD(t *testing.T) {
 	s := testStore(t)
 
-	// A fresh database ships the two opinionated lists.
+	// A fresh database seeds no lists — presets create what they need.
 	lists, err := s.ListLists()
-	if err != nil || len(lists) != 2 {
-		t.Fatalf("seeded lists: %+v err=%v", lists, err)
-	}
-	if lists[0].Name != "management" || lists[0].Role != RoleAllow ||
-		lists[1].Name != "blacklist" || lists[1].Role != RoleBlock {
-		t.Fatalf("seeds: %+v", lists)
+	if err != nil || len(lists) != 0 {
+		t.Fatalf("fresh db should have no lists: %+v err=%v", lists, err)
 	}
 
 	// Create a plain group; names are set-safe and unique.
@@ -52,7 +48,7 @@ func TestSeededListsAndCRUD(t *testing.T) {
 	}
 	for _, bad := range []IPList{
 		{Name: "Office"}, {Name: "1st"}, {Name: "has space"}, {Name: ""},
-		{Name: strings.Repeat("x", 30)}, {Name: "ok", Role: "reject"},
+		{Name: strings.Repeat("x", 30)},
 	} {
 		if _, err := s.CreateList(bad); err == nil {
 			t.Errorf("bad list accepted: %+v", bad)
@@ -60,15 +56,14 @@ func TestSeededListsAndCRUD(t *testing.T) {
 	}
 
 	l, err := s.GetList(id)
-	if err != nil || l.Name != "office" || l.Role != RoleNone {
+	if err != nil || l.Name != "office" {
 		t.Fatalf("get: %+v err=%v", l, err)
 	}
-	l.Role = RoleAllow
 	l.Note = "promoted"
 	if err := s.UpdateList(l); err != nil {
 		t.Fatal(err)
 	}
-	if l, _ = s.GetList(id); l.Role != RoleAllow || l.Note != "promoted" {
+	if l, _ = s.GetList(id); l.Note != "promoted" {
 		t.Fatalf("update lost: %+v", l)
 	}
 	if _, err := s.GetListByName("office"); err != nil {
@@ -85,19 +80,21 @@ func TestSeededListsAndCRUD(t *testing.T) {
 
 func TestListEntriesCRUDAndOverlap(t *testing.T) {
 	s := testStore(t)
-	block, err := s.GetListByName("blacklist")
+	blockID, err := s.CreateList(IPList{Name: "blacklist"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	mgmt, err := s.GetListByName("management")
+	mgmtID, err := s.CreateList(IPList{Name: "mgmt"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	block, _ := s.GetList(blockID)
+	mgmt, _ := s.GetList(mgmtID)
 
 	if err := s.AddListEntry(block.ID, "203.0.113.0/24", "scanner net"); err != nil {
 		t.Fatal(err)
 	}
-	// The same address on ANOTHER list is fine — behaviour order decides.
+	// The same address on ANOTHER list is fine — a set is just a group.
 	if err := s.AddListEntry(mgmt.ID, "203.0.113.7", "office"); err != nil {
 		t.Fatal(err)
 	}

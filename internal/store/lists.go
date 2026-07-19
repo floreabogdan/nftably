@@ -11,14 +11,6 @@ import (
 	"strings"
 )
 
-// List roles. A role gives a list instant firewall behaviour; a plain list
-// (role "") is an address group that rules reference as their source.
-const (
-	RoleNone  = ""      // building block for rules
-	RoleAllow = "allow" // accepted before everything — management networks
-	RoleBlock = "block" // dropped before established — blacklists
-)
-
 // List sources. A manual list is hand-edited; a sourced list's entries are
 // (re)generated from an external source and are read-only in the UI.
 const (
@@ -32,7 +24,6 @@ const (
 type IPList struct {
 	ID       int64
 	Name     string
-	Role     string
 	Note     string
 	Position int
 	// Source and its argument: how the entries are populated. SourceManual (the
@@ -67,7 +58,6 @@ var ErrOverlap = errors.New("overlaps an existing entry")
 // appears in the rendered config.
 var listNameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,23}$`)
 
-var listRoles = map[string]bool{RoleNone: true, RoleAllow: true, RoleBlock: true}
 var listSources = map[string]bool{SourceManual: true, SourceGeoIP: true, SourceURL: true}
 
 // isoCountryRe is a 2-letter country code (the GeoIP source argument).
@@ -82,9 +72,6 @@ func validateList(l *IPList) error {
 	}
 	if !listNameRe.MatchString(l.Name) {
 		return fmt.Errorf("list name %q must be lowercase letters, digits or _ (max 24, starting with a letter) — it becomes the nft set name", l.Name)
-	}
-	if !listRoles[l.Role] {
-		return fmt.Errorf("role %q is not one of allow, block, or empty", l.Role)
 	}
 	if !listSources[l.Source] {
 		return fmt.Errorf("source %q is not one of manual, geoip, or url", l.Source)
@@ -115,9 +102,9 @@ func (s *Store) CreateList(l IPList) (int64, error) {
 	}
 	ts := now()
 	res, err := s.db.Exec(`
-		INSERT INTO ip_lists (name, role, note, source, source_arg, auto_refresh, position, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM ip_lists), ?, ?)`,
-		l.Name, l.Role, l.Note, l.Source, l.SourceArg, l.AutoRefresh, ts, ts)
+		INSERT INTO ip_lists (name, note, source, source_arg, auto_refresh, position, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM ip_lists), ?, ?)`,
+		l.Name, l.Note, l.Source, l.SourceArg, l.AutoRefresh, ts, ts)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return 0, fmt.Errorf("a list named %q already exists", l.Name)
@@ -127,13 +114,13 @@ func (s *Store) CreateList(l IPList) (int64, error) {
 	return res.LastInsertId()
 }
 
-// UpdateList saves name, role and note.
+// UpdateList saves name and note.
 func (s *Store) UpdateList(l IPList) error {
 	if err := validateList(&l); err != nil {
 		return err
 	}
-	res, err := s.db.Exec(`UPDATE ip_lists SET name = ?, role = ?, note = ?, source = ?, source_arg = ?, auto_refresh = ?, updated_at = ? WHERE id = ?`,
-		l.Name, l.Role, l.Note, l.Source, l.SourceArg, l.AutoRefresh, now(), l.ID)
+	res, err := s.db.Exec(`UPDATE ip_lists SET name = ?, note = ?, source = ?, source_arg = ?, auto_refresh = ?, updated_at = ? WHERE id = ?`,
+		l.Name, l.Note, l.Source, l.SourceArg, l.AutoRefresh, now(), l.ID)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return fmt.Errorf("a list named %q already exists", l.Name)
@@ -144,11 +131,11 @@ func (s *Store) UpdateList(l IPList) error {
 }
 
 // listColumns is the full column list for a list row, in scanList order.
-const listColumns = `id, name, role, note, position, source, source_arg, auto_refresh, last_refresh, refresh_note`
+const listColumns = `id, name, note, position, source, source_arg, auto_refresh, last_refresh, refresh_note`
 
 func scanList(sc interface{ Scan(...any) error }) (IPList, error) {
 	var l IPList
-	err := sc.Scan(&l.ID, &l.Name, &l.Role, &l.Note, &l.Position, &l.Source, &l.SourceArg, &l.AutoRefresh, &l.LastRefresh, &l.RefreshNote)
+	err := sc.Scan(&l.ID, &l.Name, &l.Note, &l.Position, &l.Source, &l.SourceArg, &l.AutoRefresh, &l.LastRefresh, &l.RefreshNote)
 	return l, err
 }
 

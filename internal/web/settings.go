@@ -8,11 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/floreabogdan/nftably/internal/nft"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
 type settingsVM struct {
 	nav
+	Tab        string // active tab: general | access | geoip | metrics | import
 	Settings   store.Settings
 	WideOpen   bool
 	AccessErrs []string
@@ -23,6 +25,20 @@ type settingsVM struct {
 	GeoIPExists  bool      // does the configured file exist on disk?
 	GeoIPModTime time.Time // when the configured file was last written
 	CanDownload  bool      // nftably has a writable data dir to download into
+	// Import tab: the iptables coexistence report and the nft translation.
+	Iptables nft.IptablesReport
+	Blocks   []translateBlock
+}
+
+// settingsTabs are the settings tab keys in display order; the first is the
+// default when no (or an unknown) ?tab= is given.
+var settingsTabs = []string{"general", "access", "geoip", "metrics", "import"}
+
+// savedTab maps a just-saved section to the tab it lives on, so a save banner
+// shows on the right tab.
+var savedTab = map[string]string{
+	"identity": "general", "access": "access",
+	"geoip": "geoip", "geoip-download": "geoip", "metrics": "metrics",
 }
 
 func (s *Server) handleSettingsPage(w http.ResponseWriter, r *http.Request) {
@@ -37,6 +53,7 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, saved st
 	}
 	vm := settingsVM{
 		nav:         s.navFor(r, "settings"),
+		Tab:         tabParam(r, settingsTabs...),
 		Settings:    st,
 		WideOpen:    s.WideOpen(),
 		AccessErrs:  accessErrs,
@@ -44,12 +61,42 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, saved st
 		GeoIPErr:    geoErr,
 		CanDownload: s.managedGeoIPPath() != "",
 	}
+	// After a save (or an access-validation error), show the relevant tab.
+	if t, ok := savedTab[saved]; ok {
+		vm.Tab = t
+	} else if len(accessErrs) > 0 {
+		vm.Tab = "access"
+	}
 	vm.GeoIPManaged = st.GeoIPDB != "" && st.GeoIPDB == s.managedGeoIPPath()
 	if st.GeoIPDB != "" {
 		if fi, err := os.Stat(st.GeoIPDB); err == nil {
 			vm.GeoIPExists = true
 			vm.GeoIPModTime = fi.ModTime()
 		}
+	}
+	// Import tab data: the live iptables coexistence report, plus an nft
+	// translation when there's actually something to import. Computed here so the
+	// tab is ready for client-side switching without a reload.
+	ctx, cancel := reqCtx(r)
+	defer cancel()
+	vm.Iptables = nft.ProbeIptables(ctx, s.iptablesSave, s.ip6tablesSave, s.iptablesBin)
+	if vm.Iptables.V4Rules > 0 {
+		b := translateBlock{Family: "IPv4"}
+		if txt, err := nft.TranslateIptables(ctx, s.iptablesSave, s.iptablesTranslate); err != nil {
+			b.Err = err.Error()
+		} else {
+			b.Text = txt
+		}
+		vm.Blocks = append(vm.Blocks, b)
+	}
+	if vm.Iptables.V6Rules > 0 {
+		b := translateBlock{Family: "IPv6"}
+		if txt, err := nft.TranslateIptables(ctx, s.ip6tablesSave, s.ip6tablesTranslate); err != nil {
+			b.Err = err.Error()
+		} else {
+			b.Text = txt
+		}
+		vm.Blocks = append(vm.Blocks, b)
 	}
 	render(w, s.log, "settings.html", vm)
 }

@@ -6,6 +6,25 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed — interface cleanup
+
+- **Named sets are just address groups now.** The per-set *role* (address group /
+  always-allow / always-block) is gone, along with its dropdown. A role never
+  enforced anything on its own — only a rule referencing the set does — so it was a
+  confusing extra step. The Connections **Block** button and presets still work:
+  they use a set named `blacklist` by convention (created on demand) and the drop
+  rule that references it. (An old database's now-unused `role` column is left in
+  place and never read.)
+- **No default lists are seeded.** A fresh install no longer ships `management` and
+  `blacklist` sets — they duplicated what a preset creates (`@mgmt`/`@blacklist`).
+  Presets build the sets they need; the Block button creates `blacklist` on first
+  use.
+- **Advisor merged into Security**, and the **sidebar regrouped** into Observe /
+  Manage / Secure / Learn / System, with Concepts in its own group.
+- **Settings is now tabbed** by scope — General, Access, GeoIP, Metrics, Import —
+  matching the pattern used elsewhere. The standalone **iptables import** page
+  moved in as the *Import* tab (`/import` redirects to `/settings?tab=import`).
+
 ### Changed — the general-model redesign
 
 nftably was reworked from an opinionated single-host firewall into a **general
