@@ -602,7 +602,7 @@ svg:not(.sparkline) { width: 18px; height: 18px; flex-shrink: 0; vertical-align:
 	flex-wrap: wrap;
 	gap: 10px;
 }
-.card-title { display: flex; align-items: center; gap: 9px; font-size: 1rem; font-weight: 700; }
+.card-title { display: flex; align-items: center; gap: 9px; font-size: var(--fs-md); font-weight: 700; }
 .card-title svg { width: 18px; height: 18px; color: var(--secondary-deep); }
 .card-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .input-sm { padding: 4px 8px; font-size: 0.85rem; width: auto; min-width: 7rem; }
@@ -774,7 +774,7 @@ td.num, th.num { text-align: right; }
 
 /* ---------- section headings that sit on the page canvas, not in a card ---------- */
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 26px 0 12px; }
-.section-title { display: flex; align-items: center; gap: 8px; font-size: 0.9375rem; font-weight: 700; }
+.section-title { display: flex; align-items: center; gap: 8px; font-size: var(--fs-md); font-weight: 700; }
 .section-title svg { width: 17px; height: 17px; color: var(--text-muted); }
 .section-link, .stat-link { display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; font-weight: 600; }
 .arr { font-size: 0.8125rem; line-height: 1; }
