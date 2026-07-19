@@ -2,11 +2,36 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/floreabogdan/nftably/internal/store"
 )
+
+// maxPerBatch caps how many individual alerts one poll emits for a storm-prone
+// kind (auto-bans, new exposures); the rest collapse into a single summary, so a
+// scan that trips hundreds of bans can't flood the channel.
+const maxPerBatch = 5
+
+type alertItem struct{ subject, message string }
+
+// cappedBatch returns the items to actually deliver: up to maxPerBatch
+// individuals, then one summary standing in for the overflow.
+func cappedBatch(items []alertItem, noun string) []alertItem {
+	if len(items) <= maxPerBatch {
+		return items
+	}
+	out := append([]alertItem{}, items[:maxPerBatch]...)
+	return append(out, alertItem{message: fmt.Sprintf("…and %d more %s.", len(items)-maxPerBatch, noun)})
+}
+
+// emitCapped delivers the capped batch to the notifier.
+func (s *Server) emitCapped(kind string, items []alertItem, noun string) {
+	for _, it := range cappedBatch(items, noun) {
+		s.notifier.Notify(kind, it.subject, it.message)
+	}
+}
 
 // poller.go runs the background checks behind the operational alerts: whether nft
 // is reachable, whether the kernel has auto-banned a new source, and — on a
@@ -85,16 +110,18 @@ func (s *Server) checkNewBans(ctx context.Context, st *alertPollState) {
 		return
 	}
 	fresh := map[string]bool{}
+	var newBans []alertItem
 	for key, ips := range members {
 		set := key[strings.LastIndex(key, "/")+1:]
 		for _, ip := range ips {
 			id := key + "|" + ip
 			fresh[id] = true
 			if !st.seenBans[id] && !st.firstBanRun {
-				s.notifier.Notify(store.AlertAutoBan, ip, "Auto-banned "+ip+" (set "+set+").")
+				newBans = append(newBans, alertItem{subject: ip, message: "Auto-banned " + ip + " (set " + set + ")."})
 			}
 		}
 	}
+	s.emitCapped(store.AlertAutoBan, newBans, "auto-banned")
 	// Replace seen with the current membership, so a source that is banned,
 	// expires, and is banned again later alerts a second time.
 	st.seenBans = fresh
@@ -109,15 +136,17 @@ func (s *Server) checkNewExposures(st *alertPollState) {
 		return
 	}
 	fresh := map[string]bool{}
+	var newExpo []alertItem
 	for _, f := range visible {
 		if f.Severity != "warn" { // "warn" == reachable from outside
 			continue
 		}
 		fresh[f.Key] = true
 		if !st.seenExposures[f.Key] && !st.firstExpoRun {
-			s.notifier.Notify(store.AlertNewExposure, f.Title, f.Detail)
+			newExpo = append(newExpo, alertItem{subject: f.Title, message: f.Detail})
 		}
 	}
+	s.emitCapped(store.AlertNewExposure, newExpo, "newly exposed")
 	st.seenExposures = fresh
 	st.firstExpoRun = false
 }
