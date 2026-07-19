@@ -74,6 +74,13 @@ typed, explained control instead of a fixed form.
   a random bearer token; until then `/metrics` returns 404, and once enabled it
   requires `Authorization: Bearer <token>` — on top of the access list that already
   fronts every route. One live nft read per scrape; touches nothing.
+- **Docker demo sandbox** (`docker-compose.demo.yml`). A one-command way to try
+  nftably in a browser without touching a host firewall: it runs in its own network
+  namespace, where — with `CAP_NET_ADMIN` — it has a private, fully writable
+  nftables to manage. `docker compose -f docker-compose.demo.yml up --build`, then
+  open `http://127.0.0.1:8099` and log in as `admin` / `nftably-demo`. The admin
+  account is auto-provisioned on first boot; nft is fully live, so presets apply,
+  counters tick and `/metrics` reports `nftably_up 1` — all isolated from the host.
 - **Concepts** (`/learn`) — a plain-language guide to how nftables actually works,
   for someone who has never written a firewall rule: the packet's journey through
   the hooks (input/forward/output/pre-/postrouting), base vs regular chains,

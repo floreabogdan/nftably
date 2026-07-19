@@ -1,0 +1,48 @@
+# docker-compose.demo.yml — try nftably in your browser, in a safe sandbox.
+#
+# Unlike docker-compose.yml (which shares the HOST network namespace to manage
+# the host's real firewall), this runs the container in its OWN network
+# namespace. With CAP_NET_ADMIN that namespace has a private, fully writable
+# nftables of its own — so nftably detects nft, reads and applies real rules,
+# and shows live counters and /metrics, all completely isolated from your
+# machine. Nothing here touches your host firewall.
+#
+#   docker compose -f docker-compose.demo.yml up --build
+#
+# then open http://127.0.0.1:8099 and log in with:
+#
+#   username: admin
+#   password: nftably-demo
+#
+# Try it: Presets → apply a "basic secure server" → confirm on Review & apply,
+# then watch the Live ruleset, the per-rule counters on the Firewall page, and
+# (enable it under Settings) the Prometheus /metrics endpoint.
+#
+# The demo keeps no volume, so `down` then `up` gives you a clean slate. Stop it
+# with: docker compose -f docker-compose.demo.yml down
+
+services:
+  nftably-demo:
+    build:
+      context: .
+      args:
+        VERSION: demo
+    container_name: nftably-demo
+    # A private network namespace + NET_ADMIN = a sandbox firewall nftably fully
+    # owns. No host networking, so it cannot see or change your real ruleset.
+    cap_add:
+      - NET_ADMIN
+    # Published to loopback only — reachable from this machine's browser, not the
+    # network. The container listens on 8080; you reach it on 8099.
+    ports:
+      - "127.0.0.1:8099:8080"
+    # Auto-provision the admin account on first boot, then run the server. The
+    # init is idempotent (it no-ops once a user exists), so restarts are fine.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        DB=/var/lib/nftably/nftably.db
+        nftably init --db "$$DB" --listen 0.0.0.0:8080 --label demo \
+          --username admin --password nftably-demo 2>/dev/null || true
+        exec nftably server --db "$$DB" --listen 0.0.0.0:8080

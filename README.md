@@ -114,6 +114,23 @@ management network) — and Review & apply.
 
 ## Quick start
 
+### Try it in Docker (a safe sandbox)
+
+Kick the tyres without touching your host firewall. This runs nftably in its own
+network namespace, where it gets a private, fully writable nftables to manage —
+detect nft, apply real rules, watch live counters — completely isolated from your
+machine.
+
+```sh
+docker compose -f docker-compose.demo.yml up --build
+```
+
+Then open **http://127.0.0.1:8099** and log in with `admin` / `nftably-demo`.
+Apply a preset, watch the live ruleset and per-rule counters, enable the
+Prometheus `/metrics` endpoint under Settings. `down` then `up` for a clean slate.
+(To manage a real host's firewall instead, use `docker-compose.yml`, which shares
+the host network namespace — see the comments in that file.)
+
 ### From a package (Debian/Ubuntu)
 
 ```sh
