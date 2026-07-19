@@ -75,6 +75,12 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **WireGuard VPN server preset.** The basic secure-server base plus the WireGuard
+  essentials: UDP 51820 accepted (the tunnel is key-authenticated), the wg0
+  interface trusted for traffic to this box, and a default-drop forward chain that
+  routes the tunnel (established/related and traffic in/out of wg0). Clients-to-
+  internet masquerade is left to the operator, since it needs the uplink interface
+  name.
 - **Brute-force auto-ban for SSH** — fail2ban in the kernel, no daemon. One click on
   the Posture page adds a rule that puts any source opening SSH connections faster
   than 10/minute into a **dynamic timeout set** and drops it for an hour, plus an
