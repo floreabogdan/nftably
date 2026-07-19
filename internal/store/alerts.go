@@ -37,6 +37,8 @@ const (
 	AlertNftDown         = "nft.down"
 	AlertNftUp           = "nft.up"
 	AlertAutoBan         = "ban.new"
+	AlertNewExposure     = "exposure.new"
+	AlertLoginFailed     = "login.failed"
 )
 
 var (
@@ -58,6 +60,8 @@ func AlertEventKinds() []AlertEventKind {
 		{AlertApplyConfirmed, "Apply confirmed"},
 		{AlertApplyRolledBack, "Apply rolled back"},
 		{AlertAutoBan, "Automatic ban"},
+		{AlertNewExposure, "New exposed service"},
+		{AlertLoginFailed, "Failed-login burst"},
 		{AlertFeedFailed, "Blocklist feed failed"},
 		{AlertNftDown, "nft unavailable"},
 		{AlertNftUp, "nft recovered"},

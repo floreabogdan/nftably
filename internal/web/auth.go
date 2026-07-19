@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/floreabogdan/nftably/internal/store"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -57,7 +58,9 @@ func (s *Server) handleLoginSubmit(w http.ResponseWriter, r *http.Request) {
 		hash = []byte(user.PasswordHash)
 	}
 	if bcrypt.CompareHashAndPassword(hash, []byte(password)) != nil || !ok {
-		s.login.fail(ip)
+		if s.login.fail(ip) {
+			s.notifier.Notify(store.AlertLoginFailed, ip, "Repeated failed logins to nftably — that source is now locked out.")
+		}
 		http.Redirect(w, r, "/login?error=1", http.StatusSeeOther)
 		return
 	}
@@ -190,7 +193,7 @@ func (l *loginLimiter) blocked(ip string) bool {
 }
 
 // fail records a failed attempt and locks the IP out once it passes the limit.
-func (l *loginLimiter) fail(ip string) {
+func (l *loginLimiter) fail(ip string) (justLocked bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := time.Now()
@@ -205,6 +208,8 @@ func (l *loginLimiter) fail(ip string) {
 	if rec.count >= l.max {
 		rec.until = now.Add(l.lockout)
 	}
+	// True exactly on the transition to locked-out, so a caller can alert once.
+	return rec.count == l.max
 }
 
 // reset clears an IP's record after a successful login.

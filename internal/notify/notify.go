@@ -22,6 +22,7 @@ import (
 var throttled = map[string]bool{
 	store.AlertAutoBan: true, store.AlertFeedFailed: true,
 	store.AlertNftDown: true, store.AlertNftUp: true,
+	store.AlertNewExposure: true, store.AlertLoginFailed: true,
 }
 
 // Dispatcher fans one event out to every enabled destination. Safe for
@@ -88,6 +89,10 @@ func (a alert) title() string {
 		return "Firewall config rolled back"
 	case store.AlertAutoBan:
 		return "Source auto-banned: " + a.Subject
+	case store.AlertNewExposure:
+		return "New exposed service: " + a.Subject
+	case store.AlertLoginFailed:
+		return "Failed-login burst from " + a.Subject
 	case store.AlertFeedFailed:
 		return "Blocklist feed failed: " + a.Subject
 	case store.AlertNftDown:
@@ -101,11 +106,11 @@ func (a alert) title() string {
 
 func (a alert) severity() string {
 	switch a.Kind {
-	case store.AlertApplyReverted, store.AlertNftDown, store.AlertFeedFailed:
+	case store.AlertApplyReverted, store.AlertNftDown, store.AlertFeedFailed, store.AlertNewExposure:
 		return "danger"
 	case store.AlertApplyConfirmed, store.AlertNftUp:
 		return "good"
-	case store.AlertApplyRolledBack, store.AlertAutoBan:
+	case store.AlertApplyRolledBack, store.AlertAutoBan, store.AlertLoginFailed:
 		return "warning"
 	default:
 		return "info"

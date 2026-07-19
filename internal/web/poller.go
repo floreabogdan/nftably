@@ -9,9 +9,23 @@ import (
 )
 
 // poller.go runs the background checks behind the operational alerts: whether nft
-// is reachable, and whether the kernel has auto-banned a new source (a fresh
-// member in a dynamic timeout set). Event-driven alerts (apply/revert, feed
-// failures) fire from their own code paths; only these two need polling.
+// is reachable, whether the kernel has auto-banned a new source, and — on a
+// slower cadence — whether a service has become reachable from outside.
+// Event-driven alerts (apply/revert, feed failures, failed logins) fire from
+// their own code paths; only these need polling.
+
+// exposureEveryN runs the (heavier) exposed-services scan once every N poll
+// ticks, rather than on every one.
+const exposureEveryN = 5
+
+type alertPollState struct {
+	tick          int
+	nftUp         bool
+	firstBanRun   bool
+	firstExpoRun  bool
+	seenBans      map[string]bool // "<setkey>|<member>"
+	seenExposures map[string]bool // finding key
+}
 
 // StartAlertPoller launches the background alert poll loop. interval <= 0 uses a
 // sensible default. It runs for the life of the process.
@@ -20,23 +34,24 @@ func (s *Server) StartAlertPoller(interval time.Duration) {
 		interval = 60 * time.Second
 	}
 	go func() {
-		nftUp := true
-		seen := map[string]bool{} // "<setkey>|<member>" already alerted
-		firstRun := true
+		st := &alertPollState{
+			nftUp: true, firstBanRun: true, firstExpoRun: true,
+			seenBans: map[string]bool{}, seenExposures: map[string]bool{},
+		}
 		t := time.NewTicker(interval)
 		defer t.Stop()
 		for range t.C {
-			s.pollAlertsOnce(&nftUp, seen, &firstRun)
+			st.tick++
+			s.pollAlertsOnce(st)
 		}
 	}()
 }
 
-// pollAlertsOnce is one poll: nft availability transitions and new auto-bans.
-func (s *Server) pollAlertsOnce(nftUp *bool, seen map[string]bool, firstRun *bool) {
+func (s *Server) pollAlertsOnce(st *alertPollState) {
 	if !s.nft.Available() {
-		if *nftUp {
+		if st.nftUp {
 			s.notifier.Notify(store.AlertNftDown, "", "The nft binary is not available.")
-			*nftUp = false
+			st.nftUp = false
 		}
 		return
 	}
@@ -46,17 +61,25 @@ func (s *Server) pollAlertsOnce(nftUp *bool, seen map[string]bool, firstRun *boo
 	_, err := s.nft.Ruleset(ctx)
 	up := err == nil
 	switch {
-	case *nftUp && !up:
+	case st.nftUp && !up:
 		s.notifier.Notify(store.AlertNftDown, "", "Cannot read the kernel ruleset: "+err.Error())
-	case !*nftUp && up:
+	case !st.nftUp && up:
 		s.notifier.Notify(store.AlertNftUp, "", "The kernel ruleset is readable again.")
 	}
-	*nftUp = up
+	st.nftUp = up
 	if !up {
 		return
 	}
 
-	// Auto-bans: diff the dynamic timeout sets against what we've already seen.
+	s.checkNewBans(ctx, st)
+	if st.tick == 1 || st.tick%exposureEveryN == 0 {
+		s.checkNewExposures(st)
+	}
+}
+
+// checkNewBans diffs the dynamic timeout sets against what we've already seen and
+// alerts on each fresh member.
+func (s *Server) checkNewBans(ctx context.Context, st *alertPollState) {
 	members, err := s.nft.DynamicSetMembers(ctx)
 	if err != nil {
 		return
@@ -67,19 +90,34 @@ func (s *Server) pollAlertsOnce(nftUp *bool, seen map[string]bool, firstRun *boo
 		for _, ip := range ips {
 			id := key + "|" + ip
 			fresh[id] = true
-			// Don't alert on the bans already present at startup — only new ones.
-			if !seen[id] && !*firstRun {
+			if !st.seenBans[id] && !st.firstBanRun {
 				s.notifier.Notify(store.AlertAutoBan, ip, "Auto-banned "+ip+" (set "+set+").")
 			}
 		}
 	}
-	// Replace the seen set with the current membership, so a source that is
-	// banned, expires, and is banned again later alerts a second time.
-	for k := range seen {
-		delete(seen, k)
+	// Replace seen with the current membership, so a source that is banned,
+	// expires, and is banned again later alerts a second time.
+	st.seenBans = fresh
+	st.firstBanRun = false
+}
+
+// checkNewExposures re-runs the exposed-services scan and alerts when a service
+// becomes reachable from outside that wasn't before — the "scan alert".
+func (s *Server) checkNewExposures(st *alertPollState) {
+	visible, _, _, err := s.advisorFindings()
+	if err != nil {
+		return
 	}
-	for k := range fresh {
-		seen[k] = true
+	fresh := map[string]bool{}
+	for _, f := range visible {
+		if f.Severity != "warn" { // "warn" == reachable from outside
+			continue
+		}
+		fresh[f.Key] = true
+		if !st.seenExposures[f.Key] && !st.firstExpoRun {
+			s.notifier.Notify(store.AlertNewExposure, f.Title, f.Detail)
+		}
 	}
-	*firstRun = false
+	st.seenExposures = fresh
+	st.firstExpoRun = false
 }

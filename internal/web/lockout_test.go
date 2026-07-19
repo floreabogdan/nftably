@@ -48,3 +48,22 @@ func TestSimulatedLockoutWarnings(t *testing.T) {
 		t.Fatalf("loopback operator should get no warnings, got %v", w)
 	}
 }
+
+// TestLoginLimiterLocksOnce verifies fail() reports "just locked out" exactly
+// once — on the transition — so the failed-login alert fires once per lockout,
+// not on every subsequent attempt.
+func TestLoginLimiterLocksOnce(t *testing.T) {
+	l := newLoginLimiter() // max 5
+	locked := 0
+	for i := 0; i < 8; i++ {
+		if l.fail("203.0.113.9") {
+			locked++
+		}
+	}
+	if locked != 1 {
+		t.Errorf("fail() reported just-locked %d times, want exactly 1", locked)
+	}
+	if !l.blocked("203.0.113.9") {
+		t.Error("the IP should be blocked after exceeding the limit")
+	}
+}
