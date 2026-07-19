@@ -71,18 +71,22 @@
 	// ---- mobile navigation ----
 	var navToggle = document.getElementById("nav-toggle");
 	var scrim = document.getElementById("nav-scrim");
+	function setNav(open) {
+		document.body.classList.toggle("nav-open", open);
+		if (navToggle) navToggle.setAttribute("aria-expanded", open ? "true" : "false");
+	}
 	if (navToggle) {
 		navToggle.addEventListener("click", function () {
-			document.body.classList.toggle("nav-open");
+			setNav(!document.body.classList.contains("nav-open"));
 		});
 	}
 	if (scrim) {
 		scrim.addEventListener("click", function () {
-			document.body.classList.remove("nav-open");
+			setNav(false);
 		});
 	}
 	document.addEventListener("keydown", function (e) {
-		if (e.key === "Escape") document.body.classList.remove("nav-open");
+		if (e.key === "Escape") setNav(false);
 	});
 
 	// ---- nft connection dot ----

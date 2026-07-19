@@ -130,19 +130,19 @@
 			<form method="post" action="/firewall/tables/new">
 				<div class="field-row">
 					<div class="field">
-						<label>Family</label>
-						<select name="family">{{range .Families}}<option value="{{.}}"{{if eq . "inet"}} selected{{end}}>{{.}}</option>{{end}}</select>
+						<label for="newtable-family">Family</label>
+						<select name="family" id="newtable-family">{{range .Families}}<option value="{{.}}"{{if eq . "inet"}} selected{{end}}>{{.}}</option>{{end}}</select>
 						<div class="field-hint">inet = IPv4 + IPv6 together (recommended). ip = IPv4 only, ip6 = IPv6 only. arp/bridge/netdev are advanced.</div>
 					</div>
 					<div class="field">
-						<label>Name</label>
-						<input type="text" name="name" placeholder="filter" required>
+						<label for="newtable-name">Name</label>
+						<input type="text" name="name" id="newtable-name" placeholder="filter" required>
 						<div class="field-hint">Any short name (letters, digits, underscore), e.g. <span class="mono">filter</span> or <span class="mono">nat</span>.</div>
 					</div>
 				</div>
 				<div class="field">
-					<label>Comment <span class="text-muted">(optional)</span></label>
-					<input type="text" name="comment" placeholder="what this table is for">
+					<label for="newtable-comment">Comment <span class="text-muted">(optional)</span></label>
+					<input type="text" name="comment" id="newtable-comment" placeholder="what this table is for">
 				</div>
 				<div class="form-actions">
 					<button class="btn btn-success" type="submit">{{template "icon-plus"}} Create table</button>

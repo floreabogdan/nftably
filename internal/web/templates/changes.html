@@ -22,7 +22,7 @@
 {{end}}
 
 {{if .Pending}}
-<div class="card card-warning pending-panel" id="pending-panel" data-deadline="{{.Pending.DeadlineUnix}}" role="alertdialog" aria-labelledby="pending-title" aria-describedby="pending-desc">
+<div class="card card-warning pending-panel" id="pending-panel" data-deadline="{{.Pending.DeadlineUnix}}" role="alert" aria-labelledby="pending-title" aria-describedby="pending-desc">
 	<div class="card-header"><span class="card-title" id="pending-title">{{template "icon-alert"}}Applied — waiting for your confirmation</span></div>
 	<div class="card-body">
 		<div class="countdown" aria-hidden="true">

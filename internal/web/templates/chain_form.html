@@ -20,16 +20,16 @@
 	{{if .IsNew}}<input type="hidden" name="table_id" value="{{.Table.ID}}">{{end}}
 
 	<div class="field">
-		<label>Name</label>
-		<input type="text" name="name" value="{{.Chain.Name}}" placeholder="input" required>
+		<label for="name">Name</label>
+		<input type="text" name="name" id="name" value="{{.Chain.Name}}" placeholder="input" required>
 		<div class="field-hint">Base chains are usually named after their hook: <span class="mono">input</span>,
 		<span class="mono">forward</span>, <span class="mono">output</span>, <span class="mono">prerouting</span>,
 		<span class="mono">postrouting</span>.</div>
 	</div>
 
 	<div class="field">
-		<label>Kind</label>
-		<select name="kind">
+		<label for="kind">Kind</label>
+		<select name="kind" id="kind">
 			<option value="base"{{if eq .Chain.Kind "base"}} selected{{end}}>Base chain — hooks into the traffic path</option>
 			<option value="regular"{{if eq .Chain.Kind "regular"}} selected{{end}}>Regular chain — a jump/goto target only</option>
 		</select>
@@ -37,8 +37,8 @@
 	</div>
 
 	<div class="field">
-		<label>Hook <span class="text-muted">(base chains)</span></label>
-		<select name="hook" data-source-select>
+		<label for="hook">Hook <span class="text-muted">(base chains)</span></label>
+		<select name="hook" id="hook" data-source-select>
 			<option value="">—</option>
 			{{$h := .Chain.Hook}}
 			{{range .Hooks}}<option value="{{.}}"{{if eq . $h}} selected{{end}}>{{.}}</option>{{end}}
@@ -50,15 +50,15 @@
 	</div>
 
 	<div class="field source-field" data-source-field="ingress egress"{{if not (or (eq .Chain.Hook "ingress") (eq .Chain.Hook "egress"))}} hidden{{end}}>
-		<label>Device <span class="text-muted">(ingress/egress hooks)</span></label>
-		<input type="text" name="device" value="{{.Chain.Device}}" class="mono" placeholder="eth0" autocomplete="off">
+		<label for="device">Device <span class="text-muted">(ingress/egress hooks)</span></label>
+		<input type="text" name="device" id="device" value="{{.Chain.Device}}" class="mono" placeholder="eth0" autocomplete="off">
 		<div class="field-hint">The interface this ingress/egress chain binds to — these hooks require one (they run per-interface, before the rest of the pipeline).</div>
 	</div>
 
 	<div class="field-row">
 		<div class="field">
-			<label>Type <span class="text-muted">(base chains)</span></label>
-			<select name="chain_type">
+			<label for="chain_type">Type <span class="text-muted">(base chains)</span></label>
+			<select name="chain_type" id="chain_type">
 				<option value="">—</option>
 				{{$ct := .Chain.ChainType}}
 				{{range .Types}}<option value="{{.}}"{{if eq . $ct}} selected{{end}}>{{.}}</option>{{end}}
@@ -67,16 +67,16 @@
 			masquerade · <strong>route</strong> for policy routing.</div>
 		</div>
 		<div class="field">
-			<label>Priority <span class="text-muted">(base chains)</span></label>
-			<input type="text" name="priority" value="{{.Chain.Priority}}" placeholder="filter">
+			<label for="priority">Priority <span class="text-muted">(base chains)</span></label>
+			<input type="text" name="priority" id="priority" value="{{.Chain.Priority}}" placeholder="filter">
 			<div class="field-hint">Order among chains on the same hook. Keywords work: <span class="mono">filter</span>,
 			<span class="mono">dstnat</span> (prerouting NAT), <span class="mono">srcnat</span> (postrouting NAT), or a number.</div>
 		</div>
 	</div>
 
 	<div class="field">
-		<label>Policy <span class="text-muted">(base chains)</span></label>
-		<select name="policy">
+		<label for="policy">Policy <span class="text-muted">(base chains)</span></label>
+		<select name="policy" id="policy">
 			<option value="accept"{{if eq .Chain.Policy "accept"}} selected{{end}}>accept — allow anything no rule dropped (permissive)</option>
 			<option value="drop"{{if eq .Chain.Policy "drop"}} selected{{end}}>drop — block anything no rule allowed (secure default)</option>
 		</select>

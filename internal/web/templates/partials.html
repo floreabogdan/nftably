@@ -85,10 +85,10 @@ current lesson from nav.Active. */}}
 <div class="nav-scrim" id="nav-scrim"></div>
 <div class="topbar">
 	<div class="topbar-left">
-		<button id="nav-toggle" class="icon-btn nav-toggle" title="Menu" type="button" aria-label="Open navigation">{{template "icon-menu"}}</button>
+		<button id="nav-toggle" class="icon-btn nav-toggle" title="Menu" type="button" aria-label="Open navigation" aria-expanded="false">{{template "icon-menu"}}</button>
 		<div class="topbar-search">
 			{{template "icon-search"}}
-			<input type="text" id="topbar-search-input" placeholder="Filter this page&hellip;" autocomplete="off">
+			<input type="text" id="topbar-search-input" placeholder="Filter this page&hellip;" autocomplete="off" aria-label="Filter this page">
 			<span class="kbd-hint">/</span>
 		</div>
 	</div>
@@ -97,7 +97,7 @@ current lesson from nav.Active. */}}
 			<button class="icon-btn" type="submit" title="Switch light/dark" aria-label="Switch to {{if eq .ThemeMode "dark"}}light{{else}}dark{{end}} mode">{{if eq .ThemeMode "dark"}}{{template "icon-sun"}}{{else}}{{template "icon-moon"}}{{end}}</button>
 		</form>
 		<details class="profile-menu">
-			<summary>
+			<summary aria-label="Account menu">
 				<span class="avatar">{{if .Username}}{{slice .Username 0 1}}{{else}}A{{end}}</span>
 			</summary>
 			<div class="profile-panel">
@@ -115,7 +115,7 @@ current lesson from nav.Active. */}}
      topbar, then the caller's "content" block, closed out with the scripts. */}}
 {{define "shell-open"}}
 <!doctype html>
-<html{{if .ThemeMode}} data-theme="{{.ThemeMode}}"{{end}}{{if ne .ThemeAccent "ocean"}} data-theme-accent="{{.ThemeAccent}}"{{end}}{{if ne .ThemeDensity "comfortable"}} data-theme-style="{{.ThemeDensity}}"{{end}}>
+<html lang="en"{{if .ThemeMode}} data-theme="{{.ThemeMode}}"{{end}}{{if ne .ThemeAccent "ocean"}} data-theme-accent="{{.ThemeAccent}}"{{end}}{{if ne .ThemeDensity "comfortable"}} data-theme-style="{{.ThemeDensity}}"{{end}}>
 <head>
 	<title>nftably{{if .RouterLabel}} — {{.RouterLabel}}{{end}}</title>
 	{{template "head" .}}

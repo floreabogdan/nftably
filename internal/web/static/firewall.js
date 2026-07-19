@@ -97,6 +97,7 @@
 		wrap.className = "combo" + (multi ? " combo-multi" : "");
 		var control = document.createElement("div");
 		control.className = "combo-control";
+		var listId = "combo-list-" + opts.name;
 		var input = document.createElement("input");
 		input.type = "text";
 		input.className = "combo-input";
@@ -104,6 +105,8 @@
 		input.setAttribute("role", "combobox");
 		input.setAttribute("aria-autocomplete", "list");
 		input.setAttribute("aria-expanded", "false");
+		input.setAttribute("aria-controls", listId);
+		input.setAttribute("aria-label", opts.label || opts.placeholder || "Value");
 		if (opts.placeholder) input.placeholder = opts.placeholder;
 		var toggle = document.createElement("button");
 		toggle.type = "button";
@@ -112,6 +115,7 @@
 		toggle.setAttribute("aria-label", "Show suggestions");
 		toggle.textContent = "▾";
 		var list = document.createElement("ul");
+		list.id = listId;
 		list.className = "combo-list";
 		list.setAttribute("role", "listbox");
 		list.hidden = true;
@@ -275,6 +279,7 @@
 			var sel = document.createElement("select");
 			sel.name = name;
 			sel.className = "knob-val";
+			sel.setAttribute("aria-label", "Condition value");
 			info.options.forEach(function (o) {
 				var label = o.label && o.label !== o.value ? o.value + " — " + o.label : o.value;
 				sel.appendChild(opt(o.value, label, o.value === current));
@@ -322,6 +327,7 @@
 		var input = document.createElement("input");
 		input.type = "text";
 		input.name = name;
+		input.setAttribute("aria-label", "Condition value");
 		input.className = "knob-val";
 		input.autocomplete = "off";
 		input.value = current || "";
