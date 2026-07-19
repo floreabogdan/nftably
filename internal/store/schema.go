@@ -27,6 +27,11 @@ CREATE TABLE IF NOT EXISTS settings (
 	-- "Authorization: Bearer <token>". The endpoint is session-exempt so a scraper
 	-- can reach it, so it is gated by this token instead.
 	metrics_token    TEXT NOT NULL DEFAULT '',
+	-- Theme preferences, kept on the account so they follow the operator across
+	-- logins: mode ('' = system | light | dark), accent, and layout density.
+	theme_mode       TEXT NOT NULL DEFAULT '',
+	theme_accent     TEXT NOT NULL DEFAULT 'ocean',
+	theme_density    TEXT NOT NULL DEFAULT 'comfortable',
 	created_at       TEXT NOT NULL,
 	updated_at       TEXT NOT NULL
 );

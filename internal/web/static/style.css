@@ -499,6 +499,7 @@ svg:not(.sparkline) { width: 18px; height: 18px; flex-shrink: 0; vertical-align:
 }
 .topbar-search input:focus + .kbd-hint, .topbar-search:focus-within .kbd-hint { display: none; }
 .topbar-right { display: flex; align-items: center; gap: 6px; }
+.topbar-theme-form { display: flex; margin: 0; }
 
 .icon-btn {
 	position: relative;

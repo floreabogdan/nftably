@@ -13,7 +13,7 @@ import (
 //
 // nftably's database is a single file the user can snapshot and restore, so
 // migrations must be forward-only and safe to re-run.
-const schemaVersion = 10
+const schemaVersion = 11
 
 func migrate(db *sql.DB) error {
 	var version int
@@ -55,6 +55,10 @@ func migrate(db *sql.DB) error {
 		{"nft_chains", "device", `TEXT NOT NULL DEFAULT ''`},
 		// version < 10: opt-in Prometheus /metrics bearer token.
 		{"settings", "metrics_token", `TEXT NOT NULL DEFAULT ''`},
+		// version < 11: account-stored theme preferences.
+		{"settings", "theme_mode", `TEXT NOT NULL DEFAULT ''`},
+		{"settings", "theme_accent", `TEXT NOT NULL DEFAULT 'ocean'`},
+		{"settings", "theme_density", `TEXT NOT NULL DEFAULT 'comfortable'`},
 	}
 	for _, a := range adds {
 		if err := addColumnIfMissing(tx, a.table, a.column, a.ddl); err != nil {

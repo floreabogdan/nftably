@@ -26,6 +26,13 @@ type Settings struct {
 	// MetricsToken, when non-empty, enables the Prometheus /metrics endpoint,
 	// which then requires "Authorization: Bearer <token>". Empty disables it.
 	MetricsToken string
+	// Theme preferences, stored on the account so they follow the operator across
+	// logins and devices (not just this browser). ThemeMode is "" (follow the
+	// system), "light" or "dark"; ThemeAccent is ocean|emerald|violet|amber;
+	// ThemeDensity is comfortable|compact.
+	ThemeMode    string
+	ThemeAccent  string
+	ThemeDensity string
 }
 
 // GetSettings returns the single settings row, or (Settings{}, false, nil) if
@@ -33,9 +40,11 @@ type Settings struct {
 func (s *Store) GetSettings() (Settings, bool, error) {
 	var st Settings
 	row := s.db.QueryRow(`
-		SELECT router_label, listen_addr, nft_binary, access_whitelist, geoip_db, geoip_autoupdate, metrics_token
+		SELECT router_label, listen_addr, nft_binary, access_whitelist, geoip_db, geoip_autoupdate, metrics_token,
+			theme_mode, theme_accent, theme_density
 		FROM settings WHERE id = 1`)
-	err := row.Scan(&st.RouterLabel, &st.ListenAddr, &st.NftBinary, &st.AccessWhitelist, &st.GeoIPDB, &st.GeoIPAutoUpdate, &st.MetricsToken)
+	err := row.Scan(&st.RouterLabel, &st.ListenAddr, &st.NftBinary, &st.AccessWhitelist, &st.GeoIPDB, &st.GeoIPAutoUpdate, &st.MetricsToken,
+		&st.ThemeMode, &st.ThemeAccent, &st.ThemeDensity)
 	if err == sql.ErrNoRows {
 		return Settings{}, false, nil
 	}
@@ -90,6 +99,16 @@ func (s *Store) SaveMetricsToken(token string) error {
 	res, err := s.db.Exec(`UPDATE settings SET metrics_token = ?, updated_at = ? WHERE id = 1`, token, now())
 	if err != nil {
 		return fmt.Errorf("store: save metrics token: %w", err)
+	}
+	return notFoundIfZero(res)
+}
+
+// SaveTheme updates only the theme preferences.
+func (s *Store) SaveTheme(mode, accent, density string) error {
+	res, err := s.db.Exec(`UPDATE settings SET theme_mode = ?, theme_accent = ?, theme_density = ?, updated_at = ? WHERE id = 1`,
+		mode, accent, density, now())
+	if err != nil {
+		return fmt.Errorf("store: save theme: %w", err)
 	}
 	return notFoundIfZero(res)
 }

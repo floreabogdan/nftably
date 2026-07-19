@@ -64,12 +64,24 @@ type nav struct {
 	Active      string
 	RouterLabel string
 	Username    string
+	// Theme preferences, rendered onto <html> by the shell so the look is applied
+	// server-side (no flash, no per-browser drift) and follows the account.
+	ThemeMode    string // "" (system) | light | dark
+	ThemeAccent  string // ocean | emerald | violet | amber
+	ThemeDensity string // comfortable | compact
 }
 
 func (s *Server) navFor(r *http.Request, active string) nav {
-	n := nav{Active: active, Username: s.currentUser(r).Username}
+	n := nav{Active: active, Username: s.currentUser(r).Username, ThemeAccent: "ocean", ThemeDensity: "comfortable"}
 	if st, ok, err := s.store.GetSettings(); err == nil && ok {
 		n.RouterLabel = st.RouterLabel
+		n.ThemeMode = st.ThemeMode
+		if st.ThemeAccent != "" {
+			n.ThemeAccent = st.ThemeAccent
+		}
+		if st.ThemeDensity != "" {
+			n.ThemeDensity = st.ThemeDensity
+		}
 	}
 	return n
 }

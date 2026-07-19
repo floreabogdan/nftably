@@ -102,8 +102,8 @@ func TestGeoIPDownloadFailureStaysOnTab(t *testing.T) {
 	}
 }
 
-// TestThemeTabRenders checks the Settings → Theme panel ships the density picker
-// the client-side theme.js wires up.
+// TestThemeTabRenders checks the Settings → Theme panel ships the server-side
+// accent + density pickers as a form that posts to /settings/theme.
 func TestThemeTabRenders(t *testing.T) {
 	srv, cookie := newTestServer(t)
 	req := httptest.NewRequest(http.MethodGet, "/settings?tab=theme", nil)
@@ -115,12 +115,46 @@ func TestThemeTabRenders(t *testing.T) {
 	}
 	body := rec.Body.String()
 	for _, want := range []string{
-		`data-theme-choice`, `value="comfortable"`, `value="compact"`, "Layout density",
-		`data-theme-accent-choice`, `value="emerald"`, `value="violet"`, "Accent colour",
+		`action="/settings/theme"`, "Layout density", "Accent colour",
+		`name="density" value="comfortable"`, `name="density" value="compact"`,
+		`name="accent" value="emerald"`, `name="accent" value="violet"`,
+		// Ocean is the default, so it renders checked on a fresh account.
+		`name="accent" value="ocean" checked`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("theme tab missing %q", want)
 		}
+	}
+}
+
+// TestThemeSavePersists checks that posting the Theme form stores the accent and
+// density on the account and that the shell then renders them onto <html>.
+func TestThemeSavePersists(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	form := strings.NewReader("accent=emerald&density=compact")
+	req := httptest.NewRequest(http.MethodPost, "/settings/theme", form)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("theme save: status %d, want 303", rec.Code)
+	}
+
+	// The shell should now carry the saved accent + density on <html>.
+	req = httptest.NewRequest(http.MethodGet, "/settings?tab=theme", nil)
+	req.AddCookie(cookie)
+	rec = httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	body := rec.Body.String()
+	if !strings.Contains(body, `data-theme-accent="emerald"`) {
+		t.Error("shell missing saved accent on <html>")
+	}
+	if !strings.Contains(body, `data-theme-style="compact"`) {
+		t.Error("shell missing saved density on <html>")
+	}
+	if !strings.Contains(body, `name="accent" value="emerald" checked`) {
+		t.Error("theme form did not mark the saved accent checked")
 	}
 }
 
