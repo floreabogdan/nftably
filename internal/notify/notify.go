@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -264,9 +265,38 @@ func (d *Dispatcher) deliver(dest store.Destination, a alert) error {
 		return d.postJSON(dest.URL, discordPayload(a))
 	case store.AlertEmail:
 		return sendEmail(dest, a)
+	case store.AlertTelegram:
+		return d.postJSON(dest.URL, telegramPayload(a))
+	case store.AlertGotify:
+		return d.postJSON(dest.URL, gotifyPayload(a))
+	case store.AlertNtfy:
+		return d.postNtfy(dest.URL, a)
 	default:
 		return d.postJSON(dest.URL, webhookPayload(a))
 	}
+}
+
+// postNtfy delivers to an ntfy topic: the message is the request body, with the
+// title, tags (emoji) and priority carried in headers — ntfy's native format.
+func (d *Dispatcher) postNtfy(url string, a alert) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(a.plainLineNoEmoji()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Title", a.title())
+	req.Header.Set("Tags", a.ntfyTag())
+	req.Header.Set("Priority", a.ntfyPriority())
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("%s returned HTTP %d", url, resp.StatusCode)
+	}
+	return nil
 }
 
 func (d *Dispatcher) postJSON(url string, v any) error {
@@ -322,6 +352,77 @@ func slackPayload(a alert) map[string]any {
 			"footer":   "nftably",
 			"ts":       a.Time.Unix(),
 		}},
+	}
+}
+
+// telegramPayload posts to the Bot API's sendMessage. The bot token and chat_id
+// live in the destination URL (…/bot<token>/sendMessage?chat_id=<id>); only the
+// text is sent in the body.
+func telegramPayload(a alert) map[string]any {
+	return map[string]any{
+		"text":                     a.emoji() + " " + a.title() + "\n" + a.Message,
+		"disable_web_page_preview": true,
+	}
+}
+
+// gotifyPayload posts to a Gotify server's /message (the app token is in the
+// destination URL as ?token=…).
+func gotifyPayload(a alert) map[string]any {
+	return map[string]any{
+		"title":    a.emoji() + " " + a.title(),
+		"message":  a.Message,
+		"priority": a.gotifyPriority(),
+	}
+}
+
+// plainLineNoEmoji is the alert line without the leading emoji — for ntfy, which
+// renders the emoji from its own Tags header.
+func (a alert) plainLineNoEmoji() string {
+	line := a.title()
+	if a.Host != "" {
+		line += " (" + a.Host + ")"
+	}
+	if a.Message != "" {
+		line += " — " + a.Message
+	}
+	return line
+}
+
+// ntfyTag maps severity to an ntfy emoji-shortcode tag.
+func (a alert) ntfyTag() string {
+	switch a.severity() {
+	case "danger":
+		return "rotating_light"
+	case "warning":
+		return "warning"
+	case "good":
+		return "white_check_mark"
+	default:
+		return "loudspeaker"
+	}
+}
+
+// ntfyPriority maps severity to ntfy's 1–5 priority header.
+func (a alert) ntfyPriority() string {
+	switch a.severity() {
+	case "danger":
+		return "5"
+	case "warning":
+		return "4"
+	default:
+		return "3"
+	}
+}
+
+// gotifyPriority maps severity to Gotify's numeric priority.
+func (a alert) gotifyPriority() int {
+	switch a.severity() {
+	case "danger":
+		return 8
+	case "warning":
+		return 6
+	default:
+		return 4
 	}
 }
 

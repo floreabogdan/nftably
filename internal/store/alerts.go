@@ -15,10 +15,13 @@ import (
 
 // Alert destination types.
 const (
-	AlertWebhook = "webhook"
-	AlertSlack   = "slack"
-	AlertDiscord = "discord"
-	AlertEmail   = "email"
+	AlertWebhook  = "webhook"
+	AlertSlack    = "slack"
+	AlertDiscord  = "discord"
+	AlertEmail    = "email"
+	AlertTelegram = "telegram"
+	AlertNtfy     = "ntfy"
+	AlertGotify   = "gotify"
 )
 
 // SMTP transport security.
@@ -43,7 +46,7 @@ const (
 )
 
 var (
-	alertTypes    = map[string]bool{AlertWebhook: true, AlertSlack: true, AlertDiscord: true, AlertEmail: true}
+	alertTypes    = map[string]bool{AlertWebhook: true, AlertSlack: true, AlertDiscord: true, AlertEmail: true, AlertTelegram: true, AlertNtfy: true, AlertGotify: true}
 	smtpSecurity  = map[string]bool{SMTPNone: true, SMTPStartTLS: true, SMTPTLS: true}
 	webhookTypes  = map[string]bool{AlertWebhook: true, AlertSlack: true, AlertDiscord: true}
 	alertTypeName = map[string]string{

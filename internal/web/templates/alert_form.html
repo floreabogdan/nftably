@@ -26,6 +26,9 @@
 					<option value="webhook"{{if eq .Dest.Type "webhook"}} selected{{end}}>Webhook (generic JSON)</option>
 					<option value="slack"{{if eq .Dest.Type "slack"}} selected{{end}}>Slack</option>
 					<option value="discord"{{if eq .Dest.Type "discord"}} selected{{end}}>Discord</option>
+					<option value="telegram"{{if eq .Dest.Type "telegram"}} selected{{end}}>Telegram</option>
+					<option value="ntfy"{{if eq .Dest.Type "ntfy"}} selected{{end}}>ntfy</option>
+					<option value="gotify"{{if eq .Dest.Type "gotify"}} selected{{end}}>Gotify</option>
 					<option value="email"{{if eq .Dest.Type "email"}} selected{{end}}>Email (SMTP)</option>
 				</select>
 				{{with index .Errs "type"}}<div class="field-error">{{.}}</div>{{end}}
@@ -38,9 +41,14 @@
 		<div class="card-header"><span class="card-title">{{template "icon-route"}}Webhook URL</span></div>
 		<div class="card-body">
 			<div class="field">
-				<label for="url">Incoming webhook URL</label>
-				<input type="text" id="url" name="url" class="mono" value="{{.Dest.URL}}" placeholder="https://hooks.slack.com/services/... or https://discord.com/api/webhooks/..." autocomplete="off">
-				<div class="field-hint text-muted">For Slack/Discord this is the incoming-webhook URL from that app; for a generic webhook, any HTTPS endpoint that accepts a JSON POST.</div>
+				<label for="url">Delivery URL</label>
+				<input type="text" id="url" name="url" class="mono" value="{{.Dest.URL}}" placeholder="https://hooks.slack.com/services/..." autocomplete="off">
+				<div class="field-hint text-muted">Where to POST. By type:
+					<strong>Slack/Discord</strong> — the incoming-webhook URL from that app.
+					<strong>Webhook</strong> — any HTTPS endpoint that accepts a JSON POST.
+					<strong>Telegram</strong> — <span class="mono">https://api.telegram.org/bot&lt;token&gt;/sendMessage?chat_id=&lt;id&gt;</span>.
+					<strong>ntfy</strong> — your topic URL, e.g. <span class="mono">https://ntfy.sh/my-topic</span>.
+					<strong>Gotify</strong> — <span class="mono">https://gotify.example/message?token=&lt;app-token&gt;</span>.</div>
 				{{with index .Errs "url"}}<div class="field-error">{{.}}</div>{{end}}
 			</div>
 		</div>

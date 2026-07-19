@@ -110,6 +110,58 @@ func TestThrottleOpensOnlyAfterSuccess(t *testing.T) {
 	}
 }
 
+// TestDeliverNtfyAndGotify checks the two new channels use the right transport:
+// ntfy carries the message in the body with Title/Tags/Priority headers, and
+// Gotify posts a JSON title/message/priority.
+func TestDeliverNtfyAndGotify(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		gotHdr  http.Header
+		gotBody []byte
+		gotCT   string
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		gotHdr = r.Header.Clone()
+		gotBody, _ = io.ReadAll(r.Body)
+		gotCT = r.Header.Get("Content-Type")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	d := NewDispatcher(tempStore(t), nil, 0)
+
+	// ntfy: message in body, metadata in headers, no JSON content-type.
+	if err := d.SendTest(store.Destination{Type: store.AlertNtfy, Enabled: true, URL: srv.URL}); err != nil {
+		t.Fatalf("ntfy SendTest: %v", err)
+	}
+	mu.Lock()
+	if gotHdr.Get("Title") == "" || gotHdr.Get("Priority") == "" {
+		t.Errorf("ntfy missing Title/Priority headers: %v", gotHdr)
+	}
+	if len(gotBody) == 0 {
+		t.Error("ntfy sent an empty body")
+	}
+	mu.Unlock()
+
+	// Gotify: JSON with title/message/priority.
+	if err := d.SendTest(store.Destination{Type: store.AlertGotify, Enabled: true, URL: srv.URL}); err != nil {
+		t.Fatalf("gotify SendTest: %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.HasPrefix(gotCT, "application/json") {
+		t.Errorf("gotify content-type = %q", gotCT)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(gotBody, &payload); err != nil {
+		t.Fatalf("gotify body not JSON: %v", err)
+	}
+	if payload["message"] == nil || payload["priority"] == nil {
+		t.Errorf("gotify payload missing message/priority: %v", payload)
+	}
+}
+
 // TestSendTestReportsFailure confirms a non-2xx endpoint surfaces as an error,
 // which is what the UI's "Test" button relies on.
 func TestSendTestReportsFailure(t *testing.T) {
