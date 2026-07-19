@@ -73,6 +73,22 @@ func TestPagesRender(t *testing.T) {
 	}
 }
 
+// TestAdvisorRedirectsToSecurity confirms the retired /advisor page now
+// permanently redirects to the merged Security check.
+func TestAdvisorRedirectsToSecurity(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/advisor", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("GET /advisor: status %d, want 301", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/harden" {
+		t.Errorf("redirect to %q, want /harden", loc)
+	}
+}
+
 // TestLoginPageRenders checks the unauthenticated login template.
 func TestLoginPageRenders(t *testing.T) {
 	srv, _ := newTestServer(t)

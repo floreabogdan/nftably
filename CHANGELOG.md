@@ -57,14 +57,16 @@ typed, explained control instead of a fixed form.
   says so when it's hit. The feed-URL field now suggests **well-known public
   blocklists** (FireHOL Level 1/2, Emerging Threats, abuse.ch Feodo, CINS Army) so
   you can subscribe to a reputable threat feed without hunting for the URL.
-- **Security check** (`/harden`) — a plain-language posture score. It grades your
-  model against what a solid host firewall needs — default-deny inbound, the
-  survivable base (loopback, established/related, invalid dropped), IPv6's
-  mandatory ICMP, anti-spoofing, and a scoped SSH — and explains *why each
-  matters*, so it teaches while it checks. Where it's safe, one click adds the
-  missing rule and drops you on Review & apply (behind the armed auto-revert); the
-  fixes only ever add an accept or drop clearly-bad traffic, so a fix can't lock
-  you out. A compact score card on the Dashboard links straight to it.
+- **Security** (`/harden`) — one page that both assesses and hardens. A
+  plain-language **posture score** grades your model against what a solid host
+  firewall needs — default-deny inbound, the survivable base (loopback,
+  established/related, invalid dropped), IPv6's mandatory ICMP, anti-spoofing, and a
+  scoped SSH — explaining *why each matters*. On the same page, an **Exposed
+  services** section scans what's actually listening and runs each through the
+  simulator against your model (the former *Advisor*, now merged in). Both halves
+  offer safe one-click fixes that land on Review & apply behind the armed
+  auto-revert. A compact score card on the Dashboard links straight to it.
+  (`/advisor` now redirects here.)
 - **Prometheus metrics** (`/metrics`) — an opt-in exposition endpoint so the
   firewall can be graphed and alerted on in Grafana/Prometheus. Every rule with a
   **Count** action becomes a time series (`nftably_rule_packets_total`,
@@ -88,6 +90,9 @@ typed, explained control instead of a fixed form.
   address families, and sets. Every concept links to where you act on it — the
   packet simulator, the Security check, the Firewall page — so a newcomer can go
   from "what's a chain?" to a hardened box.
+- **Sidebar reorganised** into clearer intents — **Observe** (read the live state),
+  **Secure** (Security + Simulate), **Manage** (build the model), **Learn**
+  (Concepts), **System** — so the growing set of pages is easier to navigate.
 - **Packet-path simulator** (`/simulate`). Describe a packet — hook, protocol,
   source/destination, ports, interfaces, connection state — and see a step-by-step
   trace of which rule decides it, ending in ACCEPT/DROP/REJECT. It walks the

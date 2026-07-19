@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/floreabogdan/nftably/internal/advisor"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
@@ -239,6 +240,13 @@ type hardenVM struct {
 	Total     int
 	HaveModel bool
 	LoadErr   string
+	// Exposed-services section (the merged-in advisor): every live listener run
+	// through the simulator against the model.
+	Findings []advisor.Finding
+	Hidden   []advisor.Finding
+	ScanNote string
+	Warns    int
+	Infos    int
 }
 
 func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
@@ -250,6 +258,18 @@ func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
 		vm.Checks = checks
 		vm.Pass, vm.Total = postureScore(checks)
 		vm.HaveModel = v.haveInput
+	}
+	// The exposed-services scan is independent of the posture read; a failure
+	// there shouldn't blank the whole page, so it's best-effort.
+	if visible, hidden, note, ferr := s.advisorFindings(); ferr == nil {
+		vm.Findings, vm.Hidden, vm.ScanNote = visible, hidden, note
+		for _, f := range visible {
+			if f.Severity == "warn" {
+				vm.Warns++
+			} else {
+				vm.Infos++
+			}
+		}
 	}
 	render(w, s.log, "harden.html", vm)
 }

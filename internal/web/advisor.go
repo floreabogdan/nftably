@@ -10,26 +10,22 @@ import (
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
-// This file is the /advisor surface: it scans the box's listening sockets and
-// routing, runs each exposure through the packet simulator against the current
-// model, and reports what the firewall actually does about it — with a one-click
-// fix or a link into the simulator. Findings are advice; nothing changes the
-// kernel here (a one-click "allow" only adds a rule to the model, for review).
+// This file backs the "Exposed services" half of the Security page (/harden): it
+// scans the box's listening sockets and routing, runs each exposure through the
+// packet simulator against the current model, and reports what the firewall
+// actually does about it — with a one-click fix or a link into the simulator.
+// Findings are advice; nothing changes the kernel here (a one-click "allow" only
+// adds a rule to the model, for review). The old /advisor page was merged into
+// the Security check; its GET route now redirects there, and the allow/dismiss/
+// restore actions below still power that section.
 
-type advisorVM struct {
-	nav
-	Findings []advisor.Finding
-	Hidden   []advisor.Finding
-	Note     string // scan limitation (e.g. listener scanning needs Linux)
-	Warns    int
-	Infos    int
-}
-
-func (s *Server) handleAdvisor(w http.ResponseWriter, r *http.Request) {
+// advisorFindings runs the live exposure scan against the current model and
+// splits the results into visible and dismissed findings. scanNote carries any
+// scan limitation (e.g. listener scanning needs Linux).
+func (s *Server) advisorFindings() (visible, hidden []advisor.Finding, scanNote string, err error) {
 	m, err := s.loadModel()
 	if err != nil {
-		s.serverError(w, "load model", err)
-		return
+		return nil, nil, "", err
 	}
 	scan := advisor.Detect()
 	findings := advisor.Analyze(scan, m, advisor.Options{
@@ -38,20 +34,16 @@ func (s *Server) handleAdvisor(w http.ResponseWriter, r *http.Request) {
 	})
 	dismissed, err := s.store.DismissedSuggestions()
 	if err != nil {
-		s.serverError(w, "list dismissed", err)
-		return
+		return nil, nil, "", err
 	}
-	visible, hidden := advisor.Filter(findings, dismissed)
+	visible, hidden = advisor.Filter(findings, dismissed)
+	return visible, hidden, scan.Note, nil
+}
 
-	vm := advisorVM{nav: s.navFor(r, "advisor"), Findings: visible, Hidden: hidden, Note: scan.Note}
-	for _, f := range visible {
-		if f.Severity == "warn" {
-			vm.Warns++
-		} else {
-			vm.Infos++
-		}
-	}
-	render(w, s.log, "advisor.html", vm)
+// handleAdvisor redirects the retired /advisor page to the Security check, which
+// now carries its findings.
+func (s *Server) handleAdvisor(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/harden", http.StatusMovedPermanently)
 }
 
 // handleAdvisorAllow takes a blocked-listener finding's one-click fix: it adds an
@@ -66,12 +58,12 @@ func (s *Server) handleAdvisorAllow(w http.ResponseWriter, r *http.Request) {
 	proto := r.FormValue("proto")
 	port, _ := strconv.Atoi(r.FormValue("port"))
 	if (proto != "tcp" && proto != "udp") || port < 1 || port > 65535 {
-		redirectErr(w, r, "/advisor", "That service can't be allowed automatically.")
+		redirectErr(w, r, "/harden", "That service can't be allowed automatically.")
 		return
 	}
 	chainID, ok := s.primaryInputChainID()
 	if !ok {
-		redirectErr(w, r, "/advisor", "There's no input chain to add a rule to — apply a preset first, then try again.")
+		redirectErr(w, r, "/harden", "There's no input chain to add a rule to — apply a preset first, then try again.")
 		return
 	}
 	rule := store.ChainRule{
@@ -82,7 +74,7 @@ func (s *Server) handleAdvisorAllow(w http.ResponseWriter, r *http.Request) {
 		Statements: []store.RuleStatement{{Key: "accept", Params: "{}"}},
 	}
 	if _, err := s.store.CreateChainRule(rule); err != nil {
-		redirectErr(w, r, "/advisor", "Could not add the rule: "+err.Error())
+		redirectErr(w, r, "/harden", "Could not add the rule: "+err.Error())
 		return
 	}
 	s.audit(r, fmt.Sprintf("advisor: added accept rule for %s/%d", proto, port))
@@ -96,7 +88,7 @@ func (s *Server) handleAdvisorDismiss(w http.ResponseWriter, r *http.Request) {
 			s.log.Warn("dismiss finding failed", "error", err)
 		}
 	}
-	http.Redirect(w, r, "/advisor", http.StatusSeeOther)
+	http.Redirect(w, r, "/harden", http.StatusSeeOther)
 }
 
 func (s *Server) handleAdvisorRestore(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +98,7 @@ func (s *Server) handleAdvisorRestore(w http.ResponseWriter, r *http.Request) {
 			s.log.Warn("restore finding failed", "error", err)
 		}
 	}
-	http.Redirect(w, r, "/advisor", http.StatusSeeOther)
+	http.Redirect(w, r, "/harden", http.StatusSeeOther)
 }
 
 // primaryInputChainID returns the id of the first base input filter chain, the

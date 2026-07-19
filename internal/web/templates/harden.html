@@ -1,14 +1,15 @@
 {{template "shell-open" .}}
 <div class="page-top">
-	<span class="page-eyebrow">Observe</span>
-	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Security check</span></div>
+	<span class="page-eyebrow">Secure</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Security</span></div>
 </div>
 <div class="page-header">
 	<div>
-		<h1>{{template "icon-shield"}} Security check</h1>
-		<div class="page-sub">A plain-language health check of your <a href="/firewall">firewall</a> against what a solid
-		host setup needs. Each item explains why it matters; where it's safe, one click adds the rule and drops
-		you on <a href="/changes">Review &amp; apply</a> — behind the armed auto-revert, so a fix can't lock you out.</div>
+		<h1>{{template "icon-shield"}} Security</h1>
+		<div class="page-sub">A plain-language read on your <a href="/firewall">firewall</a>: best-practice
+		<strong>checks</strong> for what a solid host setup needs, and the <strong>services actually exposed</strong> on
+		this box, each run through the <a href="/simulate">packet simulator</a>. Where it's safe, one click adds the rule
+		and drops you on <a href="/changes">Review &amp; apply</a> — behind the armed auto-revert, so a fix can't lock you out.</div>
 	</div>
 </div>
 
@@ -35,7 +36,7 @@
 {{end}}
 
 <div class="card">
-	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Checks</span></div>
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Best-practice checks</span></div>
 	<div class="card-body check-list">
 		{{range .Checks}}
 		<div class="check check-{{.Status}}">
@@ -55,6 +56,67 @@
 				{{end}}
 			</div>
 		</div>
+		{{end}}
+	</div>
+</div>
+
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-bulb"}}Exposed services</span>
+		<span class="text-muted">{{if .Warns}}{{.Warns}} to look at · {{end}}{{.Infos}} note{{if ne .Infos 1}}s{{end}}</span>
+	</div>
+	<div class="card-body">
+		<p class="check-detail">What's actually listening on this box, and what your firewall does about each one —
+		every exposure is run through the <a href="/simulate">packet simulator</a>, so these are real verdicts, not
+		generic advice.</p>
+		{{if .ScanNote}}<div class="field-hint text-muted">{{.ScanNote}}</div>{{end}}
+		{{if not .Findings}}
+		<div class="check check-pass">
+			<div class="check-icon" aria-hidden="true">&#10003;</div>
+			<div class="check-body"><strong>Nothing stands out.</strong>
+			<p class="check-detail">Every externally-reachable service either has a deliberate rule or is blocked by your firewall. This scans live — re-open any time.</p></div>
+		</div>
+		{{else}}
+		{{range .Findings}}
+		<div class="finding finding-{{.Severity}}">
+			<div class="finding-head">
+				<strong>{{.Title}}</strong>
+				{{if .Verdict}}<span class="badge {{if eq .Verdict "ACCEPT"}}badge-warning{{else}}badge-success{{end}}">would {{.Verdict}}</span>{{end}}
+			</div>
+			<p class="finding-detail">{{.Detail}}</p>
+			<div class="finding-actions">
+				{{if .Allow}}
+				<form method="post" action="/advisor/allow">
+					<input type="hidden" name="proto" value="{{.Allow.Proto}}">
+					<input type="hidden" name="port" value="{{.Allow.Port}}">
+					<button type="submit" class="btn btn-sm btn-primary">{{template "icon-plus"}} {{.Allow.Label}}</button>
+				</form>
+				{{end}}
+				{{if .Sim}}<a class="btn btn-sm btn-ghost" href="{{rawURL (printf "/simulate?%s" .Sim)}}">{{template "icon-route"}} Simulate</a>{{end}}
+				<form method="post" action="/advisor/dismiss">
+					<input type="hidden" name="key" value="{{.Key}}">
+					<button type="submit" class="btn btn-sm btn-ghost">Dismiss</button>
+				</form>
+			</div>
+		</div>
+		{{end}}
+		{{end}}
+
+		{{if .Hidden}}
+		<details class="dismissed-findings">
+			<summary><span class="text-muted">Dismissed ({{len .Hidden}})</span></summary>
+			{{range .Hidden}}
+			<div class="finding finding-dismissed">
+				<div class="finding-head"><span class="text-muted">{{.Title}}</span></div>
+				<div class="finding-actions">
+					<form method="post" action="/advisor/restore">
+						<input type="hidden" name="key" value="{{.Key}}">
+						<button type="submit" class="btn btn-sm btn-ghost">Restore</button>
+					</form>
+				</div>
+			</div>
+			{{end}}
+		</details>
 		{{end}}
 	</div>
 </div>
