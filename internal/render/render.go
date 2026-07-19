@@ -88,6 +88,9 @@ func TableConfig(t TableTree) string {
 
 func writeTable(b *strings.Builder, t TableTree) {
 	fmt.Fprintf(b, "table %s %s {\n", t.Family, t.Name)
+	for _, name := range namedCountersOf(t) {
+		fmt.Fprintf(b, "\tcounter %s {\n\t}\n", name)
+	}
 	for _, s := range t.DynSets {
 		writeDynSet(b, s)
 	}

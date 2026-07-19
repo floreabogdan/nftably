@@ -114,6 +114,7 @@
 							{{range $u := (list "" "bytes" "kbytes" "mbytes")}}<option value="{{$u}}"{{if eq $u $lu}} selected{{end}}>{{if $u}}{{$u}}{{else}}packets{{end}}</option>{{end}}
 						</select></span>
 						<span class="param" data-param="group" data-for="log"><label for="a_group_{{$j}}">nflog group</label><input type="text" name="a_group_{{$j}}" id="a_group_{{$j}}" value="{{index $a.Params "group"}}" placeholder="(kernel log)"></span>
+						<span class="param" data-param="cname" data-for="counter"><label for="a_cname_{{$j}}">Named counter</label><input type="text" name="a_cname_{{$j}}" id="a_cname_{{$j}}" value="{{index $a.Params "cname"}}" placeholder="(anonymous)"></span>
 						<span class="param" data-param="name" data-for="ct.helper.set"><label for="a_name_{{$j}}">Helper name</label><input type="text" name="a_name_{{$j}}" id="a_name_{{$j}}" value="{{index $a.Params "name"}}" placeholder="ftp"></span>
 						<span class="param" data-param="vmapkey" data-for="vmap"><label for="a_vmapkey_{{$j}}">Map on</label><select name="a_vmapkey_{{$j}}" id="a_vmapkey_{{$j}}">
 							{{$vk := index $a.Params "vmapkey"}}

@@ -356,8 +356,20 @@ var statements = []Statement{
 			}
 			return b.String(), nil
 		}},
-	{Key: "counter", Label: "Count", Group: "Observe", Help: "Tally the packets and bytes that match this rule. Once applied, the running total shows next to the rule on the Firewall page.", Example: "counter",
-		render: func(_ map[string]string, _ Ctx) (string, error) { return "counter", nil }},
+	{Key: "counter", Label: "Count", Group: "Observe", Example: "counter",
+		Help: "Tally the packets and bytes that match this rule; the total shows next to the rule on the Firewall page once applied. Give it a name to share one counter across several rules (a named counter also keeps its value across ruleset reloads).",
+		Params: []Param{{Key: "cname", Label: "Named counter (optional)", Kind: KindText, Optional: true, Placeholder: "web_hits",
+			Help: "Name it to aggregate the count across every rule that uses the same name. Blank = a per-rule anonymous counter."}},
+		render: func(p map[string]string, _ Ctx) (string, error) {
+			name := strings.TrimSpace(p["cname"])
+			if name == "" {
+				return "counter", nil
+			}
+			if !identRe.MatchString(name) {
+				return "", fmt.Errorf("counter name must be letters, digits and underscores")
+			}
+			return "counter name " + name, nil
+		}},
 	{Key: "meta.nftrace.set", Label: "Trace (for nft monitor trace)", Group: "Observe", Example: "meta nftrace set 1",
 		Help:   "Flag matching packets for tracing, so `nft monitor trace` prints every rule they hit as they cross the ruleset — a powerful last-resort debugging aid. Match it to the traffic you're chasing, apply, then watch the trace. Remove it when you're done; it's noisy.",
 		render: func(_ map[string]string, _ Ctx) (string, error) { return "meta nftrace set 1", nil }},

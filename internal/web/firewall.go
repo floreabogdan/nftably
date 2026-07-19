@@ -35,7 +35,7 @@ const (
 var paramKeys = []string{
 	"target", "addr", "port", "with", "prefix", "level", "rate", "per", "burst", "value",
 	"mss", "wscale", "size", "dir", "amount", "unit", "num", "bypass", "name", "group",
-	"lmode", "lunit", "vmapkey", "vmapentries",
+	"lmode", "lunit", "vmapkey", "vmapentries", "cname",
 }
 
 // ── overview ────────────────────────────────────────────────────────────────

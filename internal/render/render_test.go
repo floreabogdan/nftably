@@ -55,6 +55,30 @@ func TestRenderRuleNegationAndSet(t *testing.T) {
 	}
 }
 
+func TestNamedCounters(t *testing.T) {
+	// Two rules sharing the named counter "web" plus one anonymous counter.
+	m := model("accept",
+		rule("http", []store.RuleMatch{{Key: "tcp.dport", Op: "==", Value: "80"}},
+			[]store.RuleStatement{{Key: "counter", Params: `{"cname":"web"}`}, {Key: "accept", Params: "{}"}}),
+		rule("https", []store.RuleMatch{{Key: "tcp.dport", Op: "==", Value: "443"}},
+			[]store.RuleStatement{{Key: "counter", Params: `{"cname":"web"}`}, {Key: "accept", Params: "{}"}}),
+		rule("ssh", []store.RuleMatch{{Key: "tcp.dport", Op: "==", Value: "22"}},
+			[]store.RuleStatement{{Key: "counter", Params: "{}"}, {Key: "accept", Params: "{}"}}),
+	)
+	out := Config(m)
+	// The named counter is declared exactly once, and each rule references it.
+	if n := strings.Count(out, "\tcounter web {"); n != 1 {
+		t.Errorf("want one 'counter web' declaration, got %d\n%s", n, out)
+	}
+	if strings.Count(out, "counter name web accept") != 2 {
+		t.Errorf("both http/https rules should reference the named counter:\n%s", out)
+	}
+	// The anonymous counter is unnamed and undeclared.
+	if strings.Contains(out, "counter ssh") || !strings.Contains(out, "tcp dport 22 counter accept") {
+		t.Errorf("anonymous counter mishandled:\n%s", out)
+	}
+}
+
 func TestRenderRawRule(t *testing.T) {
 	// A raw rule renders verbatim, with the comment appended, and its
 	// matches/statements ignored.
