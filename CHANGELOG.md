@@ -55,6 +55,14 @@ typed, explained control instead of a fixed form.
   accepts. Refresh on demand or let it refresh automatically in the background.
   Sourced sets are read-only in the UI; a cap keeps a runaway source bounded and
   says so when it's hit.
+- **Security check** (`/harden`) — a plain-language posture score. It grades your
+  model against what a solid host firewall needs — default-deny inbound, the
+  survivable base (loopback, established/related, invalid dropped), IPv6's
+  mandatory ICMP, anti-spoofing, and a scoped SSH — and explains *why each
+  matters*, so it teaches while it checks. Where it's safe, one click adds the
+  missing rule and drops you on Review & apply (behind the armed auto-revert); the
+  fixes only ever add an accept or drop clearly-bad traffic, so a fix can't lock
+  you out. A compact score card on the Dashboard links straight to it.
 - **Packet-path simulator** (`/simulate`). Describe a packet — hook, protocol,
   source/destination, ports, interfaces, connection state — and see a step-by-step
   trace of which rule decides it, ending in ACCEPT/DROP/REJECT. It walks the

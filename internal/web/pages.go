@@ -39,6 +39,10 @@ type dashboardVM struct {
 	// NeedsSetup nudges a fresh install towards the guided setup: no rules
 	// modelled yet means nftably is not managing anything.
 	NeedsSetup bool
+	// Posture summary — a compact score linking to the full Security check.
+	PostureShow  bool
+	PosturePass  int
+	PostureTotal int
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +59,13 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		Iptables:   nft.ProbeIptables(ctx, s.iptablesSave, s.ip6tablesSave, s.iptablesBin),
 		WideOpen:   s.WideOpen(),
 		NeedsSetup: len(tables) == 0,
+	}
+	// A compact posture score, when there's a model to grade.
+	if len(tables) > 0 {
+		if checks, _, err := s.posture(); err == nil {
+			vm.PostureShow = true
+			vm.PosturePass, vm.PostureTotal = postureScore(checks)
+		}
 	}
 	render(w, s.log, "dashboard.html", vm)
 }

@@ -1,0 +1,62 @@
+{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Observe</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Security check</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>{{template "icon-shield"}} Security check</h1>
+		<div class="page-sub">A plain-language health check of your <a href="/firewall">firewall</a> against what a solid
+		host setup needs. Each item explains why it matters; where it's safe, one click adds the rule and drops
+		you on <a href="/changes">Review &amp; apply</a> — behind the armed auto-revert, so a fix can't lock you out.</div>
+	</div>
+</div>
+
+{{if .LoadErr}}
+<div class="card card-danger"><div class="card-body"><strong>Couldn't read the firewall.</strong> <span class="mono">{{.LoadErr}}</span></div></div>
+{{else}}
+
+{{if not .HaveModel}}
+<div class="card card-cta"><div class="card-body setup-cta">
+	<div><strong>No input chain yet — nothing is filtering inbound traffic.</strong>
+	<div class="text-muted">The quickest safe start is a preset: a hardened base with default-deny, the survivable rules, and SSH scoped to your network.</div></div>
+	<div class="setup-cta-actions"><a class="btn btn-primary" href="/presets">{{template "icon-spark"}}Use a preset</a></div>
+</div></div>
+{{else}}
+<div class="card score-card">
+	<div class="card-body posture-score">
+		<div class="posture-num"><span class="posture-pass">{{.Pass}}</span><span class="posture-of">/ {{.Total}}</span></div>
+		<div class="posture-bar" role="img" aria-label="{{.Pass}} of {{.Total}} checks pass">
+			{{range .Checks}}{{if ne .Status "info"}}<span class="posture-pip pip-{{.Status}}"></span>{{end}}{{end}}
+		</div>
+		<div class="posture-caption">{{if eq .Pass .Total}}All best-practice checks pass. Nice.{{else}}{{.Pass}} of {{.Total}} best-practice checks pass — the rest are below.{{end}}</div>
+	</div>
+</div>
+{{end}}
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Checks</span></div>
+	<div class="card-body check-list">
+		{{range .Checks}}
+		<div class="check check-{{.Status}}">
+			<div class="check-icon" aria-hidden="true">{{if eq .Status "pass"}}&#10003;{{else if eq .Status "info"}}&#8226;{{else}}!{{end}}</div>
+			<div class="check-body">
+				<div class="check-head">
+					<strong>{{.Title}}</strong>
+					<span class="badge {{if eq .Status "pass"}}badge-success{{else if eq .Status "fail"}}badge-danger{{else if eq .Status "warn"}}badge-warning{{else}}badge-muted{{end}}">{{if eq .Status "pass"}}good{{else if eq .Status "info"}}optional{{else if eq .Status "fail"}}missing{{else}}review{{end}}</span>
+				</div>
+				<p class="check-detail">{{.Detail}}</p>
+				{{if .FixID}}
+				<form method="post" action="/harden/fix/{{.FixID}}">
+					<button type="submit" class="btn btn-sm btn-primary">{{template "icon-plus"}} {{.FixLabel}}</button>
+				</form>
+				{{else if .FixHref}}
+				<a class="btn btn-sm btn-ghost" href="{{.FixHref}}">{{.FixLabel}} &rarr;</a>
+				{{end}}
+			</div>
+		</div>
+		{{end}}
+	</div>
+</div>
+{{end}}
+{{template "shell-close" .}}

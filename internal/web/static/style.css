@@ -752,6 +752,40 @@ td.num, th.num { text-align: right; }
 .badge-info { background: color-mix(in srgb, var(--info) 15%, var(--surface)); color: var(--info-deep); border-color: color-mix(in srgb, var(--info) 35%, transparent); }
 .badge-warning { background: color-mix(in srgb, var(--warning) 15%, var(--surface)); color: var(--warning-deep); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }
 .badge-danger { background: color-mix(in srgb, var(--danger) 15%, var(--surface)); color: var(--danger-deep); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.badge-muted { background: var(--surface-alt); color: var(--text-muted); border-color: var(--border); }
+
+/* ---------- security-check (posture) ---------- */
+.score-card .card-body { padding: 18px 20px; }
+.posture-score { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.posture-num { font-family: var(--font-mono); font-size: 1.7rem; font-weight: 700; line-height: 1; }
+.posture-pass { color: var(--success-deep); }
+.posture-of { color: var(--text-muted); font-size: 1.1rem; margin-left: 4px; }
+.posture-bar { display: flex; gap: 5px; flex: 1 1 200px; }
+.posture-pip { flex: 1 1 auto; height: 10px; border-radius: 5px; background: var(--surface-alt); }
+.posture-pip.pip-pass { background: var(--success); }
+.posture-pip.pip-warn { background: var(--warning); }
+.posture-pip.pip-fail { background: var(--danger); }
+.posture-caption { flex: 1 1 100%; color: var(--text-muted); font-size: 0.85rem; }
+
+.check-list { display: flex; flex-direction: column; gap: 2px; }
+.check { display: flex; gap: 12px; padding: 14px 4px; border-top: 1px solid var(--border); }
+.check:first-child { border-top: none; }
+.check-icon { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+	font-weight: 700; font-size: 0.9rem; }
+.check-pass .check-icon { background: color-mix(in srgb, var(--success) 18%, var(--surface)); color: var(--success-deep); }
+.check-warn .check-icon { background: color-mix(in srgb, var(--warning) 20%, var(--surface)); color: var(--warning-deep); }
+.check-fail .check-icon { background: color-mix(in srgb, var(--danger) 18%, var(--surface)); color: var(--danger-deep); }
+.check-info .check-icon { background: var(--surface-alt); color: var(--text-muted); }
+.check-body { flex: 1 1 auto; min-width: 0; }
+.check-head { display: flex; align-items: center; gap: 10px; }
+.check-detail { color: var(--text); font-size: 0.85rem; margin: 4px 0 8px; }
+
+.posture-summary { display: block; text-decoration: none; color: inherit; transition: border-color 0.12s; }
+.posture-summary:hover { border-color: var(--primary); }
+.posture-summary .card-body { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.posture-summary-main { display: flex; align-items: center; gap: 16px; }
+.posture-summary.posture-attn { border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
+.posture-arrow { color: var(--text-muted); font-size: 1.1rem; }
 
 /* ---------- value chips: network data reads as a token, not prose ---------- */
 .chip {

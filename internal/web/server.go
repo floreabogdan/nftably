@@ -240,6 +240,11 @@ func (s *Server) routes() {
 
 	// The advisor: scan the box's listeners and route each exposure through the
 	// simulator to report what the firewall actually does about it.
+	// Security check: grade the model against host-firewall best practice and
+	// offer safe one-click fixes.
+	s.mux.Handle("GET /harden", s.requireAuth(s.handleHarden))
+	s.mux.Handle("POST /harden/fix/{id}", s.requireAuth(s.handleHardenFix))
+
 	s.mux.Handle("GET /advisor", s.requireAuth(s.handleAdvisor))
 	s.mux.Handle("POST /advisor/allow", s.requireAuth(s.handleAdvisorAllow))
 	s.mux.Handle("POST /advisor/dismiss", s.requireAuth(s.handleAdvisorDismiss))

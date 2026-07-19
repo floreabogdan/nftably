@@ -36,6 +36,21 @@
 </div>
 {{end}}
 
+{{if .PostureShow}}
+<a class="card posture-summary {{if eq .PosturePass .PostureTotal}}posture-ok{{else}}posture-attn{{end}}" href="/harden">
+	<div class="card-body">
+		<div class="posture-summary-main">
+			<span class="posture-num"><span class="posture-pass">{{.PosturePass}}</span><span class="posture-of">/ {{.PostureTotal}}</span></span>
+			<div>
+				<strong>Security check</strong>
+				<div class="text-muted">{{if eq .PosturePass .PostureTotal}}All best-practice checks pass.{{else}}{{.PostureTotal}} checks against host-firewall best practice — {{.PosturePass}} pass. See what to harden.{{end}}</div>
+			</div>
+		</div>
+		<span class="posture-arrow" aria-hidden="true">&#8599;</span>
+	</div>
+</a>
+{{end}}
+
 {{if .WideOpen}}
 <div class="card card-warning">
 	<div class="card-body">

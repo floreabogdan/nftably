@@ -1,0 +1,99 @@
+package web
+
+import (
+	"testing"
+
+	"github.com/floreabogdan/nftably/internal/store"
+)
+
+// statusOf returns a check's status by id, or "" if absent.
+func statusOf(checks []postureCheck, id string) postureStatus {
+	for _, c := range checks {
+		if c.ID == id {
+			return c.Status
+		}
+	}
+	return ""
+}
+
+func TestPostureEmptyModel(t *testing.T) {
+	srv, _ := newTestServer(t)
+	if err := srv.resetTables(); err != nil { // clear the seeded starter table
+		t.Fatal(err)
+	}
+	checks, v, err := srv.posture()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.haveInput {
+		t.Error("empty model should have no input chain")
+	}
+	if statusOf(checks, "default-deny") != postureFail {
+		t.Errorf("empty model: default-deny = %q, want fail", statusOf(checks, "default-deny"))
+	}
+}
+
+func TestPostureGradesDropInput(t *testing.T) {
+	srv, _ := newTestServer(t)
+	if err := srv.resetTables(); err != nil {
+		t.Fatal(err)
+	}
+
+	tableID, err := srv.store.CreateTable(store.Table{Family: "inet", Name: "filter"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := srv.store.CreateChain(store.Chain{TableID: tableID, Name: "input", Kind: "base", Hook: "input", ChainType: "filter", Priority: "filter", Policy: "drop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A partial base: loopback + established, but no invalid-drop and no v6 ICMP.
+	if err := srv.addRule(input, "loopback", []store.RuleMatch{mt("meta.iifname", "lo")}, []store.RuleStatement{stmt("accept")}); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.addRule(input, "established", []store.RuleMatch{mt("ct.state", "established, related")}, []store.RuleStatement{stmt("accept")}); err != nil {
+		t.Fatal(err)
+	}
+	// SSH open to the world (no source scope).
+	if err := srv.addRule(input, "ssh", []store.RuleMatch{mt("tcp.dport", "22")}, []store.RuleStatement{stmt("accept")}); err != nil {
+		t.Fatal(err)
+	}
+
+	checks, v, err := srv.posture()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.haveInput || !v.dropPolicy || v.chainID != input {
+		t.Fatalf("view: haveInput=%v dropPolicy=%v chainID=%d (want input=%d)", v.haveInput, v.dropPolicy, v.chainID, input)
+	}
+	want := map[string]postureStatus{
+		"default-deny": posturePass,
+		"loopback":     posturePass,
+		"established":  posturePass,
+		"invalid":      postureWarn, // missing
+		"v6icmp":       postureWarn, // missing
+		"rpf":          postureInfo, // advisory, missing
+		"ssh":          postureWarn, // open to the world
+	}
+	for id, exp := range want {
+		if got := statusOf(checks, id); got != exp {
+			t.Errorf("check %q = %q, want %q", id, got, exp)
+		}
+	}
+	// The missing base rules carry a one-click fix into the input chain.
+	for _, id := range []string{"invalid", "v6icmp", "rpf"} {
+		if fix, ok := hardenFixes[id]; !ok || len(fix.stmts) == 0 {
+			t.Errorf("fix %q not registered", id)
+		}
+	}
+}
+
+func TestPostureScoreExcludesInfo(t *testing.T) {
+	checks := []postureCheck{
+		{Status: posturePass}, {Status: posturePass}, {Status: postureWarn}, {Status: postureInfo},
+	}
+	pass, total := postureScore(checks)
+	if pass != 2 || total != 3 {
+		t.Errorf("score = %d/%d, want 2/3 (info excluded)", pass, total)
+	}
+}
