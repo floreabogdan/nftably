@@ -82,6 +82,18 @@ func TestRenderStatement(t *testing.T) {
 		{"meta.nftrace.set", nil, "inet", "meta nftrace set 1"},
 		{"tproxy", map[string]string{"family": "ip", "port": "50080"}, "inet", "tproxy ip to :50080"},
 		{"tproxy", map[string]string{"port": "50080"}, "ip", "tproxy to :50080"},
+		// Extended reject responses.
+		{"reject", map[string]string{"with": "icmpx port"}, "inet", "reject with icmpx type port-unreachable"},
+		{"reject", map[string]string{"with": "icmp host"}, "ip", "reject with icmp type host-unreachable"},
+		{"reject", map[string]string{"with": "icmpv6 noroute"}, "ip6", "reject with icmpv6 type no-route"},
+		// limit: drop-when-over and byte rates.
+		{"limit", map[string]string{"dir": "over", "rate": "100", "per": "second"}, "inet", "limit rate over 100/second"},
+		{"limit", map[string]string{"rate": "10", "unit": "mbytes", "per": "second"}, "inet", "limit rate 10 mbytes/second"},
+		{"limit", map[string]string{"rate": "5", "unit": "kbytes", "per": "second", "burst": "20"}, "inet", "limit rate 5 kbytes/second burst 20 kbytes"},
+		// log to an nflog group.
+		{"log", map[string]string{"prefix": "drop ", "group": "2"}, "inet", `log prefix "drop " group 2`},
+		// assign a conntrack helper.
+		{"ct.helper.set", map[string]string{"name": "ftp"}, "inet", `ct helper set "ftp"`},
 	}
 	for _, c := range cases {
 		got, err := RenderStatement(c.key, c.params, Ctx{Family: c.family})

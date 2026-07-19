@@ -227,19 +227,40 @@ var statements = []Statement{
 			Options: []Option{
 				{"", "Default", "An ICMP/ICMPv6 port- or admin-unreachable, chosen automatically."},
 				{"tcp reset", "TCP reset", "For TCP, send an RST so the connection fails fast."},
-				{"icmpx admin", "Admin prohibited", "Say the connection is administratively blocked."},
+				{"icmpx admin", "Admin prohibited (any family)", "Say the connection is administratively blocked."},
+				{"icmpx port", "Port unreachable (any family)", "Say nothing is listening on that port."},
+				{"icmpx host", "Host unreachable (any family)", "Say the host can't be reached."},
+				{"icmp admin", "Admin prohibited (IPv4)", "IPv4-only admin-prohibited."},
+				{"icmp port", "Port unreachable (IPv4)", "IPv4-only port-unreachable."},
+				{"icmp host", "Host unreachable (IPv4)", "IPv4-only host-unreachable."},
+				{"icmp net", "Net unreachable (IPv4)", "IPv4-only network-unreachable."},
+				{"icmpv6 admin", "Admin prohibited (IPv6)", "IPv6-only admin-prohibited."},
+				{"icmpv6 port", "Port unreachable (IPv6)", "IPv6-only port-unreachable."},
+				{"icmpv6 noroute", "No route (IPv6)", "IPv6-only no-route-to-destination."},
 			}}},
 		render: func(p map[string]string, _ Ctx) (string, error) {
-			switch p["with"] {
-			case "", "default":
-				return "reject", nil
-			case "tcp reset":
-				return "reject with tcp reset", nil
-			case "icmpx admin":
-				return "reject with icmpx type admin-prohibited", nil
-			default:
-				return "", fmt.Errorf("reject: unknown response %q", p["with"])
+			// value -> full nft "reject with ..." clause. icmpx works in any
+			// family; icmp/icmpv6 forms are family-specific (the pre-apply check
+			// catches a mismatch).
+			rejects := map[string]string{
+				"":             "reject",
+				"default":      "reject",
+				"tcp reset":    "reject with tcp reset",
+				"icmpx admin":  "reject with icmpx type admin-prohibited",
+				"icmpx port":   "reject with icmpx type port-unreachable",
+				"icmpx host":   "reject with icmpx type host-unreachable",
+				"icmp admin":   "reject with icmp type admin-prohibited",
+				"icmp port":    "reject with icmp type port-unreachable",
+				"icmp host":    "reject with icmp type host-unreachable",
+				"icmp net":     "reject with icmp type net-unreachable",
+				"icmpv6 admin": "reject with icmpv6 type admin-prohibited",
+				"icmpv6 port":  "reject with icmpv6 type port-unreachable",
+				"icmpv6 noroute": "reject with icmpv6 type no-route",
 			}
+			if out, ok := rejects[p["with"]]; ok {
+				return out, nil
+			}
+			return "", fmt.Errorf("reject: unknown response %q", p["with"])
 		}},
 	{Key: "continue", Label: "Continue", Group: "Verdict", Help: "Keep evaluating the next rule (an explicit no-op verdict).", Example: "continue",
 		render: func(_ map[string]string, _ Ctx) (string, error) { return "continue", nil }},
@@ -281,6 +302,7 @@ var statements = []Statement{
 				{"", "info (default)", ""}, {"debug", "debug", ""}, {"info", "info", ""}, {"notice", "notice", ""},
 				{"warn", "warn", ""}, {"err", "err", ""}, {"crit", "crit", ""},
 			}},
+			{Key: "group", Label: "nflog group", Kind: KindInt, Optional: true, Placeholder: "0", Help: "Send to an nflog netlink group instead of the kernel log — a userspace collector (ulogd, a packet logger) reads it by this group number."},
 		},
 		render: func(p map[string]string, _ Ctx) (string, error) {
 			var b strings.Builder
@@ -300,6 +322,12 @@ var statements = []Statement{
 				}
 				b.WriteString(" level " + lvl)
 			}
+			if grp := strings.TrimSpace(p["group"]); grp != "" {
+				if _, err := strconv.Atoi(grp); err != nil {
+					return "", fmt.Errorf("nflog group must be a whole number")
+				}
+				b.WriteString(" group " + grp)
+			}
 			return b.String(), nil
 		}},
 	{Key: "counter", Label: "Count", Group: "Observe", Help: "Tally the packets and bytes that match this rule. Once applied, the running total shows next to the rule on the Firewall page.", Example: "counter",
@@ -310,11 +338,17 @@ var statements = []Statement{
 
 	// Rate limiting
 	{Key: "limit", Label: "Rate limit", Group: "Rate limiting", Example: "limit rate 10/minute burst 5 packets",
-		Help: "Only let matching packets through up to a rate — the rest fall to the next rule. Pair with an accept to throttle, e.g. new SSH connections.",
+		Help: "Cap matching traffic to a rate. In 'under' mode (default) matching packets up to the rate pass to the next statement (pair with accept to throttle, e.g. new SSH); in 'over' mode the ones ABOVE the rate match (pair with drop to police a flood). Choose packets or a byte rate.",
 		Params: []Param{
-			{Key: "rate", Label: "Rate", Kind: KindInt, Placeholder: "10", Help: "How many packets per unit of time."},
+			{Key: "dir", Label: "Mode", Kind: KindEnum, Optional: true, Help: "under = the traffic within the rate matches; over = the excess matches (pair with drop).", Options: []Option{
+				{"", "under (throttle — pair with accept)", ""}, {"over", "over (police — pair with drop)", ""},
+			}},
+			{Key: "rate", Label: "Rate", Kind: KindInt, Placeholder: "10", Help: "How much per unit of time."},
+			{Key: "unit", Label: "Unit", Kind: KindEnum, Optional: true, Help: "Count packets, or a data rate.", Options: []Option{
+				{"", "packets", ""}, {"bytes", "bytes", ""}, {"kbytes", "kbytes", ""}, {"mbytes", "mbytes", ""},
+			}},
 			{Key: "per", Label: "Per", Kind: KindEnum, Options: []Option{
-				{"second", "second", ""}, {"minute", "minute", ""}, {"hour", "hour", ""}, {"day", "day", ""},
+				{"second", "second", ""}, {"minute", "minute", ""}, {"hour", "hour", ""}, {"day", "day", ""}, {"week", "week", ""},
 			}, Help: "The time unit."},
 			{Key: "burst", Label: "Burst", Kind: KindInt, Optional: true, Placeholder: "5", Help: "Allow a short burst above the rate before limiting kicks in."},
 		},
@@ -330,7 +364,25 @@ var statements = []Statement{
 			if !rateUnits[per] {
 				return "", fmt.Errorf("rate limit unit %q is not second/minute/hour/day/week", per)
 			}
-			out := fmt.Sprintf("limit rate %s/%s", rate, per)
+			out := "limit rate"
+			if dir := strings.TrimSpace(p["dir"]); dir == "over" {
+				out += " over"
+			} else if dir != "" {
+				return "", fmt.Errorf("rate limit mode %q must be over or blank", dir)
+			}
+			byteUnits := map[string]bool{"bytes": true, "kbytes": true, "mbytes": true}
+			if unit := strings.TrimSpace(p["unit"]); unit != "" && byteUnits[unit] {
+				// Byte rate: burst (if any) is a byte quantity, not packets.
+				out += fmt.Sprintf(" %s %s/%s", rate, unit, per)
+				if burst := strings.TrimSpace(p["burst"]); burst != "" {
+					if _, err := strconv.Atoi(burst); err != nil {
+						return "", fmt.Errorf("rate limit burst must be a whole number")
+					}
+					out += " burst " + burst + " " + unit
+				}
+				return out, nil
+			}
+			out += fmt.Sprintf(" %s/%s", rate, per)
 			if burst := strings.TrimSpace(p["burst"]); burst != "" {
 				if _, err := strconv.Atoi(burst); err != nil {
 					return "", fmt.Errorf("rate limit burst must be a whole number")
@@ -366,6 +418,19 @@ var statements = []Statement{
 				return "", err
 			}
 			return "ct mark set " + v, nil
+		}},
+	{Key: "ct.helper.set", Label: "Assign connection helper", Group: "Marking", Example: `ct helper set "ftp"`,
+		Help:   "Attach a conntrack helper (ALG) to the connection so a matching protocol's dynamic data ports are tracked as 'related' — e.g. active FTP, SIP, TFTP. The named helper must exist (declared with `ct helper` on the table).",
+		Params: []Param{{Key: "name", Label: "Helper name", Kind: KindText, Placeholder: "ftp", Help: "The conntrack helper to assign (letters, digits, dash, underscore)."}},
+		render: func(p map[string]string, _ Ctx) (string, error) {
+			v := strings.TrimSpace(p["name"])
+			if v == "" {
+				return "", fmt.Errorf("assign helper needs a helper name")
+			}
+			if !helperNameRe.MatchString(v) {
+				return "", fmt.Errorf("helper name must be letters, digits, dash or underscore")
+			}
+			return fmt.Sprintf("ct helper set %q", v), nil
 		}},
 	{Key: "dscp.set", Label: "Set DSCP / QoS class", Group: "Marking", Example: "ip dscp set ef",
 		Help: "Stamp a Differentiated Services (QoS) class on the packet so downstream devices can prioritise it — e.g. mark VoIP as 'ef' (expedited forwarding). DSCP lives in the IP header, so pick the family.",
@@ -682,6 +747,9 @@ var (
 // identRe matches an nft identifier (a chain or set name) — emittable bare with
 // no way to break out of the token.
 var identRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,63}$`)
+
+// helperNameRe validates a conntrack helper name (e.g. "ftp", "sip-5060").
+var helperNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,31}$`)
 
 // checkSafe rejects a value carrying nft structural characters. label names the
 // field for the message.
