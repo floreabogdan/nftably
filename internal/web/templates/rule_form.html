@@ -1,11 +1,16 @@
 {{define "rule_form.html"}}{{template "shell-open" .}}
-
+<div class="page-top">
+	<span class="page-eyebrow">Manage</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><a href="/firewall">Firewall</a><span class="sep">/</span><span class="current">{{if .IsNew}}New rule{{else}}Edit rule{{end}}</span></div>
+</div>
 <div class="page-header">
-	<h1>{{if .IsNew}}New rule{{else}}Edit rule{{end}}</h1>
-	<p class="page-sub">A rule matches some traffic (the <strong>conditions</strong>, all of which must
-	hold) and then takes one or more <strong>actions</strong>. With no conditions, a rule matches
-	everything. In chain <span class="mono">{{.Chain.Name}}</span> of table
-	<span class="mono">{{.Table.Family}} {{.Table.Name}}</span>.</p>
+	<div>
+		<h1>{{if .IsNew}}{{template "icon-plus"}}{{else}}{{template "icon-edit"}}{{end}} {{if .IsNew}}New rule{{else}}Edit rule{{end}}</h1>
+		<div class="page-sub">A rule matches some traffic (the <strong>conditions</strong>, all of which must
+		hold) and then takes one or more <strong>actions</strong>. With no conditions, a rule matches
+		everything. In chain <span class="mono">{{.Chain.Name}}</span> of table
+		<span class="mono">{{.Table.Family}} {{.Table.Name}}</span>.</div>
+	</div>
 </div>
 
 {{if .Errors}}<div class="card card-danger"><div class="card-body">{{range .Errors}}<div class="field-error">{{.}}</div>{{end}}</div></div>{{end}}

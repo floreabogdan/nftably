@@ -1,11 +1,16 @@
 {{define "chain_form.html"}}{{template "shell-open" .}}
-
+<div class="page-top">
+	<span class="page-eyebrow">Manage</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><a href="/firewall">Firewall</a><span class="sep">/</span><span class="current">{{if .IsNew}}New chain{{else}}Edit chain{{end}}</span></div>
+</div>
 <div class="page-header">
-	<h1>{{if .IsNew}}New chain{{else}}Edit chain{{end}}</h1>
-	<p class="page-sub">A chain is a list of rules. A <strong>base chain</strong> plugs into the traffic
-	path at a hook and is where filtering actually happens; a <strong>regular chain</strong> is just a
-	named list you send traffic to with a jump/goto (handy for grouping rules). In table
-	<span class="mono">{{.Table.Family}} {{.Table.Name}}</span>.</p>
+	<div>
+		<h1>{{if .IsNew}}{{template "icon-plus"}}{{else}}{{template "icon-edit"}}{{end}} {{if .IsNew}}New chain{{else}}Edit chain{{end}}</h1>
+		<div class="page-sub">A chain is a list of rules. A <strong>base chain</strong> plugs into the traffic
+		path at a hook and is where filtering actually happens; a <strong>regular chain</strong> is just a
+		named list you send traffic to with a jump/goto (handy for grouping rules). In table
+		<span class="mono">{{.Table.Family}} {{.Table.Name}}</span>.</div>
+	</div>
 </div>
 
 {{if .Errors}}<div class="card card-danger"><div class="card-body">{{range .Errors}}<div class="field-error">{{.}}</div>{{end}}</div></div>{{end}}
