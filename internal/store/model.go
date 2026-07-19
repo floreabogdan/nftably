@@ -197,7 +197,14 @@ type ChainRule struct {
 	Enabled    bool
 	Matches    []RuleMatch
 	Statements []RuleStatement
+	// Raw is a verbatim nft rule line for constructs the catalogue can't express.
+	// When set, the rule renders as exactly this text and its Matches/Statements
+	// are ignored. Validated for shape here and by the pre-apply nft --check.
+	Raw string
 }
+
+// IsRaw reports whether this rule is a raw (verbatim) nft line.
+func (r ChainRule) IsRaw() bool { return strings.TrimSpace(r.Raw) != "" }
 
 // Validate returns human-readable problems; empty means valid. It checks shape
 // only — that keys are non-empty and there is at least one statement; the knob
@@ -210,6 +217,11 @@ func (r *ChainRule) Validate() []string {
 	}
 	if len(r.Comment) > 128 {
 		errs = append(errs, "Comment must be 128 characters or fewer.")
+	}
+	// A raw rule is a single verbatim line — its matches/statements are ignored,
+	// and its shape is validated at render (ValidateRawRule) and by nft --check.
+	if r.IsRaw() {
+		return errs
 	}
 	for _, m := range r.Matches {
 		if strings.TrimSpace(m.Key) == "" {
@@ -405,7 +417,7 @@ func (s *Store) MoveChain(id int64, dir int) error {
 // and statements loaded.
 func (s *Store) ListChainRules(chainID int64) ([]ChainRule, error) {
 	rows, err := s.db.Query(`
-		SELECT id, chain_id, position, comment, enabled FROM nft_rules WHERE chain_id = ? ORDER BY position, id`, chainID)
+		SELECT id, chain_id, position, comment, enabled, raw FROM nft_rules WHERE chain_id = ? ORDER BY position, id`, chainID)
 	if err != nil {
 		return nil, fmt.Errorf("store: list chain rules: %w", err)
 	}
@@ -420,7 +432,7 @@ func (s *Store) ListChainRules(chainID int64) ([]ChainRule, error) {
 // AllChainRules returns every rule grouped by chain id, with children loaded —
 // the render path's bulk load.
 func (s *Store) AllChainRules() (map[int64][]ChainRule, error) {
-	rows, err := s.db.Query(`SELECT id, chain_id, position, comment, enabled FROM nft_rules ORDER BY position, id`)
+	rows, err := s.db.Query(`SELECT id, chain_id, position, comment, enabled, raw FROM nft_rules ORDER BY position, id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: all chain rules: %w", err)
 	}
@@ -444,7 +456,7 @@ func scanRules(rows *sql.Rows) ([]ChainRule, error) {
 	var out []ChainRule
 	for rows.Next() {
 		var r ChainRule
-		if err := rows.Scan(&r.ID, &r.ChainID, &r.Position, &r.Comment, &r.Enabled); err != nil {
+		if err := rows.Scan(&r.ID, &r.ChainID, &r.Position, &r.Comment, &r.Enabled, &r.Raw); err != nil {
 			return nil, fmt.Errorf("store: scan rule: %w", err)
 		}
 		out = append(out, r)
@@ -508,8 +520,8 @@ func (s *Store) attachChildren(rules []ChainRule) ([]ChainRule, error) {
 // GetChainRule returns one rule with its children, or ErrNotFound.
 func (s *Store) GetChainRule(id int64) (ChainRule, error) {
 	var r ChainRule
-	row := s.db.QueryRow(`SELECT id, chain_id, position, comment, enabled FROM nft_rules WHERE id = ?`, id)
-	err := row.Scan(&r.ID, &r.ChainID, &r.Position, &r.Comment, &r.Enabled)
+	row := s.db.QueryRow(`SELECT id, chain_id, position, comment, enabled, raw FROM nft_rules WHERE id = ?`, id)
+	err := row.Scan(&r.ID, &r.ChainID, &r.Position, &r.Comment, &r.Enabled, &r.Raw)
 	if err == sql.ErrNoRows {
 		return ChainRule{}, ErrNotFound
 	}
@@ -552,9 +564,9 @@ func (s *Store) createChainRule(r ChainRule, atStart bool) (int64, error) {
 
 	ts := now()
 	res, err := tx.Exec(`
-		INSERT INTO nft_rules (chain_id, position, comment, enabled, created_at, updated_at)
-		VALUES (?, `+posExpr+`, ?, ?, ?, ?)`,
-		r.ChainID, r.ChainID, r.Comment, r.Enabled, ts, ts)
+		INSERT INTO nft_rules (chain_id, position, comment, enabled, raw, created_at, updated_at)
+		VALUES (?, `+posExpr+`, ?, ?, ?, ?, ?)`,
+		r.ChainID, r.ChainID, r.Comment, r.Enabled, r.Raw, ts, ts)
 	if err != nil {
 		return 0, fmt.Errorf("store: create rule: %w", err)
 	}
@@ -577,8 +589,8 @@ func (s *Store) UpdateChainRule(r ChainRule) error {
 	}
 	defer tx.Rollback()
 
-	res, err := tx.Exec(`UPDATE nft_rules SET comment = ?, enabled = ?, updated_at = ? WHERE id = ?`,
-		r.Comment, r.Enabled, now(), r.ID)
+	res, err := tx.Exec(`UPDATE nft_rules SET comment = ?, enabled = ?, raw = ?, updated_at = ? WHERE id = ?`,
+		r.Comment, r.Enabled, r.Raw, now(), r.ID)
 	if err != nil {
 		return fmt.Errorf("store: update rule: %w", err)
 	}

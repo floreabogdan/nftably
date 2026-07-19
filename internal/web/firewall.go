@@ -392,6 +392,7 @@ type ruleFormVM struct {
 	RuleID          int64
 	Comment         string
 	Enabled         bool
+	Raw             string // verbatim nft line (advanced escape hatch); empty for a structured rule
 	IsNew           bool
 	Errors          []string
 	Preview         string
@@ -439,6 +440,7 @@ func (s *Server) handleRuleEditGet(w http.ResponseWriter, r *http.Request) {
 		RuleID:  rule.ID,
 		Comment: rule.Comment,
 		Enabled: rule.Enabled,
+		Raw:     rule.Raw,
 	}
 	for _, m := range rule.Matches {
 		vm.Conds = append(vm.Conds, condRow{Field: m.Key, Op: m.Op, Value: m.Value})
@@ -523,6 +525,11 @@ func hostInterfaces() []string {
 // empty ones), for both preview and save.
 func ruleFromForm(vm ruleFormVM) store.ChainRule {
 	rule := store.ChainRule{ID: vm.RuleID, ChainID: vm.Chain.ID, Comment: vm.Comment, Enabled: vm.Enabled}
+	// A raw rule is verbatim: its structured conditions/actions are ignored.
+	if raw := strings.TrimSpace(vm.Raw); raw != "" {
+		rule.Raw = raw
+		return rule
+	}
 	for _, c := range vm.Conds {
 		if strings.TrimSpace(c.Field) == "" {
 			continue
@@ -579,6 +586,7 @@ func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
 		IsNew:   isNew,
 		Comment: strings.TrimSpace(r.FormValue("comment")),
 		Enabled: r.FormValue("enabled") == "on",
+		Raw:     strings.TrimSpace(r.FormValue("raw")),
 		Conds:   readConds(r),
 		Acts:    readActs(r),
 	}
@@ -635,7 +643,7 @@ func (s *Server) handleRulePreview(w http.ResponseWriter, r *http.Request) {
 	}
 	table, _ := s.store.GetTable(chain.TableID)
 
-	vm := ruleFormVM{Chain: chain, Comment: strings.TrimSpace(r.FormValue("comment")), Conds: readConds(r), Acts: readActs(r)}
+	vm := ruleFormVM{Chain: chain, Comment: strings.TrimSpace(r.FormValue("comment")), Raw: strings.TrimSpace(r.FormValue("raw")), Conds: readConds(r), Acts: readActs(r)}
 	rule := ruleFromForm(vm)
 
 	resp := map[string]any{"chain": chain.Name, "family": table.Family, "table": table.Name}

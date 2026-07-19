@@ -681,6 +681,13 @@ svg.sparkline[data-spark] { cursor: crosshair; }
 	content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success);
 }
 .card-body { padding: var(--space-5); }
+
+/* A collapsible card (e.g. the advanced raw-rule editor): the summary is the
+   card header and toggles the body. */
+details.card > summary { cursor: pointer; list-style: none; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::after { content: "▾"; margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); }
+details.card[open] > summary::after { content: "▴"; }
 .card-intro { padding: var(--space-4) var(--space-5) 0; color: var(--text-muted); font-size: var(--fs-sm); max-width: 110ch; }
 
 /* ---------- panels: a card whose header is a tinted band ---------- */

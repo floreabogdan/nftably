@@ -103,6 +103,18 @@
 		</div>
 	</div>
 
+	<details class="card raw-rule"{{if .Raw}} open{{end}}>
+		<summary class="card-header"><span class="card-title">{{template "icon-spark"}} Advanced — raw nft rule</span></summary>
+		<div class="card-body">
+			<p class="field-hint text-muted">For anything the builder above can't express, write a verbatim nft rule line.
+			<strong>When this is filled in it replaces the conditions and actions above.</strong> It skips the guided
+			validation — only nft checks it, at apply time, behind the armed auto-revert. One line; no
+			<span class="mono">;</span> or <span class="mono">#</span> (use the comment field). The preview shows exactly what it becomes.</p>
+			<input type="text" name="raw" id="raw-rule" class="mono" value="{{.Raw}}" autocomplete="off" spellcheck="false"
+				placeholder="ip saddr 10.0.0.0/8 tcp dport { 80, 443 } ct count over 20 drop">
+		</div>
+	</details>
+
 	<div class="card">
 		<div class="card-body">
 			<div class="field">

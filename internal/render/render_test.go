@@ -55,6 +55,48 @@ func TestRenderRuleNegationAndSet(t *testing.T) {
 	}
 }
 
+func TestRenderRawRule(t *testing.T) {
+	// A raw rule renders verbatim, with the comment appended, and its
+	// matches/statements ignored.
+	r := store.ChainRule{
+		Enabled: true, Comment: "connlimit",
+		Raw:        "ip saddr 10.0.0.0/8 ct count over 20 drop",
+		Statements: []store.RuleStatement{{Key: "accept"}}, // ignored
+	}
+	got, err := RenderRule("inet", r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `ip saddr 10.0.0.0/8 ct count over 20 drop comment "nftably: connlimit"`
+	if got != want {
+		t.Fatalf("got  %q\nwant %q", got, want)
+	}
+}
+
+func TestValidateRawRuleRejectsBreakouts(t *testing.T) {
+	ok := []string{
+		"ip saddr 1.2.3.4 drop",
+		"tcp dport { 22, 80, 443 } accept",
+	}
+	for _, s := range ok {
+		if _, err := ValidateRawRule(s); err != nil {
+			t.Errorf("ValidateRawRule(%q) = %v, want ok", s, err)
+		}
+	}
+	bad := []string{
+		"",                              // empty
+		"accept\ndrop",                  // line break
+		"accept ; drop",                 // rule separator
+		"drop # sneaky",                 // comment marker
+		"accept } chain evil {",         // unbalanced brace (breakout attempt)
+	}
+	for _, s := range bad {
+		if _, err := ValidateRawRule(s); err == nil {
+			t.Errorf("ValidateRawRule(%q) accepted an unsafe line", s)
+		}
+	}
+}
+
 func TestRenderRuleDisabledSkipped(t *testing.T) {
 	m := model("accept")
 	m.Tables[0].Chains[0].Rules = []store.ChainRule{{

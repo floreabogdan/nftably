@@ -190,6 +190,7 @@ CREATE TABLE IF NOT EXISTS nft_rules (
 	position   INTEGER NOT NULL,
 	comment    TEXT NOT NULL DEFAULT '',   -- becomes the rule's nft comment
 	enabled    INTEGER NOT NULL DEFAULT 1,
+	raw        TEXT NOT NULL DEFAULT '',   -- verbatim nft line for constructs the catalogue can't express
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 );

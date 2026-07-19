@@ -142,10 +142,72 @@ func RenderRule(family string, r store.ChainRule) (string, error) {
 	return renderRule(family, r)
 }
 
+// ValidateRawRule checks a verbatim nft rule line for shape and returns the
+// trimmed line. It is deliberately permissive about nft syntax — that's the
+// point of the escape hatch, and the pre-apply `nft --check` is the real
+// validator — but rejects the few things that would let the line escape its
+// rule/chain context: line breaks, the rule separator, comment markers,
+// control characters, and unbalanced braces.
+func ValidateRawRule(raw string) (string, error) {
+	line := strings.TrimSpace(raw)
+	if line == "" {
+		return "", fmt.Errorf("raw rule is empty")
+	}
+	if len(line) > 4000 {
+		return "", fmt.Errorf("raw rule is too long")
+	}
+	for _, r := range line {
+		if r == '\n' || r == '\r' {
+			return "", fmt.Errorf("a raw rule must be a single line")
+		}
+		if r < 0x20 && r != '\t' {
+			return "", fmt.Errorf("raw rule contains a control character")
+		}
+	}
+	if strings.ContainsRune(line, ';') {
+		return "", fmt.Errorf("a raw rule is a single rule — remove the ';'")
+	}
+	if strings.ContainsRune(line, '#') {
+		return "", fmt.Errorf("a raw rule can't contain '#' — use the comment field instead")
+	}
+	// Braces must be properly nested (anonymous sets like { 22, 80 } are fine),
+	// and the depth must never go negative — a '}' before its matching '{' would
+	// close the enclosing chain and let the line inject its own chain/table.
+	depth := 0
+	for _, r := range line {
+		switch r {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth < 0 {
+				return "", fmt.Errorf("a raw rule can't contain a stray '}' (it would break out of its chain)")
+			}
+		}
+	}
+	if depth != 0 {
+		return "", fmt.Errorf("unbalanced { } in the raw rule")
+	}
+	return line, nil
+}
+
 // renderRule renders one rule's nft line, returning an error describing the
 // first knob that could not render so callers (writeChain, the preview) can
 // skip or report it.
 func renderRule(family string, r store.ChainRule) (string, error) {
+	// A raw rule is a verbatim nft line for constructs the catalogue can't
+	// express. It's shape-validated (no line breaks etc.) and then trusted to the
+	// pre-apply `nft --check`; its matches/statements are ignored.
+	if r.IsRaw() {
+		line, err := ValidateRawRule(r.Raw)
+		if err != nil {
+			return "", err
+		}
+		if c := strings.TrimSpace(r.Comment); c != "" {
+			line += fmt.Sprintf(" comment %q", "nftably: "+c)
+		}
+		return line, nil
+	}
 	ctx := nftcat.Ctx{Family: family}
 	var parts []string
 	for _, m := range r.Matches {
