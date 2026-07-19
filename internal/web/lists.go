@@ -97,6 +97,8 @@ func sourceArgFromForm(r *http.Request) string {
 		return strings.TrimSpace(r.FormValue("country"))
 	case store.SourceURL:
 		return strings.TrimSpace(r.FormValue("feed_url"))
+	case store.SourceDNS:
+		return strings.TrimSpace(r.FormValue("host"))
 	}
 	return ""
 }

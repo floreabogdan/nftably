@@ -89,6 +89,8 @@ func (s *Server) refreshList(ctx context.Context, l store.IPList) (int, error) {
 		cidrs, err = countryNetworks(path, l.SourceArg)
 	case store.SourceURL:
 		cidrs, err = fetchFeed(ctx, l.SourceArg)
+	case store.SourceDNS:
+		cidrs, err = resolveHost(ctx, l.SourceArg)
 	default:
 		return 0, errors.New("this list has no source to refresh")
 	}
@@ -100,6 +102,31 @@ func (s *Server) refreshList(ctx context.Context, l store.IPList) (int, error) {
 		return 0, err
 	}
 	return n, nil
+}
+
+// resolveHost resolves a hostname to its current A/AAAA addresses, returned as
+// bare-IP strings (nft treats each as a /32 or /128 element). Refreshing on the
+// list schedule keeps a rule that references it tracking the name as DNS
+// changes. Resolution only looks up a name — it fetches nothing — so there's no
+// SSRF surface, and a service that legitimately lives on a private address is
+// allowed.
+func resolveHost(ctx context.Context, host string) ([]string, error) {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return nil, errors.New("no hostname to resolve")
+	}
+	addrs, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+	if err != nil {
+		return nil, fmt.Errorf("could not resolve %s: %w", host, err)
+	}
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("%s resolved to no addresses", host)
+	}
+	var out []string
+	for _, a := range addrs {
+		out = append(out, a.Unmap().String())
+	}
+	return out, nil
 }
 
 // effectiveGeoIPPath is the configured GeoIP database path, or "" when none.

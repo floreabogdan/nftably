@@ -17,6 +17,7 @@ const (
 	SourceManual = "manual" // hand-edited entries
 	SourceGeoIP  = "geoip"  // a country's CIDRs; SourceArg is the ISO 3166 code
 	SourceURL    = "url"    // a remote feed of CIDRs; SourceArg is the URL
+	SourceDNS    = "dns"    // a hostname resolved to its A/AAAA addresses; SourceArg is the host
 )
 
 // IPList is one named address list. Name doubles as the nft set name
@@ -38,7 +39,9 @@ type IPList struct {
 
 // IsSourced reports whether this list's entries come from an external source
 // (and so are refreshed, not hand-edited).
-func (l IPList) IsSourced() bool { return l.Source == SourceGeoIP || l.Source == SourceURL }
+func (l IPList) IsSourced() bool {
+	return l.Source == SourceGeoIP || l.Source == SourceURL || l.Source == SourceDNS
+}
 
 // ListEntry is one address or range on a list.
 type ListEntry struct {
@@ -58,10 +61,14 @@ var ErrOverlap = errors.New("overlaps an existing entry")
 // appears in the rendered config.
 var listNameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,23}$`)
 
-var listSources = map[string]bool{SourceManual: true, SourceGeoIP: true, SourceURL: true}
+var listSources = map[string]bool{SourceManual: true, SourceGeoIP: true, SourceURL: true, SourceDNS: true}
 
 // isoCountryRe is a 2-letter country code (the GeoIP source argument).
 var isoCountryRe = regexp.MustCompile(`^[A-Za-z]{2}$`)
+
+// hostnameRe validates the DNS source argument — a DNS hostname (letters,
+// digits, dashes, dot-separated labels).
+var hostnameRe = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$`)
 
 func validateList(l *IPList) error {
 	l.Name = strings.TrimSpace(l.Name)
@@ -74,7 +81,7 @@ func validateList(l *IPList) error {
 		return fmt.Errorf("list name %q must be lowercase letters, digits or _ (max 24, starting with a letter) — it becomes the nft set name", l.Name)
 	}
 	if !listSources[l.Source] {
-		return fmt.Errorf("source %q is not one of manual, geoip, or url", l.Source)
+		return fmt.Errorf("source %q is not one of manual, geoip, url, or dns", l.Source)
 	}
 	switch l.Source {
 	case SourceGeoIP:
@@ -85,6 +92,11 @@ func validateList(l *IPList) error {
 	case SourceURL:
 		if !strings.HasPrefix(l.SourceArg, "https://") && !strings.HasPrefix(l.SourceArg, "http://") {
 			return errors.New("a feed list needs an http(s):// URL to fetch the addresses from")
+		}
+	case SourceDNS:
+		l.SourceArg = strings.ToLower(l.SourceArg)
+		if !hostnameRe.MatchString(l.SourceArg) {
+			return errors.New("a DNS list needs a hostname to resolve (e.g. api.example.com)")
 		}
 	default:
 		l.SourceArg, l.AutoRefresh = "", false // manual lists carry no source

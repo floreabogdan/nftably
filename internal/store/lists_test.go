@@ -49,10 +49,21 @@ func TestListsCRUD(t *testing.T) {
 	for _, bad := range []IPList{
 		{Name: "Office"}, {Name: "1st"}, {Name: "has space"}, {Name: ""},
 		{Name: strings.Repeat("x", 30)},
+		// A DNS-sourced list needs a valid hostname argument.
+		{Name: "badns", Source: SourceDNS, SourceArg: "not a host"},
+		{Name: "badns2", Source: SourceDNS, SourceArg: ""},
 	} {
 		if _, err := s.CreateList(bad); err == nil {
 			t.Errorf("bad list accepted: %+v", bad)
 		}
+	}
+	// A well-formed DNS source is accepted and lowercased.
+	dnsID, err := s.CreateList(IPList{Name: "dnsapi", Source: SourceDNS, SourceArg: "API.Example.com"})
+	if err != nil {
+		t.Fatalf("valid dns list rejected: %v", err)
+	}
+	if dl, _ := s.GetList(dnsID); dl.SourceArg != "api.example.com" || !dl.IsSourced() {
+		t.Errorf("dns list not stored as expected: %+v", dl)
 	}
 
 	l, err := s.GetList(id)

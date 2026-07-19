@@ -28,6 +28,7 @@
 						<option value="manual">Manual — you add them</option>
 						<option value="geoip">A country (GeoIP)</option>
 						<option value="url">A remote feed (URL)</option>
+						<option value="dns">A hostname (DNS)</option>
 					</select>
 				</div>
 			</div>
@@ -51,12 +52,19 @@
 					<option value="https://cinsscore.com/list/ci-badguys.txt" label="CINS Army — poorly-rated attacker IPs"></option>
 				</datalist>
 			</div>
+			<div class="field source-field" data-source-field="dns" hidden>
+				<label for="l-host">Hostname</label>
+				<input id="l-host" type="text" name="host" class="mono" placeholder="api.example.com" autocomplete="off">
+				<div class="field-hint">Resolves the hostname to its current A/AAAA addresses and keeps the set in sync as DNS changes.
+				Reference it from a <a href="/firewall">rule</a> (<span class="mono">ip saddr @name accept</span>) to allow-list a
+				service by name. Works for private addresses too (an internal host).</div>
+			</div>
 			<div class="field-row">
 				<div class="field">
 					<label for="l-note">Note <span class="text-muted">(optional)</span></label>
 					<input id="l-note" type="text" name="note" placeholder="what this list is for" autocomplete="off">
 				</div>
-				<label class="check source-field" data-source-field="geoip url" hidden><input type="checkbox" name="auto_refresh"> Keep it refreshed automatically</label>
+				<label class="check source-field" data-source-field="geoip url dns" hidden><input type="checkbox" name="auto_refresh"> Keep it refreshed automatically</label>
 			</div>
 			<div class="form-actions"><button type="submit" class="btn btn-primary">{{template "icon-plus"}}Create list</button></div>
 		</form>
