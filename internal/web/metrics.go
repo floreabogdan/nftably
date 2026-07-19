@@ -42,7 +42,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 
 	var b strings.Builder
 	writeMetricsHeader(&b, "nftably_build_info", "gauge", "Build version and commit as labels; value is always 1.")
-	fmt.Fprintf(&b, "nftably_build_info{version=%q,commit=%q} 1\n", metricLabel(buildinfo.Version), metricLabel(buildinfo.Commit))
+	fmt.Fprintf(&b, "nftably_build_info{version=\"%s\",commit=\"%s\"} 1\n", metricLabel(buildinfo.Version), metricLabel(buildinfo.Commit))
 
 	up := 0
 	var rs *nft.Ruleset
@@ -131,8 +131,8 @@ func writeRuleCounters(b *strings.Builder, rs *nft.Ruleset) {
 // its name where it has one; index disambiguates unnamed rules so two counters
 // in the same chain never collide on an identical label set.
 func ruleLabels(family, table, chain, comment string, index int) string {
-	return fmt.Sprintf("{family=%q,table=%q,chain=%q,rule=%q,index=%q}",
-		metricLabel(family), metricLabel(table), metricLabel(chain), metricLabel(comment), fmt.Sprint(index))
+	return fmt.Sprintf("{family=\"%s\",table=\"%s\",chain=\"%s\",rule=\"%s\",index=\"%d\"}",
+		metricLabel(family), metricLabel(table), metricLabel(chain), metricLabel(comment), index)
 }
 
 func writeMetricsHeader(b *strings.Builder, name, typ, help string) {

@@ -294,6 +294,12 @@ func (s *Server) handleQuickBlock(w http.ResponseWriter, r *http.Request) {
 		redirectMsg(w, r, back, "err", msg)
 		return
 	}
+	// Validate the address before touching the block list, so a bad value can't
+	// leave an empty "blacklist" set behind (blockList creates it on demand).
+	if _, msg := store.NormalizeCIDR(ip); msg != "" {
+		redirectMsg(w, r, back, "err", msg)
+		return
+	}
 	bl, err := s.blockList()
 	if err != nil {
 		s.serverError(w, "find block list", err)

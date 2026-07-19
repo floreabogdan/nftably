@@ -6,9 +6,9 @@ import "net/http"
 // actually works — the packet's journey through the hooks, base vs regular
 // chains, priority, connection tracking, address families and sets — so someone
 // who has never written a firewall rule can understand what the editor is
-// building and why the Security check asks for what it does. It's static prose;
+// building and why the Posture page asks for what it does. It's static prose;
 // the value is in tying each concept to where you act on it in nftably
-// (Simulate, Security check, Firewall, Presets).
+// (Simulate, Posture, Firewall, Presets).
 
 type learnVM struct {
 	nav

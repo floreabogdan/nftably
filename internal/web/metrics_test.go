@@ -92,3 +92,14 @@ func TestMetricLabelEscaping(t *testing.T) {
 		t.Errorf("metricLabel = %q, want %q", got, want)
 	}
 }
+
+// TestRuleLabelSingleEscape guards against double-escaping: a comment with a
+// quote must be escaped exactly once (by metricLabel), not a second time by a
+// stray %q. A double-escaped label stores the wrong value in Prometheus.
+func TestRuleLabelSingleEscape(t *testing.T) {
+	got := ruleLabels("inet", "filter", "input", `allow "web"`, 3)
+	want := `{family="inet",table="filter",chain="input",rule="allow \"web\"",index="3"}`
+	if got != want {
+		t.Errorf("ruleLabels = %q\n want %q", got, want)
+	}
+}

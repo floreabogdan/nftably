@@ -39,7 +39,7 @@ type dashboardVM struct {
 	// NeedsSetup nudges a fresh install towards the guided setup: no rules
 	// modelled yet means nftably is not managing anything.
 	NeedsSetup bool
-	// Posture summary — a compact score linking to the full Security check.
+	// Posture summary — a compact score linking to the full Posture page.
 	PostureShow  bool
 	PosturePass  int
 	PostureTotal int

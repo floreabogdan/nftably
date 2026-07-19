@@ -24,6 +24,25 @@ All notable changes to nftably are recorded here. The format follows
 - **Settings is now tabbed** by scope — General, Access, GeoIP, Metrics, Import —
   matching the pattern used elsewhere. The standalone **iptables import** page
   moved in as the *Import* tab (`/import` redirects to `/settings?tab=import`).
+- **Clearer nav names.** The Security page is now **Posture**, *Review & apply* is
+  simply **Review**, and *Simulate a packet* is **Simulate**. Simulate and Review
+  now sit under **Manage**; Posture and Presets under **Secure**.
+
+### Fixed
+
+- **Prometheus label values were double-escaped.** A rule comment (or table/chain
+  name) containing a quote or backslash came out escaped twice in `/metrics`,
+  storing the wrong value in Prometheus. The purpose-built escaper now runs once.
+- **The Settings tabs are now wired for screen readers** — each tab carries
+  `aria-controls`, and each panel is a labelled `role="tabpanel"`, matching the
+  Firewall page's tabs. Each tab also shows its own save confirmation instead of a
+  duplicate top-of-page one.
+- **The Connections *Block* button no longer leaves an empty `blacklist` set
+  behind** when handed an address that doesn't parse — the value is validated
+  before the set is created.
+- Two stale "Changes" links on the Named-sets pages now read **Review**, and the
+  exposed-services scan logs a warning instead of silently blanking on a read
+  error.
 
 ### Changed — the general-model redesign
 

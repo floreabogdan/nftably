@@ -10,13 +10,13 @@ import (
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
-// This file backs the "Exposed services" half of the Security page (/harden): it
+// This file backs the "Exposed services" half of the Posture page (/harden): it
 // scans the box's listening sockets and routing, runs each exposure through the
 // packet simulator against the current model, and reports what the firewall
 // actually does about it — with a one-click fix or a link into the simulator.
 // Findings are advice; nothing changes the kernel here (a one-click "allow" only
 // adds a rule to the model, for review). The old /advisor page was merged into
-// the Security check; its GET route now redirects there, and the allow/dismiss/
+// the Posture page; its GET route now redirects there, and the allow/dismiss/
 // restore actions below still power that section.
 
 // advisorFindings runs the live exposure scan against the current model and
@@ -40,7 +40,7 @@ func (s *Server) advisorFindings() (visible, hidden []advisor.Finding, scanNote 
 	return visible, hidden, scan.Note, nil
 }
 
-// handleAdvisor redirects the retired /advisor page to the Security check, which
+// handleAdvisor redirects the retired /advisor page to the Posture page, which
 // now carries its findings.
 func (s *Server) handleAdvisor(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/harden", http.StatusMovedPermanently)
@@ -48,7 +48,7 @@ func (s *Server) handleAdvisor(w http.ResponseWriter, r *http.Request) {
 
 // handleAdvisorAllow takes a blocked-listener finding's one-click fix: it adds an
 // accept rule for that port to the primary input chain and sends the operator to
-// Review & apply. It only touches the model — the armed apply still gates the
+// the Review page. It only touches the model — the armed apply still gates the
 // kernel.
 func (s *Server) handleAdvisorAllow(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {

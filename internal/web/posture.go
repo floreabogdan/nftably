@@ -15,7 +15,7 @@ import (
 // where it's safe, offering a one-click fix. The fixes only ever ADD accept
 // rules or drop clearly-bad traffic (invalid, spoofed); they never flip a policy
 // or remove access, so a check can't lock you out. Everything stays model-only —
-// a fix drops you on Review & apply, behind the armed auto-revert.
+// a fix drops you on the Review page, behind the armed auto-revert.
 
 type postureStatus string
 
@@ -26,7 +26,7 @@ const (
 	postureInfo postureStatus = "info" // advisory; not counted in the score
 )
 
-// postureCheck is one graded item shown on the Security-check page.
+// postureCheck is one graded item shown on the Posture page.
 type postureCheck struct {
 	ID       string
 	Title    string
@@ -270,6 +270,10 @@ func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
 				vm.Infos++
 			}
 		}
+	} else {
+		// Best-effort: a failure here shouldn't blank the whole page, but log it so
+		// a silently-empty section is diagnosable rather than a mystery.
+		s.log.Warn("exposed-services scan failed", "error", ferr)
 	}
 	render(w, s.log, "harden.html", vm)
 }
@@ -311,6 +315,6 @@ func (s *Server) handleHardenFix(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "applied hardening fix: "+id)
-	// Land on Review & apply so the armed auto-revert covers the change.
+	// Land on the Review page so the armed auto-revert covers the change.
 	http.Redirect(w, r, "/changes", http.StatusSeeOther)
 }

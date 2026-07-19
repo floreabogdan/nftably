@@ -115,3 +115,67 @@ func TestMigrateFromV1(t *testing.T) {
 	}
 	defer s2.Close()
 }
+
+// TestMigrateAddsMetricsTokenColumn builds a settings table exactly as a pre-v10
+// build left it — every column except metrics_token, user_version 9 — and checks
+// that Open adds the column so GetSettings (which SELECTs metrics_token) works
+// for a real upgrader. Without the forward ADD COLUMN, every settings read on an
+// upgraded database would fail while a fresh install stayed green.
+func TestMigrateAddsMetricsTokenColumn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "prev10.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The v9 settings shape: no metrics_token column.
+	for _, stmt := range []string{
+		`CREATE TABLE settings (
+			id               INTEGER PRIMARY KEY CHECK (id = 1),
+			router_label     TEXT NOT NULL DEFAULT '',
+			listen_addr      TEXT NOT NULL DEFAULT '127.0.0.1:8080',
+			nft_binary       TEXT NOT NULL DEFAULT '',
+			access_whitelist TEXT NOT NULL DEFAULT '',
+			geoip_db         TEXT NOT NULL DEFAULT '',
+			geoip_autoupdate INTEGER NOT NULL DEFAULT 0,
+			created_at       TEXT NOT NULL,
+			updated_at       TEXT NOT NULL
+		)`,
+		`INSERT INTO settings (id, router_label, created_at, updated_at) VALUES (1, 'edge-01', 't', 't')`,
+		`PRAGMA user_version = 9`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("build v9 db: %v\n%s", err, stmt)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("open v9 db: %v", err)
+	}
+	defer s.Close()
+
+	// GetSettings SELECTs metrics_token — it must exist and default to "".
+	st, ok, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings after migration: %v", err)
+	}
+	if !ok {
+		t.Fatal("settings row went missing across migration")
+	}
+	if st.RouterLabel != "edge-01" {
+		t.Errorf("existing data lost: router_label = %q, want edge-01", st.RouterLabel)
+	}
+	if st.MetricsToken != "" {
+		t.Errorf("metrics_token default = %q, want empty", st.MetricsToken)
+	}
+	// And the column must be writable through the normal saver.
+	if err := s.SaveMetricsToken("tok"); err != nil {
+		t.Fatalf("SaveMetricsToken: %v", err)
+	}
+	if st, _, _ := s.GetSettings(); st.MetricsToken != "tok" {
+		t.Errorf("metrics_token after save = %q, want tok", st.MetricsToken)
+	}
+}

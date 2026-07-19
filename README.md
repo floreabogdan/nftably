@@ -26,7 +26,7 @@ nft line it becomes:
 | :---: | :---: |
 | ![Rule editor](docs/screenshots/rule-editor.jpg) | ![Presets](docs/screenshots/presets.jpg) |
 | **Review the diff, apply with auto-revert** | **A live overview** |
-| ![Review and apply](docs/screenshots/review.jpg) | ![Dashboard](docs/screenshots/dashboard.jpg) |
+| ![Review](docs/screenshots/review.jpg) | ![Dashboard](docs/screenshots/dashboard.jpg) |
 
 <sub>All addresses shown are documentation examples (RFC 5737 / RFC 3849).</sub>
 
@@ -76,14 +76,14 @@ make** and **easy to get right**:
   rule with a *Count* action shows its live packet/byte total right on the Firewall
   page; and a rule with a *Log* action feeds the built-in **firewall log viewer** —
   build a rule, apply it, and watch it catch traffic, in numbers and in detail.
-- **One Security page that assesses and hardens.** It grades your model against what
+- **One Posture page that assesses and hardens.** It grades your model against what
   a solid host firewall needs — default-deny, the survivable base, IPv6's ICMP,
   anti-spoofing, scoped SSH — explaining *why each matters*; and, on the same page,
   it scans what's actually listening on the box and runs each service through the
   simulator against your model, telling you what your firewall really does about it —
   *"PostgreSQL is reachable from the internet"* or *"sshd is listening but a
   connection from outside would be dropped"*. Both halves offer safe one-click fixes
-  that land on Review & apply behind the auto-revert.
+  that land on the Review page behind the auto-revert.
 - **Learn while you harden.** A **Concepts** page teaches how nftables actually works
   (the packet's journey through the hooks, chains, connection tracking, sets) in
   plain language, so someone new to firewalls can go from *"what's a chain?"* to a
@@ -110,7 +110,7 @@ that `nft` accepts as-is:
 - a forward chain that routes transit but drops invalid.
 
 You then fill in two sets — `@peers` (your peers, v4 and v6) and `@mgmt` (widen to your
-management network) — and Review & apply.
+management network) — then Review to apply.
 
 ## Quick start
 

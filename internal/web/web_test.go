@@ -74,7 +74,7 @@ func TestPagesRender(t *testing.T) {
 }
 
 // TestAdvisorRedirectsToSecurity confirms the retired /advisor page now
-// permanently redirects to the merged Security check.
+// permanently redirects to the merged Posture page.
 func TestAdvisorRedirectsToSecurity(t *testing.T) {
 	srv, cookie := newTestServer(t)
 	req := httptest.NewRequest(http.MethodGet, "/advisor", nil)
