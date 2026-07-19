@@ -1390,17 +1390,26 @@ details[open] .collapse-hint::before { content: "hide"; }
 .row-disabled .rule-preview code { opacity: 0.5; text-decoration: line-through; }
 
 /* Drag-to-reorder grip (progressive enhancement; up/down buttons are the
-   fallback). The grip is a 2×3 dot grid drawn with a radial-gradient. */
+   fallback). Shared by rules, chains and tables. The grip is a dot grid drawn
+   with a radial-gradient. */
 .rule-grip-cell { width: 1%; padding-right: 0 !important; }
-.rule-grip {
+.sort-grip {
 	display: inline-block; width: 10px; height: 16px; cursor: grab;
 	background-image: radial-gradient(var(--text-muted) 40%, transparent 42%);
 	background-size: 4px 4px; background-position: center; background-repeat: space;
 	opacity: 0.45; transition: opacity 0.12s ease; vertical-align: middle;
 }
-.rule-grip:hover { opacity: 0.9; }
-.rule-grip:active { cursor: grabbing; }
-.rule-table tr.row-dragging td { background: var(--surface-2, rgba(127,127,127,0.10)); box-shadow: inset 2px 0 0 var(--accent, #4c8bf5); }
+.sort-grip:hover { opacity: 0.9; }
+.sort-grip:active { cursor: grabbing; }
+/* On a table card the grip sits just before the title icon; on a chain tab it's
+   a compact handle before the label. */
+.card-title .sort-grip { margin-right: 6px; }
+.sort-grip-tab { width: 8px; height: 12px; margin-right: 5px; }
+/* Dragging state: a subtle lift for the moving item. */
+.rule-table tr.sort-dragging td,
+.card.sort-dragging,
+.chain-tab.sort-dragging { background: var(--surface-2, rgba(127,127,127,0.10)); box-shadow: inset 2px 0 0 var(--accent, #4c8bf5); }
+.card.sort-dragging { opacity: 0.85; }
 body.reordering { user-select: none; cursor: grabbing; }
 
 /* rule editor rows */

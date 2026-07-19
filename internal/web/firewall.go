@@ -748,9 +748,54 @@ func (s *Server) handleRuleMove(w http.ResponseWriter, r *http.Request) {
 // only, like the live preview — the up/down buttons remain the no-JS fallback.
 func (s *Server) handleRuleReorder(w http.ResponseWriter, r *http.Request) {
 	chainID := pathID(r)
+	ids, ok := reorderIDs(w, r)
+	if !ok {
+		return
+	}
+	if err := s.store.SetChainRuleOrder(chainID, ids); err != nil {
+		s.serverError(w, "reorder rules", err)
+		return
+	}
+	s.audit(r, "reordered rules in a chain")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleChainReorder and handleTableReorder are the drag-and-drop counterparts of
+// the chain/table up-down move buttons — same defensive store logic as rules.
+func (s *Server) handleChainReorder(w http.ResponseWriter, r *http.Request) {
+	tableID := pathID(r)
+	ids, ok := reorderIDs(w, r)
+	if !ok {
+		return
+	}
+	if err := s.store.SetChainOrder(tableID, ids); err != nil {
+		s.serverError(w, "reorder chains", err)
+		return
+	}
+	s.audit(r, "reordered chains in a table")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleTableReorder(w http.ResponseWriter, r *http.Request) {
+	ids, ok := reorderIDs(w, r)
+	if !ok {
+		return
+	}
+	if err := s.store.SetTableOrder(ids); err != nil {
+		s.serverError(w, "reorder tables", err)
+		return
+	}
+	s.audit(r, "reordered tables")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// reorderIDs parses the `ids` form field (a comma-separated id list) shared by
+// the three drag-and-drop reorder endpoints. It writes a 400 and returns ok=false
+// on a malformed form.
+func reorderIDs(w http.ResponseWriter, r *http.Request) ([]int64, bool) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
-		return
+		return nil, false
 	}
 	var ids []int64
 	for _, tok := range strings.Split(r.FormValue("ids"), ",") {
@@ -760,12 +805,7 @@ func (s *Server) handleRuleReorder(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if err := s.store.SetChainRuleOrder(chainID, ids); err != nil {
-		s.serverError(w, "reorder rules", err)
-		return
-	}
-	s.audit(r, "reordered rules in a chain")
-	w.WriteHeader(http.StatusNoContent)
+	return ids, true
 }
 
 // handleRuleDuplicate clones a rule to the end of its chain, so authoring a

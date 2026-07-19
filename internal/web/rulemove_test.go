@@ -108,6 +108,50 @@ func TestRuleReorderPersistsNewOrder(t *testing.T) {
 	}
 }
 
+// TestChainAndTableReorder checks the drag-and-drop reorder endpoints for chains
+// (scoped to a table) and tables (page-wide) both persist the new order.
+func TestChainAndTableReorder(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	tid, chainA, chainB := seedTwoChains(t, srv)
+	chainC, err := srv.store.CreateChain(store.Chain{TableID: tid, Name: "more", Kind: "regular"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Reverse the chain order: C, B, A.
+	form := url.Values{"ids": {itoa(chainC) + "," + itoa(chainB) + "," + itoa(chainA)}}
+	if rec := postForm(srv, "/firewall/tables/"+itoa(tid)+"/chains/reorder", form, cookie); rec.Code != http.StatusNoContent {
+		t.Fatalf("chain reorder: status %d, want 204", rec.Code)
+	}
+	chains, _ := srv.store.ListChains(tid)
+	if len(chains) != 3 || chains[0].ID != chainC || chains[1].ID != chainB || chains[2].ID != chainA {
+		t.Fatalf("chain order not applied: got %d %d %d", chains[0].ID, chains[1].ID, chains[2].ID)
+	}
+
+	// A second table, then reorder the two page-wide (the test server also seeds
+	// an inet/filter table, so we assert on relative order of ours).
+	tid2, err := srv.store.CreateTable(store.Table{Family: "inet", Name: "movetest2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec := postForm(srv, "/firewall/tables/reorder", url.Values{"ids": {itoa(tid2) + "," + itoa(tid)}}, cookie); rec.Code != http.StatusNoContent {
+		t.Fatalf("table reorder: status %d, want 204", rec.Code)
+	}
+	tables, _ := srv.store.ListTables()
+	var posOurs, pos2 = -1, -1
+	for i, tb := range tables {
+		if tb.ID == tid {
+			posOurs = i
+		}
+		if tb.ID == tid2 {
+			pos2 = i
+		}
+	}
+	if pos2 == -1 || posOurs == -1 || pos2 > posOurs {
+		t.Fatalf("table reorder not applied: movetest2 at %d should precede movetest at %d", pos2, posOurs)
+	}
+}
+
 // TestRuleDuplicateCarriesRawAndTags guards the regression where duplicate
 // silently dropped a rule's raw text (yielding an empty rule) and its tags.
 func TestRuleDuplicateCarriesRawAndTags(t *testing.T) {

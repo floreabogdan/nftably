@@ -678,21 +678,43 @@ func (s *Store) MoveChainRule(id int64, dir int) error {
 }
 
 // SetChainRuleOrder rewrites a chain's rule positions to match orderedIDs
-// (drag-and-drop reordering on the Firewall page). It's defensive against a
-// stale or partial list: ids that don't belong to the chain are ignored, and any
-// of the chain's rules missing from the list keep their existing relative order,
-// appended after the listed ones — so a reorder can never drop or duplicate a
-// rule even if the page's view was out of date.
+// (drag-and-drop reordering on the Firewall page).
 func (s *Store) SetChainRuleOrder(chainID int64, orderedIDs []int64) error {
+	return s.reorderScoped("nft_rules", "chain_id", chainID, orderedIDs)
+}
+
+// SetChainOrder rewrites the order of a table's chains, and SetTableOrder the
+// order of the page's tables — the drag-and-drop counterparts of MoveChain and
+// MoveTable.
+func (s *Store) SetChainOrder(tableID int64, orderedIDs []int64) error {
+	return s.reorderScoped("nft_chains", "table_id", tableID, orderedIDs)
+}
+func (s *Store) SetTableOrder(orderedIDs []int64) error {
+	return s.reorderScoped("nft_tables", "", 0, orderedIDs)
+}
+
+// reorderScoped rewrites the position column of rows within a scope (scopeCol =
+// scopeVal), or across the whole table when scopeCol is "". It is defensive
+// against a stale or partial list: ids that don't belong to the scope are
+// ignored, and any rows missing from the list keep their existing relative
+// order, appended after the listed ones — so a reorder can never drop or
+// duplicate a row even if the page's view was out of date. table and scopeCol
+// must be compile-time constants, never user input.
+func (s *Store) reorderScoped(table, scopeCol string, scopeVal int64, orderedIDs []int64) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	rows, err := tx.Query(`SELECT id FROM nft_rules WHERE chain_id = ? ORDER BY position, id`, chainID)
+	var rows *sql.Rows
+	if scopeCol == "" {
+		rows, err = tx.Query(fmt.Sprintf(`SELECT id FROM %s ORDER BY position, id`, table))
+	} else {
+		rows, err = tx.Query(fmt.Sprintf(`SELECT id FROM %s WHERE %s = ? ORDER BY position, id`, table, scopeCol), scopeVal)
+	}
 	if err != nil {
-		return fmt.Errorf("store: reorder rules: %w", err)
+		return fmt.Errorf("store: reorder %s: %w", table, err)
 	}
 	var current []int64
 	member := map[int64]bool{}
@@ -700,7 +722,7 @@ func (s *Store) SetChainRuleOrder(chainID int64, orderedIDs []int64) error {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
 			rows.Close()
-			return fmt.Errorf("store: reorder rules: %w", err)
+			return fmt.Errorf("store: reorder %s: %w", table, err)
 		}
 		current = append(current, id)
 		member[id] = true
@@ -710,8 +732,8 @@ func (s *Store) SetChainRuleOrder(chainID int64, orderedIDs []int64) error {
 		return err
 	}
 
-	// Build the final order: requested ids that really belong here (de-duped),
-	// then any remaining chain rules in their existing order.
+	// Requested ids that really belong here (de-duped), then any remaining rows
+	// in their existing order.
 	final := make([]int64, 0, len(current))
 	placed := map[int64]bool{}
 	for _, id := range orderedIDs {
@@ -727,10 +749,9 @@ func (s *Store) SetChainRuleOrder(chainID int64, orderedIDs []int64) error {
 		}
 	}
 
-	ts := now()
 	for i, id := range final {
-		if _, err := tx.Exec(`UPDATE nft_rules SET position = ?, updated_at = ? WHERE id = ?`, i+1, ts, id); err != nil {
-			return fmt.Errorf("store: reorder rules: %w", err)
+		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s SET position = ? WHERE id = ?`, table), i+1, id); err != nil {
+			return fmt.Errorf("store: reorder %s: %w", table, err)
 		}
 	}
 	return tx.Commit()

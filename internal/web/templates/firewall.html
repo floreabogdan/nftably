@@ -77,10 +77,11 @@
 </div>
 {{end}}
 
+<div class="table-list" data-sortable data-sortable-endpoint="/firewall/tables/reorder">
 {{range $t := .Tables}}
-<div class="card">
+<div class="card" data-sortable-id="{{$t.ID}}">
 	<div class="card-header">
-		<span class="card-title">{{template "icon-shield"}} <span class="mono">{{$t.Family}} {{$t.Name}}</span></span>
+		<span class="card-title"><span class="sort-grip" data-sort-grip title="Drag table to reorder" aria-hidden="true"></span>{{template "icon-shield"}} <span class="mono">{{$t.Family}} {{$t.Name}}</span></span>
 		<div class="row-actions">
 			<form method="post" action="/firewall/tables/{{$t.ID}}/move"><input type="hidden" name="dir" value="up"><button class="icon-action" title="Move up" aria-label="Move table {{$t.Name}} up">{{template "icon-up"}}</button></form>
 			<form method="post" action="/firewall/tables/{{$t.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down" aria-label="Move table {{$t.Name}} down">{{template "icon-down"}}</button></form>
@@ -91,10 +92,10 @@
 		{{if $t.Comment}}<p class="text-muted">{{$t.Comment}}</p>{{end}}
 		{{if $t.Chains}}
 		<div class="chain-group" data-table="{{$t.ID}}">
-			<div class="chain-tabs" role="tablist" aria-label="Chains in table {{$t.Name}}">
+			<div class="chain-tabs" role="tablist" aria-label="Chains in table {{$t.Name}}" data-sortable data-sortable-axis="x" data-sortable-endpoint="/firewall/tables/{{$t.ID}}/chains/reorder">
 				{{range $ci, $ch := $t.Chains}}
-				<button type="button" role="tab" id="tab-t{{$t.ID}}c{{$ch.ID}}" aria-controls="t{{$t.ID}}c{{$ch.ID}}" aria-selected="{{if eq $ci 0}}true{{else}}false{{end}}" tabindex="{{if eq $ci 0}}0{{else}}-1{{end}}" class="chain-tab{{if eq $ci 0}} active{{end}}" data-panel="t{{$t.ID}}c{{$ch.ID}}">
-					chain {{$ch.Name}}
+				<button type="button" role="tab" id="tab-t{{$t.ID}}c{{$ch.ID}}" aria-controls="t{{$t.ID}}c{{$ch.ID}}" aria-selected="{{if eq $ci 0}}true{{else}}false{{end}}" tabindex="{{if eq $ci 0}}0{{else}}-1{{end}}" class="chain-tab{{if eq $ci 0}} active{{end}}" data-panel="t{{$t.ID}}c{{$ch.ID}}" data-sortable-id="{{$ch.ID}}">
+					<span class="sort-grip sort-grip-tab" data-sort-grip title="Drag to reorder chains" aria-hidden="true"></span>chain {{$ch.Name}}
 					{{if $ch.IsBase}}<span class="tab-hook">{{$ch.Hook}}</span>{{else}}<span class="tab-hook">regular</span>{{end}}
 					<span class="tab-count">{{len $ch.Rules}}</span>
 				</button>
@@ -116,10 +117,10 @@
 				{{if $ch.Rules}}
 				<div class="table-scroll">
 				<table class="rule-table">
-					<tbody data-search-target data-reorder data-chain-id="{{$ch.ID}}">
+					<tbody data-search-target data-sortable data-sortable-endpoint="/firewall/chains/{{$ch.ID}}/rules/reorder">
 					{{range $ch.Rules}}
-					<tr class="{{if not .Enabled}}row-disabled{{end}}" data-rule-id="{{.ID}}">
-						<td class="rule-grip-cell"><span class="rule-grip" title="Drag to reorder" aria-hidden="true"></span></td>
+					<tr class="{{if not .Enabled}}row-disabled{{end}}" data-sortable-id="{{.ID}}">
+						<td class="rule-grip-cell"><span class="sort-grip" data-sort-grip title="Drag to reorder" aria-hidden="true"></span></td>
 						<td class="rule-preview">
 							{{if .Preview}}<code class="mono">{{.Preview}}</code>{{else}}<span class="badge badge-warning">won't render{{if .RenderErr}}: {{.RenderErr}}{{end}}</span>{{end}}
 							{{if .Comment}}<div class="hint">{{.Comment}}</div>{{end}}
@@ -183,6 +184,7 @@
 {{else}}
 <div class="card"><div class="card-body"><p class="empty">No tables yet — add one below to start.</p></div></div>
 {{end}}
+</div>
 
 <div class="modal-backdrop" id="modal-new-table" data-modal>
 	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-new-table-title">
@@ -220,5 +222,5 @@
 	</div>
 </div>
 
-<script src="/static/rules.js" defer></script>
+<script src="/static/sortable.js" defer></script>
 {{template "shell-close" .}}{{end}}

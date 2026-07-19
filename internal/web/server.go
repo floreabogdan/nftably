@@ -245,6 +245,8 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /firewall/rules/{id}/toggle", s.requireAuth(s.handleRuleToggle))
 	s.mux.Handle("POST /firewall/rules/{id}/move", s.requireAuth(s.handleRuleMove))
 	s.mux.Handle("POST /firewall/chains/{id}/rules/reorder", s.requireAuth(s.handleRuleReorder))
+	s.mux.Handle("POST /firewall/tables/{id}/chains/reorder", s.requireAuth(s.handleChainReorder))
+	s.mux.Handle("POST /firewall/tables/reorder", s.requireAuth(s.handleTableReorder))
 	s.mux.Handle("POST /firewall/rules/{id}/duplicate", s.requireAuth(s.handleRuleDuplicate))
 	s.mux.Handle("POST /firewall/port-forward", s.requireAuth(s.handlePortForward))
 	s.mux.Handle("POST /firewall/flowtables/new", s.requireAuth(s.handleFlowtableCreate))
