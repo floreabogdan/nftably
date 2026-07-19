@@ -33,10 +33,6 @@ All notable changes to nftably are recorded here. The format follows
   the Firewall, Presets and the create/edit forms, which were missing it. The Live
   ruleset page was rebuilt (it had a broken class mismatch): a summary row, each
   table flagged managed-by-nftably or external, and rules as a clean numbered list.
-- **Dead CSS removed.** ~230 lines of unreferenced selectors carried over wholesale
-  from the birdy design system (sparklines, a file-tree, pagers, quick-actions and
-  more) are gone — verified class-by-class against the templates and JS, accounting
-  for interpolated class names, so nothing in use was touched.
 
 ### Fixed
 
