@@ -680,6 +680,13 @@ svg.sparkline[data-spark] { cursor: crosshair; }
 .live-badge::before {
 	content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success);
 }
+
+/* Freeform rule tags, shown as small pills under a rule. */
+.rule-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1); }
+.tag-chip {
+	font-size: var(--fs-2xs); font-weight: 600; padding: 1px 8px; border-radius: 999px;
+	background: color-mix(in srgb, var(--secondary) 14%, var(--surface)); color: var(--secondary-deep);
+}
 .card-body { padding: var(--space-5); }
 
 /* A collapsible card (e.g. the advanced raw-rule editor): the summary is the

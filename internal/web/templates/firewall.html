@@ -122,6 +122,7 @@
 						<td class="rule-preview">
 							{{if .Preview}}<code class="mono">{{.Preview}}</code>{{else}}<span class="badge badge-warning">won't render{{if .RenderErr}}: {{.RenderErr}}{{end}}</span>{{end}}
 							{{if .Comment}}<div class="hint">{{.Comment}}</div>{{end}}
+							{{with .TagList}}<div class="rule-tags">{{range .}}<span class="tag-chip">{{.}}</span>{{end}}</div>{{end}}
 							{{if .HasCounter}}<div class="rule-counter" title="Live traffic this rule has matched since it was applied">{{template "icon-activity"}} {{.Packets}} pkts · {{.Bytes}}</div>{{end}}
 						</td>
 						<td class="rule-actions">

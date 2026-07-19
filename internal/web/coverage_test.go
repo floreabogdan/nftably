@@ -92,6 +92,32 @@ func TestVersionRestoreRoundTrip(t *testing.T) {
 	}
 }
 
+// TestRuleTags checks tag normalization and that tags persist through a save.
+func TestRuleTags(t *testing.T) {
+	// normalization: trim, de-dupe, strip junk.
+	if got := normalizeTags("  ssh , mgmt ,ssh, bad!char "); got != "ssh, mgmt, badchar" {
+		t.Errorf("normalizeTags = %q", got)
+	}
+
+	srv, cookie := newTestServer(t)
+	chainID := seededInputChain(t, srv)
+	path := "/firewall/chains/" + strconv.FormatInt(chainID, 10) + "/rules/new"
+	rec := postForm(srv, path, url.Values{
+		"c_field_0": {"tcp.dport"}, "c_op_0": {"=="}, "c_val_0": {"22"},
+		"a_key_0": {"accept"}, "enabled": {"on"}, "tags": {"ssh, mgmt"},
+	}, cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("save with tags: %d", rec.Code)
+	}
+	rules, _ := srv.store.ListChainRules(chainID)
+	if len(rules) != 1 || rules[0].Tags != "ssh, mgmt" {
+		t.Errorf("tags not persisted: %+v", rules)
+	}
+	if tl := rules[0].TagList(); len(tl) != 2 || tl[0] != "ssh" {
+		t.Errorf("TagList = %v", tl)
+	}
+}
+
 // TestPortForwardWizard checks the wizard builds a DNAT rule in a nat
 // prerouting chain and a matching forward-accept, and validates input.
 func TestPortForwardWizard(t *testing.T) {

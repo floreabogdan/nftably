@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"net"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -393,6 +394,7 @@ type ruleFormVM struct {
 	Comment         string
 	Enabled         bool
 	Raw             string // verbatim nft line (advanced escape hatch); empty for a structured rule
+	Tags            string // comma-separated freeform labels
 	IsNew           bool
 	Errors          []string
 	Preview         string
@@ -441,6 +443,7 @@ func (s *Server) handleRuleEditGet(w http.ResponseWriter, r *http.Request) {
 		Comment: rule.Comment,
 		Enabled: rule.Enabled,
 		Raw:     rule.Raw,
+		Tags:    rule.Tags,
 	}
 	for _, m := range rule.Matches {
 		vm.Conds = append(vm.Conds, condRow{Field: m.Key, Op: m.Op, Value: m.Value})
@@ -523,8 +526,33 @@ func hostInterfaces() []string {
 
 // ruleFromForm builds a ChainRule from the form view-model's rows (dropping
 // empty ones), for both preview and save.
+// tagCleanRe strips anything but letters, digits, space, dash and underscore
+// from a tag, so tags stay display-safe.
+var tagCleanRe = regexp.MustCompile(`[^a-zA-Z0-9 _-]`)
+
+// normalizeTags trims, de-dupes and bounds a comma-separated tag string.
+func normalizeTags(raw string) string {
+	seen := map[string]bool{}
+	var out []string
+	for _, t := range strings.Split(raw, ",") {
+		t = tagCleanRe.ReplaceAllString(strings.TrimSpace(t), "")
+		if len(t) > 32 {
+			t = strings.TrimSpace(t[:32])
+		}
+		if t == "" || seen[t] {
+			continue
+		}
+		seen[t] = true
+		out = append(out, t)
+		if len(out) >= 12 {
+			break
+		}
+	}
+	return strings.Join(out, ", ")
+}
+
 func ruleFromForm(vm ruleFormVM) store.ChainRule {
-	rule := store.ChainRule{ID: vm.RuleID, ChainID: vm.Chain.ID, Comment: vm.Comment, Enabled: vm.Enabled}
+	rule := store.ChainRule{ID: vm.RuleID, ChainID: vm.Chain.ID, Comment: vm.Comment, Enabled: vm.Enabled, Tags: normalizeTags(vm.Tags)}
 	// A raw rule is verbatim: its structured conditions/actions are ignored.
 	if raw := strings.TrimSpace(vm.Raw); raw != "" {
 		rule.Raw = raw
@@ -587,6 +615,7 @@ func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
 		Comment: strings.TrimSpace(r.FormValue("comment")),
 		Enabled: r.FormValue("enabled") == "on",
 		Raw:     strings.TrimSpace(r.FormValue("raw")),
+		Tags:    r.FormValue("tags"),
 		Conds:   readConds(r),
 		Acts:    readActs(r),
 	}
@@ -643,7 +672,7 @@ func (s *Server) handleRulePreview(w http.ResponseWriter, r *http.Request) {
 	}
 	table, _ := s.store.GetTable(chain.TableID)
 
-	vm := ruleFormVM{Chain: chain, Comment: strings.TrimSpace(r.FormValue("comment")), Raw: strings.TrimSpace(r.FormValue("raw")), Conds: readConds(r), Acts: readActs(r)}
+	vm := ruleFormVM{Chain: chain, Comment: strings.TrimSpace(r.FormValue("comment")), Raw: strings.TrimSpace(r.FormValue("raw")), Tags: r.FormValue("tags"), Conds: readConds(r), Acts: readActs(r)}
 	rule := ruleFromForm(vm)
 
 	resp := map[string]any{"chain": chain.Name, "family": table.Family, "table": table.Name}

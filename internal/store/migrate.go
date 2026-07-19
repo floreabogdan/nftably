@@ -13,7 +13,7 @@ import (
 //
 // nftably's database is a single file the user can snapshot and restore, so
 // migrations must be forward-only and safe to re-run.
-const schemaVersion = 16
+const schemaVersion = 17
 
 func migrate(db *sql.DB) error {
 	var version int
@@ -70,6 +70,8 @@ func migrate(db *sql.DB) error {
 		{"settings", "api_token", `TEXT NOT NULL DEFAULT ''`},
 		// version < 16: daily local backup toggle.
 		{"settings", "backup_auto", `INTEGER NOT NULL DEFAULT 0`},
+		// version < 17: freeform rule tags.
+		{"nft_rules", "tags", `TEXT NOT NULL DEFAULT ''`},
 	}
 	for _, a := range adds {
 		if err := addColumnIfMissing(tx, a.table, a.column, a.ddl); err != nil {

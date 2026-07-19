@@ -201,6 +201,20 @@ type ChainRule struct {
 	// When set, the rule renders as exactly this text and its Matches/Statements
 	// are ignored. Validated for shape here and by the pre-apply nft --check.
 	Raw string
+	// Tags is a comma-separated set of freeform labels for organising and
+	// filtering rules; it never affects rendering.
+	Tags string
+}
+
+// TagList splits Tags into individual labels (empty when none).
+func (r ChainRule) TagList() []string {
+	var out []string
+	for _, t := range strings.Split(r.Tags, ",") {
+		if t = strings.TrimSpace(t); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // IsRaw reports whether this rule is a raw (verbatim) nft line.
@@ -417,7 +431,7 @@ func (s *Store) MoveChain(id int64, dir int) error {
 // and statements loaded.
 func (s *Store) ListChainRules(chainID int64) ([]ChainRule, error) {
 	rows, err := s.db.Query(`
-		SELECT id, chain_id, position, comment, enabled, raw FROM nft_rules WHERE chain_id = ? ORDER BY position, id`, chainID)
+		SELECT id, chain_id, position, comment, enabled, raw, tags FROM nft_rules WHERE chain_id = ? ORDER BY position, id`, chainID)
 	if err != nil {
 		return nil, fmt.Errorf("store: list chain rules: %w", err)
 	}
@@ -432,7 +446,7 @@ func (s *Store) ListChainRules(chainID int64) ([]ChainRule, error) {
 // AllChainRules returns every rule grouped by chain id, with children loaded —
 // the render path's bulk load.
 func (s *Store) AllChainRules() (map[int64][]ChainRule, error) {
-	rows, err := s.db.Query(`SELECT id, chain_id, position, comment, enabled, raw FROM nft_rules ORDER BY position, id`)
+	rows, err := s.db.Query(`SELECT id, chain_id, position, comment, enabled, raw, tags FROM nft_rules ORDER BY position, id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: all chain rules: %w", err)
 	}
@@ -456,7 +470,7 @@ func scanRules(rows *sql.Rows) ([]ChainRule, error) {
 	var out []ChainRule
 	for rows.Next() {
 		var r ChainRule
-		if err := rows.Scan(&r.ID, &r.ChainID, &r.Position, &r.Comment, &r.Enabled, &r.Raw); err != nil {
+		if err := rows.Scan(&r.ID, &r.ChainID, &r.Position, &r.Comment, &r.Enabled, &r.Raw, &r.Tags); err != nil {
 			return nil, fmt.Errorf("store: scan rule: %w", err)
 		}
 		out = append(out, r)
@@ -520,8 +534,8 @@ func (s *Store) attachChildren(rules []ChainRule) ([]ChainRule, error) {
 // GetChainRule returns one rule with its children, or ErrNotFound.
 func (s *Store) GetChainRule(id int64) (ChainRule, error) {
 	var r ChainRule
-	row := s.db.QueryRow(`SELECT id, chain_id, position, comment, enabled, raw FROM nft_rules WHERE id = ?`, id)
-	err := row.Scan(&r.ID, &r.ChainID, &r.Position, &r.Comment, &r.Enabled, &r.Raw)
+	row := s.db.QueryRow(`SELECT id, chain_id, position, comment, enabled, raw, tags FROM nft_rules WHERE id = ?`, id)
+	err := row.Scan(&r.ID, &r.ChainID, &r.Position, &r.Comment, &r.Enabled, &r.Raw, &r.Tags)
 	if err == sql.ErrNoRows {
 		return ChainRule{}, ErrNotFound
 	}
@@ -564,9 +578,9 @@ func (s *Store) createChainRule(r ChainRule, atStart bool) (int64, error) {
 
 	ts := now()
 	res, err := tx.Exec(`
-		INSERT INTO nft_rules (chain_id, position, comment, enabled, raw, created_at, updated_at)
-		VALUES (?, `+posExpr+`, ?, ?, ?, ?, ?)`,
-		r.ChainID, r.ChainID, r.Comment, r.Enabled, r.Raw, ts, ts)
+		INSERT INTO nft_rules (chain_id, position, comment, enabled, raw, tags, created_at, updated_at)
+		VALUES (?, `+posExpr+`, ?, ?, ?, ?, ?, ?)`,
+		r.ChainID, r.ChainID, r.Comment, r.Enabled, r.Raw, r.Tags, ts, ts)
 	if err != nil {
 		return 0, fmt.Errorf("store: create rule: %w", err)
 	}
@@ -589,8 +603,8 @@ func (s *Store) UpdateChainRule(r ChainRule) error {
 	}
 	defer tx.Rollback()
 
-	res, err := tx.Exec(`UPDATE nft_rules SET comment = ?, enabled = ?, raw = ?, updated_at = ? WHERE id = ?`,
-		r.Comment, r.Enabled, r.Raw, now(), r.ID)
+	res, err := tx.Exec(`UPDATE nft_rules SET comment = ?, enabled = ?, raw = ?, tags = ?, updated_at = ? WHERE id = ?`,
+		r.Comment, r.Enabled, r.Raw, r.Tags, now(), r.ID)
 	if err != nil {
 		return fmt.Errorf("store: update rule: %w", err)
 	}

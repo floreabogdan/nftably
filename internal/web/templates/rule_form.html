@@ -117,9 +117,16 @@
 
 	<div class="card">
 		<div class="card-body">
-			<div class="field">
-				<label for="comment">Comment <span class="text-muted">(optional, helps you remember what this rule is for)</span></label>
-				<input type="text" name="comment" id="comment" value="{{.Comment}}" placeholder="allow SSH from the office">
+			<div class="field-row">
+				<div class="field">
+					<label for="comment">Comment <span class="text-muted">(optional, helps you remember what this rule is for)</span></label>
+					<input type="text" name="comment" id="comment" value="{{.Comment}}" placeholder="allow SSH from the office">
+				</div>
+				<div class="field">
+					<label for="tags">Tags <span class="text-muted">(optional, comma-separated)</span></label>
+					<input type="text" name="tags" id="tags" value="{{.Tags}}" placeholder="ssh, mgmt">
+					<div class="hint">Freeform labels for organising and filtering rules (the top-bar filter matches them). They don't affect the rule.</div>
+				</div>
 			</div>
 			<label class="check-label"><input type="checkbox" name="enabled"{{if .Enabled}} checked{{end}}> Enabled (uncheck to keep the rule but skip it)</label>
 			<div class="form-actions">

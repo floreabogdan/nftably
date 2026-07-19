@@ -193,6 +193,7 @@ CREATE TABLE IF NOT EXISTS nft_rules (
 	comment    TEXT NOT NULL DEFAULT '',   -- becomes the rule's nft comment
 	enabled    INTEGER NOT NULL DEFAULT 1,
 	raw        TEXT NOT NULL DEFAULT '',   -- verbatim nft line for constructs the catalogue can't express
+	tags       TEXT NOT NULL DEFAULT '',   -- comma-separated freeform labels for organising/filtering
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 );
