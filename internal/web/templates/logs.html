@@ -9,6 +9,7 @@
 		<div class="page-sub">Packets logged by your rules — add a <strong>Log</strong> action (optionally with a prefix) to a rule, apply, and the traffic it matches shows here, read live from the kernel.</div>
 	</div>
 	<div class="page-header-actions">
+		<label class="check-label"><input type="checkbox" id="auto-refresh"> Auto-refresh</label>
 		<a class="btn btn-ghost" href="/logs">{{template "icon-changes"}} Refresh</a>
 	</div>
 </div>
@@ -44,4 +45,5 @@
 	<div class="card-body"><div class="empty">No logged packets yet. Add a <strong>Log</strong> action to a rule (for example above a drop, to see what's being blocked), apply it, and matching traffic appears here.</div></div>
 	{{end}}
 </div>
+<script src="/static/logs.js"></script>
 {{template "shell-close" .}}
