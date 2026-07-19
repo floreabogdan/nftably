@@ -24,9 +24,15 @@ All notable changes to nftably are recorded here. The format follows
 - **Settings is now tabbed** by scope — General, Access, GeoIP, Metrics, Import —
   matching the pattern used elsewhere. The standalone **iptables import** page
   moved in as the *Import* tab (`/import` redirects to `/settings?tab=import`).
-- **Clearer nav names.** The Security page is now **Posture**, *Review & apply* is
-  simply **Review**, and *Simulate a packet* is **Simulate**. Simulate and Review
-  now sit under **Manage**; Posture and Presets under **Secure**.
+- **Clearer nav names.** The Security page is now **Posture** (its page title reads
+  *Security Posture*), *Review & apply* is the **Changes** page, and *Simulate a
+  packet* is **Simulate**. Simulate and Changes sit under **Manage**; Posture and
+  Presets under **Secure**.
+- **Consistent page headers.** Every page now leads with the same band — group
+  eyebrow + breadcrumb, then an icon'd title over a one-line description — including
+  the Firewall, Presets and the create/edit forms, which were missing it. The Live
+  ruleset page was rebuilt (it had a broken class mismatch): a summary row, each
+  table flagged managed-by-nftably or external, and rules as a clean numbered list.
 
 ### Fixed
 
@@ -75,12 +81,21 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **Home router / gateway preset.** Shares one internet connection: a default-deny
+  input (LAN-side management, DHCP and DNS; the internet reaches nothing), a forward
+  chain that lets the LAN out and replies back but blocks the internet from starting
+  connections in, and an inet nat table that masquerades LAN traffic out the wan
+  interface — with an empty prerouting chain ready for port-forwards. Verified
+  against nftables v1.0.9. Rename the `wan`/`lan` interfaces to match your box.
 - **One-click IDS/IPS inspection.** A Posture-page recipe sends forwarded traffic to
   an NFQUEUE for an inline Suricata/Snort to inspect. It's fail-open (a stopped
   inspector lets traffic through rather than blackholing transit) and touches only
   the forward chain, so the operator's own session is never queued — built on the
-  existing `queue` action. A **Setup examples** modal shows copy-pasteable Suricata
-  and Snort commands for attaching to the queue.
+  existing `queue` action. The rule is added **disabled**: the queue target needs
+  kernel NFQUEUE support (`nfnetlink_queue`), and because an apply is one atomic
+  transaction, an unsupported rule would reject everything — so you enable it once
+  your inspector is attached. A **Setup examples** modal shows copy-pasteable
+  Suricata and Snort commands.
 - **Posture page grouped into bands.** Assessment (score, best-practice checks,
   exposed services) reads top-to-bottom, then the one-click recipes sit together
   under a *One-click hardening* heading — kept as one scannable page rather than

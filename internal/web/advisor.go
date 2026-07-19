@@ -48,7 +48,7 @@ func (s *Server) handleAdvisor(w http.ResponseWriter, r *http.Request) {
 
 // handleAdvisorAllow takes a blocked-listener finding's one-click fix: it adds an
 // accept rule for that port to the primary input chain and sends the operator to
-// the Review page. It only touches the model — the armed apply still gates the
+// the Changes page. It only touches the model — the armed apply still gates the
 // kernel.
 func (s *Server) handleAdvisorAllow(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {

@@ -15,7 +15,7 @@ import (
 // where it's safe, offering a one-click fix. The fixes only ever ADD accept
 // rules or drop clearly-bad traffic (invalid, spoofed); they never flip a policy
 // or remove access, so a check can't lock you out. Everything stays model-only —
-// a fix drops you on the Review page, behind the armed auto-revert.
+// a fix drops you on the Changes page, behind the armed auto-revert.
 
 type postureStatus string
 
@@ -244,9 +244,10 @@ type hardenVM struct {
 	// chain, so the recipe card shows "on" instead of offering to add them.
 	SSHBanActive bool
 	// HaveForward gates the IDS recipe (it only makes sense for a routing/IPS
-	// setup); IDSActive is true once a forward rule sends traffic to NFQUEUE.
+	// setup); IDSAdded is true once the forward chain carries a queue rule (added
+	// disabled, so it can't break an apply on a kernel without NFQUEUE).
 	HaveForward bool
-	IDSActive   bool
+	IDSAdded    bool
 	// Exposed-services section (the merged-in advisor): every live listener run
 	// through the simulator against the model.
 	Findings []advisor.Finding
@@ -266,14 +267,13 @@ func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
 		vm.Pass, vm.Total = postureScore(checks)
 		vm.HaveModel = v.haveInput
 		vm.SSHBanActive = v.any(hasBanRule)
-		if fwID, fwRules, ok := s.forwardChain(); ok {
+		if _, fwRules, ok := s.forwardChain(); ok {
 			vm.HaveForward = true
 			for _, r := range fwRules {
-				if r.Enabled && stmtHas(r, "queue") {
-					vm.IDSActive = true
+				if stmtHas(r, "queue") {
+					vm.IDSAdded = true
 				}
 			}
-			_ = fwID
 		}
 	}
 	// The exposed-services scan is independent of the posture read; a failure
@@ -332,7 +332,7 @@ func (s *Server) handleHardenFix(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "applied hardening fix: "+id)
-	// Land on the Review page so the armed auto-revert covers the change.
+	// Land on the Changes page so the armed auto-revert covers the change.
 	http.Redirect(w, r, "/changes", http.StatusSeeOther)
 }
 
@@ -421,13 +421,17 @@ func (s *Server) handleHardenIDS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, rl := range rules {
-		if rl.Enabled && stmtHas(rl, "queue") {
+		if stmtHas(rl, "queue") {
 			http.Redirect(w, r, "/harden", http.StatusSeeOther)
 			return
 		}
 	}
+	// Added DISABLED on purpose: the queue target needs kernel NFQUEUE support
+	// (nfnetlink_queue), which many hosts don't have loaded — and because a whole
+	// apply is one atomic transaction, an unsupported rule would reject everything.
+	// The operator enables it on the Firewall page once the inspector is attached.
 	rule := store.ChainRule{
-		ChainID: fwID, Enabled: true,
+		ChainID: fwID, Enabled: false,
 		Comment:    "inspect transit with an IDS/IPS (fail-open)",
 		Statements: []store.RuleStatement{stmtP("queue", map[string]string{"num": "0", "bypass": "bypass"})},
 	}
@@ -435,6 +439,6 @@ func (s *Server) handleHardenIDS(w http.ResponseWriter, r *http.Request) {
 		redirectErr(w, r, "/harden", "Could not add the inspection rule: "+err.Error())
 		return
 	}
-	s.audit(r, "enabled IDS/IPS traffic inspection (NFQUEUE)")
+	s.audit(r, "added IDS/IPS traffic inspection (NFQUEUE), disabled")
 	http.Redirect(w, r, "/changes", http.StatusSeeOther)
 }

@@ -7,7 +7,7 @@
 	<div>
 		<h1>{{template "icon-shield"}} Firewall</h1>
 		<div class="page-sub">Everything nftably manages. Nothing here touches your live firewall until
-		you go to <a href="/changes">Review</a> — applied with an armed auto-revert that
+		you go to <a href="/changes">Changes</a> — applied with an armed auto-revert that
 		undoes it automatically if you don't confirm, so you can't lock yourself out.</div>
 	</div>
 	<div class="page-header-actions">
@@ -16,7 +16,7 @@
 	</div>
 </div>
 
-{{if .Preset}}<div class="flash">Applied the <strong>{{.Preset}}</strong> preset. Edit its named sets (<a href="/lists">Named sets</a> — fill in your peers and management IPs), then <a href="/changes">Review</a>.</div>{{end}}
+{{if .Preset}}<div class="flash">Applied the <strong>{{.Preset}}</strong> preset. Edit its named sets (<a href="/lists">Named sets</a> — fill in your peers and management IPs), then <a href="/changes">Changes</a>.</div>{{end}}
 
 <div class="card card-info">
 	<div class="card-body howto">
@@ -28,7 +28,7 @@
 	</div>
 </div>
 
-{{if .Saved}}<div class="flash">Saved to the model. Go to <a href="/changes">Review</a> to make it live.</div>{{end}}
+{{if .Saved}}<div class="flash">Saved to the model. Go to <a href="/changes">Changes</a> to make it live.</div>{{end}}
 {{if .Err}}<div class="flash flash-error">{{.Err}}</div>{{end}}
 
 {{if .LintWarns}}
@@ -36,7 +36,7 @@
 	<div class="card-header"><span class="card-title">{{template "icon-alert"}}Heads-up before you apply</span></div>
 	<div class="card-body">
 		{{range .LintWarns}}<div class="lint-warn">{{template "icon-alert"}} {{.}}</div>{{end}}
-		<p class="hint">Not sure? <a href="/simulate">Simulate</a> a packet to see exactly what would happen — nothing is applied until you go to <a href="/changes">Review</a>.</p>
+		<p class="hint">Not sure? <a href="/simulate">Simulate</a> a packet to see exactly what would happen — nothing is applied until you go to <a href="/changes">Changes</a>.</p>
 	</div>
 </div>
 {{end}}

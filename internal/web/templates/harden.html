@@ -1,15 +1,15 @@
 {{template "shell-open" .}}
 <div class="page-top">
 	<span class="page-eyebrow">Secure</span>
-	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Posture</span></div>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Security Posture</span></div>
 </div>
 <div class="page-header">
 	<div>
-		<h1>{{template "icon-shield"}} Posture</h1>
+		<h1>{{template "icon-shield"}} Security Posture</h1>
 		<div class="page-sub">A plain-language read on your <a href="/firewall">firewall</a>: best-practice
 		<strong>checks</strong> for what a solid host setup needs, and the <strong>services actually exposed</strong> on
 		this box, each run through the <a href="/simulate">packet simulator</a>. Where it's safe, one click adds the rule
-		and drops you on <a href="/changes">Review</a> — behind the armed auto-revert, so a fix can't lock you out.</div>
+		and drops you on <a href="/changes">Changes</a> — behind the armed auto-revert, so a fix can't lock you out.</div>
 	</div>
 </div>
 
@@ -124,7 +124,7 @@
 {{if or .HaveModel .HaveForward}}
 <div class="section-head">
 	<span class="section-title">{{template "icon-shield"}}One-click hardening</span>
-	<span class="text-muted">Optional, model-only — each drops you on Review behind the auto-revert.</span>
+	<span class="text-muted">Optional, model-only — each drops you on Changes behind the auto-revert.</span>
 </div>
 {{end}}
 
@@ -161,7 +161,7 @@
 <div class="card">
 	<div class="card-header">
 		<span class="card-title">{{template "icon-route"}}Inspect transit with an IDS/IPS</span>
-		{{if .IDSActive}}<span class="badge badge-success">on</span>{{end}}
+		{{if .IDSAdded}}<span class="badge badge-muted">added · off</span>{{end}}
 	</div>
 	<div class="card-body">
 		<p class="check-detail">Hand forwarded traffic to an inline intrusion detector — <strong>Suricata</strong> or
@@ -169,20 +169,23 @@
 		if the inspector isn't running, traffic keeps flowing, so a stopped Suricata never blackholes your transit. Only the
 		forward chain is touched — your own session is never queued.</p>
 		<p><button type="button" class="btn btn-sm btn-ghost" data-modal-open="modal-ids-setup">{{template "icon-book"}} Setup examples (Suricata / Snort)</button></p>
-		{{if .IDSActive}}
-		<div class="check check-pass">
-			<div class="check-icon" aria-hidden="true">&#10003;</div>
-			<div class="check-body"><strong>Active.</strong>
-			<p class="check-detail">Forwarded traffic is sent to NFQUEUE 0. Run your IDS against it (e.g.
-			<span class="mono">suricata -q 0</span>). Tune the queue on the <a href="/firewall">Firewall</a> page (the
-			<em>Send to userspace program</em> action).</p></div>
+		{{if .IDSAdded}}
+		<div class="check check-info">
+			<div class="check-icon" aria-hidden="true">&#8226;</div>
+			<div class="check-body"><strong>Added — disabled.</strong>
+			<p class="check-detail">The <span class="mono">queue num 0 bypass</span> rule is at the top of your forward
+			chain but switched <strong>off</strong>, so it can't break an apply on a kernel without NFQUEUE. Attach your
+			inspector (e.g. <span class="mono">suricata -q 0</span>), then <strong>enable the rule</strong> on the
+			<a href="/firewall">Firewall</a> page (the power toggle). If applying complains
+			<span class="mono">Could not process rule</span>, this kernel is missing <span class="mono">nfnetlink_queue</span>.</p></div>
 		</div>
 		{{else}}
 		<form method="post" action="/harden/ids">
-			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-route"}} Send transit to an IDS</button>
+			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-route"}} Add IDS inspection (disabled)</button>
 		</form>
 		<p class="field-hint text-muted">Adds one fail-open <span class="mono">queue num 0 bypass</span> rule at the top of
-		the forward chain. Your IDS attaches to queue 0.</p>
+		the forward chain, <strong>disabled</strong> — enable it once your inspector is attached to queue 0. Added off
+		because the queue target needs kernel NFQUEUE support, and one unsupported rule would reject the whole apply.</p>
 		{{end}}
 	</div>
 </div>
