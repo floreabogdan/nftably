@@ -19,6 +19,23 @@
 	document.querySelectorAll("[data-theme-choice]").forEach(function (c) {
 		c.addEventListener("change", function () { setStyle(c.value); });
 	});
+
+	// Third axis: the accent palette. "ocean" is the default (no attribute).
+	function currentAccent() {
+		var a = document.documentElement.getAttribute("data-theme-accent");
+		return a === "emerald" || a === "violet" || a === "amber" ? a : "ocean";
+	}
+	function setAccent(value) {
+		var next = value === "emerald" || value === "violet" || value === "amber" ? value : "ocean";
+		if (next === "ocean") document.documentElement.removeAttribute("data-theme-accent");
+		else document.documentElement.setAttribute("data-theme-accent", next);
+		document.querySelectorAll("[data-theme-accent-choice]").forEach(function (c) { c.checked = c.value === next; });
+		try { localStorage.setItem("nftably-theme-accent", next); } catch (_) {}
+	}
+	setAccent(currentAccent());
+	document.querySelectorAll("[data-theme-accent-choice]").forEach(function (c) {
+		c.addEventListener("change", function () { setAccent(c.value); });
+	});
 })();
 
 (function () {

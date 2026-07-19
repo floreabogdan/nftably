@@ -114,7 +114,10 @@ func TestThemeTabRenders(t *testing.T) {
 		t.Fatalf("theme tab: status %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{`data-theme-choice`, `value="comfortable"`, `value="compact"`, "Layout density"} {
+	for _, want := range []string{
+		`data-theme-choice`, `value="comfortable"`, `value="compact"`, "Layout density",
+		`data-theme-accent-choice`, `value="emerald"`, `value="violet"`, "Accent colour",
+	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("theme tab missing %q", want)
 		}

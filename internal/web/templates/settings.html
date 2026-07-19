@@ -271,6 +271,17 @@
 
 <section data-tab-panel="theme" id="panel-theme" role="tabpanel" aria-labelledby="tab-theme" {{if ne .Tab "theme"}}hidden{{end}} class="tab-panel">
 	<div class="card">
+		<div class="card-header"><span class="card-title">{{template "icon-spark"}}Accent colour</span></div>
+		<div class="card-body">
+			<p class="field-hint text-muted">The accent used for links, buttons and highlights. Stored in <strong>this browser
+			only</strong>; works with light and dark.</p>
+			<label class="theme-choice"><input type="radio" name="themeAccent" value="ocean" data-theme-accent-choice><span class="accent-dot accent-ocean"></span><span><strong>Ocean</strong><small>The default blue.</small></span></label>
+			<label class="theme-choice"><input type="radio" name="themeAccent" value="emerald" data-theme-accent-choice><span class="accent-dot accent-emerald"></span><span><strong>Emerald</strong><small>Green.</small></span></label>
+			<label class="theme-choice"><input type="radio" name="themeAccent" value="violet" data-theme-accent-choice><span class="accent-dot accent-violet"></span><span><strong>Violet</strong><small>Purple.</small></span></label>
+			<label class="theme-choice"><input type="radio" name="themeAccent" value="amber" data-theme-accent-choice><span class="accent-dot accent-amber"></span><span><strong>Amber</strong><small>Warm gold.</small></span></label>
+		</div>
+	</div>
+	<div class="card">
 		<div class="card-header"><span class="card-title">{{template "icon-sun"}}Layout density</span></div>
 		<div class="card-body">
 			<p class="field-hint text-muted">Choose how much breathing room the panels have. This is stored in <strong>this

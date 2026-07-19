@@ -7,6 +7,11 @@
 		// The second axis: layout density. Default "comfortable" (no override).
 		var style = localStorage.getItem("nftably-theme-style");
 		document.documentElement.setAttribute("data-theme-style", style === "compact" ? "compact" : "comfortable");
+		// The third axis: accent palette. Default "ocean" (no override needed).
+		var accent = localStorage.getItem("nftably-theme-accent");
+		if (accent === "emerald" || accent === "violet" || accent === "amber") {
+			document.documentElement.setAttribute("data-theme-accent", accent);
+		}
 	} catch (_) {
 		// Storage can be unavailable in hardened/private browser contexts. The
 		// CSS system preference remains a complete fallback.

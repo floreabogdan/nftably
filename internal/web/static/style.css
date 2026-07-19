@@ -169,6 +169,43 @@
 [data-theme-style="compact"] th,
 [data-theme-style="compact"] td { padding: 7px 12px; }
 
+/* ---------- theme accent palettes (data-theme-accent) ----------
+   A third axis: the accent hue. Default (no attribute) is Ocean — the base blue
+   above. Each palette recolours the primary/secondary accents, the solid button
+   fills and the table header; the -deep tokens (link text, headers) take a
+   lighter value in dark mode so contrast holds. Works with light, dark and
+   Compact. */
+:root[data-theme-accent="emerald"] {
+	--primary: #4fae86; --primary-deep: #2c7d5c;
+	--secondary: #5fae8a; --secondary-deep: #357a56;
+	--btn-primary-bg: #2f9268; --btn-primary-hover: #277c58; --thead-bg: #357a56;
+}
+:root[data-theme-accent="emerald"][data-theme="dark"] { --primary-deep: #86d8b0; --secondary-deep: #9fdcb8; --thead-bg: #234a38; }
+@media (prefers-color-scheme: dark) { :root[data-theme-accent="emerald"]:not([data-theme="light"]) { --primary-deep: #86d8b0; --secondary-deep: #9fdcb8; --thead-bg: #234a38; } }
+
+:root[data-theme-accent="violet"] {
+	--primary: #8b7cd8; --primary-deep: #5a4bab;
+	--secondary: #9a7cd0; --secondary-deep: #6a4ba0;
+	--btn-primary-bg: #6b5bc4; --btn-primary-hover: #5b4cb0; --thead-bg: #5a4bab;
+}
+:root[data-theme-accent="violet"][data-theme="dark"] { --primary-deep: #bcaef0; --secondary-deep: #c9b0ec; --thead-bg: #372f5a; }
+@media (prefers-color-scheme: dark) { :root[data-theme-accent="violet"]:not([data-theme="light"]) { --primary-deep: #bcaef0; --secondary-deep: #c9b0ec; --thead-bg: #372f5a; } }
+
+:root[data-theme-accent="amber"] {
+	--primary: #cf9a44; --primary-deep: #8a6015;
+	--secondary: #c9924e; --secondary-deep: #855c1c;
+	--btn-primary-bg: #bd8a34; --btn-primary-hover: #a5772a; --thead-bg: #8a6015;
+}
+:root[data-theme-accent="amber"][data-theme="dark"] { --primary-deep: #edc06a; --secondary-deep: #e6bf82; --thead-bg: #4a3818; }
+@media (prefers-color-scheme: dark) { :root[data-theme-accent="amber"]:not([data-theme="light"]) { --primary-deep: #edc06a; --secondary-deep: #e6bf82; --thead-bg: #4a3818; } }
+
+/* An accent swatch in the picker card. */
+.accent-dot { width: 16px; height: 16px; border-radius: 50%; flex: none; margin-top: 2px; border: 1px solid rgba(0,0,0,0.15); }
+.accent-ocean { background: #3f86b3; }
+.accent-emerald { background: #2f9268; }
+.accent-violet { background: #6b5bc4; }
+.accent-amber { background: #bd8a34; }
+
 /* Theme-style picker cards (Settings → Theme). */
 .theme-choice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-control); cursor: pointer; margin-bottom: 8px; }
 .theme-choice:hover { border-color: var(--primary); }

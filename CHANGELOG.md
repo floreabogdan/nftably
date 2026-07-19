@@ -100,11 +100,12 @@ typed, explained control instead of a fixed form.
   each destination to specific events, and send a test. Apply/revert and feed alerts
   are event-driven; nft-availability and auto-bans are watched by a lightweight
   background poller. Ported from the sister project birdy.
-- **A layout-density theme** (Settings → Theme), a second theme axis alongside
-  light/dark: **Comfortable** (the default — generous spacing, soft rounded cards)
-  or **Compact** (tighter spacing, flatter panels, more on screen). Stored in the
-  browser, applied before first paint (no flash), and works with both light and
-  dark. Follows the two-axis approach from the sister project birdy.
+- **Theming** (Settings → Theme) grew two more axes on top of light/dark, all
+  stored in the browser and applied before first paint: an **accent palette**
+  (Ocean, Emerald, Violet, Amber — recolours links, buttons and highlights, with
+  dark-mode-aware shades) and a **layout density** (Comfortable or Compact — tighter
+  spacing and flatter panels). Both work with light and dark and with each other.
+  Follows the multi-axis, token-based approach from the sister project birdy.
 - **More catalogue knobs.** Transparent proxy (**tproxy**) for handing traffic to a
   local proxy without rewriting its destination; **DSCP/QoS** — matching (`ip`/`ip6
   dscp`) and setting (`… dscp set ef`); a **conntrack-helper** match (`ct helper
