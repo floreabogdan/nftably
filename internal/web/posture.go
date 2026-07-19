@@ -229,6 +229,24 @@ func (s *Server) postureFrom(m nftconf.Model) ([]postureCheck, inputView) {
 			Detail: "No rule accepts SSH (port 22) here. If you administer this box over SSH, allow it from your management network only; if you don't, nothing to do."})
 	}
 
+	// 8. IPv6 parity — the classic footgun: rules that scope traffic by IPv4
+	// address, with nothing scoping it by IPv6 address, so IPv6 clients bypass the
+	// restriction. Only surfaced when there's a clear v4-only asymmetry.
+	v4scope := v.any(func(r store.ChainRule) bool { return matchHas(r, "ip.saddr", "") || matchHas(r, "ip.daddr", "") })
+	v6scope := v.any(func(r store.ChainRule) bool { return matchHas(r, "ip6.saddr", "") || matchHas(r, "ip6.daddr", "") })
+	switch {
+	case v4scope && !v6scope:
+		checks = append(checks, postureCheck{ID: "v6-parity", Title: "IPv6 covered like IPv4", Status: postureWarn,
+			Detail:  "Some rules restrict traffic by IPv4 address, but nothing restricts it by IPv6 address. If this box has IPv6, clients can reach those services over IPv6 and slip past the IPv4 scoping. Add the ip6 equivalents — or, if you don't use IPv6 here, drop it at the input chain.",
+			FixHref: "/firewall", FixLabel: "Review rules"})
+	case v4scope && v6scope:
+		checks = append(checks, postureCheck{ID: "v6-parity", Title: "IPv6 covered like IPv4", Status: posturePass,
+			Detail: "Your address-scoped rules cover both IPv4 and IPv6, so IPv6 clients can't bypass the restrictions."})
+	default:
+		checks = append(checks, postureCheck{ID: "v6-parity", Title: "IPv6 covered like IPv4", Status: postureInfo,
+			Detail: "No rules scope traffic by address, so there's no IPv4/IPv6 asymmetry to worry about here."})
+	}
+
 	return checks, v
 }
 
