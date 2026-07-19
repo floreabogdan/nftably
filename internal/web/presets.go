@@ -45,7 +45,8 @@ func (s *Server) presets() []presetDef {
 				"The ICMP/ICMPv6 a router must answer (echo, unreachable, time-exceeded, and IPv6 neighbour discovery / PMTU — block these and IPv6 breaks).",
 				"SSH (22) and the nftably UI accepted only from @mgmt; BGP (179) and BFD (3784/3785/4784) only from @peers — everything else to the box is dropped.",
 				"Output hygiene: the router still originates whatever it needs (BGP, ND, DNS…), but LAN-only chatter (mDNS, LLMNR, NetBIOS, SMB, SSDP, DHCP) is stopped from ever leaking to peers.",
-				"A rate-limited log of denied inbound, so scans are visible without flooding the log.",
+				"Denied inbound is tallied into a named “denied” counter (visible on the rule) and logged rate-limited, so you can see how much is being turned away without flooding the log.",
+				"Tip: for line-rate transit, add a flowtable on the Firewall page bound to your real interfaces and a flow-add rule in the forward chain — established flows then take the kernel fast path.",
 			},
 			build: (*Server).buildBGPPreset,
 		},
@@ -72,6 +73,7 @@ func (s *Server) presets() []presetDef {
 				"Traffic arriving on the wg0 interface accepted to this box, so services reachable over the tunnel work.",
 				"A default-drop forward chain that routes the tunnel: established/related, plus traffic in and out of wg0 — so clients reach what's behind this host.",
 				"Note: if clients need the internet through this host, add a postrouting nat chain with masquerade on the Firewall page — the uplink interface is yours to name.",
+				"Tip: to route a lot of tunnel traffic fast, add a flowtable (bound to wg0 and your uplink) and a flow-add rule in the forward chain to offload established flows.",
 			},
 			build: (*Server).buildWireGuardPreset,
 		},
@@ -85,6 +87,7 @@ func (s *Server) presets() []presetDef {
 				"An inet filter table: input drops by default; the LAN side reaches SSH, this UI, DHCP and DNS on the router, and @mgmt may too; the internet side reaches nothing.",
 				"A default-drop forward chain that lets the LAN reach the internet and lets replies back — but stops the internet from opening connections into your LAN.",
 				"An inet nat table that masquerades LAN traffic out the wan interface (the 'share one connection' setting), with an empty prerouting chain ready for port-forwards.",
+				"Two one-click boosts on the Firewall page: the Port-forward wizard builds the DNAT to expose an inside service, and a flowtable (bound to your real wan/lan interfaces) + a flow-add rule offloads established traffic to the fast path for a big throughput win.",
 			},
 			build: (*Server).buildHomeRouterPreset,
 		},
@@ -318,9 +321,13 @@ func (s *Server) mgmtAccessRules(input int64, uiPort int) error {
 // dropLogRule adds a rate-limited log of denied inbound (falls through to the
 // chain's drop policy — no verdict of its own).
 func (s *Server) dropLogRule(input int64) error {
-	return s.addRule(input, "log denied inbound (rate-limited)",
+	// The counter (unlimited) tallies every denied new connection into a named
+	// "denied" counter for at-a-glance accounting; the log is rate-limited so a
+	// scan can't flood it. Order matters: count first, then sample the log.
+	return s.addRule(input, "count + log denied inbound",
 		[]store.RuleMatch{mt("ct.state", "new")},
 		[]store.RuleStatement{
+			stmtP("counter", map[string]string{"cname": "denied"}),
 			stmtP("limit", map[string]string{"rate": "5", "per": "second", "burst": "10"}),
 			stmtP("log", map[string]string{"prefix": "in-drop "}),
 		})

@@ -26,10 +26,18 @@ type backupDoc struct {
 }
 
 type backupTable struct {
-	Family  string        `json:"family"`
-	Name    string        `json:"name"`
-	Comment string        `json:"comment,omitempty"`
-	Chains  []backupChain `json:"chains,omitempty"`
+	Family     string            `json:"family"`
+	Name       string            `json:"name"`
+	Comment    string            `json:"comment,omitempty"`
+	Chains     []backupChain     `json:"chains,omitempty"`
+	Flowtables []backupFlowtable `json:"flowtables,omitempty"`
+}
+
+type backupFlowtable struct {
+	Name      string `json:"name"`
+	Priority  string `json:"priority,omitempty"`
+	Devices   string `json:"devices"`
+	HWOffload bool   `json:"hw_offload,omitempty"`
 }
 
 type backupChain struct {
@@ -46,6 +54,8 @@ type backupChain struct {
 type backupRule struct {
 	Comment    string            `json:"comment,omitempty"`
 	Enabled    bool              `json:"enabled"`
+	Raw        string            `json:"raw,omitempty"`
+	Tags       string            `json:"tags,omitempty"`
 	Matches    []backupMatch     `json:"matches,omitempty"`
 	Statements []backupStatement `json:"statements,omitempty"`
 }
@@ -82,8 +92,15 @@ func (s *Server) buildBackup() (backupDoc, error) {
 	if err != nil {
 		return doc, err
 	}
+	flowtables, err := s.store.AllFlowtables()
+	if err != nil {
+		return doc, err
+	}
 	for _, t := range tables {
 		bt := backupTable{Family: t.Family, Name: t.Name, Comment: t.Comment}
+		for _, ft := range flowtables[t.ID] {
+			bt.Flowtables = append(bt.Flowtables, backupFlowtable{Name: ft.Name, Priority: ft.Priority, Devices: ft.Devices, HWOffload: ft.HWOffload})
+		}
 		chains, err := s.store.ListChains(t.ID)
 		if err != nil {
 			return doc, err
@@ -95,7 +112,7 @@ func (s *Server) buildBackup() (backupDoc, error) {
 				return doc, err
 			}
 			for _, r := range rules {
-				br := backupRule{Comment: r.Comment, Enabled: r.Enabled}
+				br := backupRule{Comment: r.Comment, Enabled: r.Enabled, Raw: r.Raw, Tags: r.Tags}
 				for _, m := range r.Matches {
 					br.Matches = append(br.Matches, backupMatch{Key: m.Key, Op: m.Op, Value: m.Value})
 				}
@@ -185,7 +202,7 @@ func (s *Server) handleConfigRestore(w http.ResponseWriter, r *http.Request) {
 // chainID. The same assembly drives both up-front validation (chainID 0) and
 // the rebuild insert, so the two can never drift.
 func backupRuleToStore(chainID int64, r backupRule) store.ChainRule {
-	rule := store.ChainRule{ChainID: chainID, Comment: r.Comment, Enabled: r.Enabled}
+	rule := store.ChainRule{ChainID: chainID, Comment: r.Comment, Enabled: r.Enabled, Raw: r.Raw, Tags: r.Tags}
 	for _, m := range r.Matches {
 		rule.Matches = append(rule.Matches, store.RuleMatch{Key: m.Key, Op: m.Op, Value: m.Value})
 	}
@@ -212,6 +229,12 @@ func (s *Server) restoreBackup(doc backupDoc) error {
 		tbl := store.Table{Family: t.Family, Name: t.Name, Comment: t.Comment}
 		if errs := tbl.Validate(); len(errs) > 0 {
 			return fmt.Errorf("table %s %s: %s", t.Family, t.Name, errs[0])
+		}
+		for _, ft := range t.Flowtables {
+			f := store.Flowtable{Name: ft.Name, Priority: ft.Priority, Devices: ft.Devices, HWOffload: ft.HWOffload}
+			if errs := f.Validate(); len(errs) > 0 {
+				return fmt.Errorf("table %s %s, flowtable %s: %s", t.Family, t.Name, ft.Name, errs[0])
+			}
 		}
 		for _, c := range t.Chains {
 			ch := store.Chain{Name: c.Name, Kind: c.Kind, Hook: c.Hook, ChainType: c.ChainType, Priority: c.Priority, Policy: c.Policy, Device: c.Device}
@@ -257,6 +280,11 @@ func (s *Server) restoreBackup(doc backupDoc) error {
 		tid, err := s.store.CreateTable(store.Table{Family: t.Family, Name: t.Name, Comment: t.Comment})
 		if err != nil {
 			return err
+		}
+		for _, ft := range t.Flowtables {
+			if _, err := s.store.CreateFlowtable(store.Flowtable{TableID: tid, Name: ft.Name, Priority: ft.Priority, Devices: ft.Devices, HWOffload: ft.HWOffload}); err != nil {
+				return fmt.Errorf("table %s %s, flowtable %s: %w", t.Family, t.Name, ft.Name, err)
+			}
 		}
 		for _, c := range t.Chains {
 			cid, err := s.store.CreateChain(store.Chain{TableID: tid, Name: c.Name, Kind: c.Kind, Hook: c.Hook, ChainType: c.ChainType, Priority: c.Priority, Policy: c.Policy, Device: c.Device})

@@ -17,10 +17,19 @@ import (
 // time, and the alert poller compares the live fingerprint against it.
 
 // Volatile parts of `nft list table` output that change without the ruleset
-// itself changing: per-rule counters and kernel handle numbers.
+// itself changing: per-rule counters, kernel handle numbers, and the runtime
+// contents of dynamic sets. The auto-ban feature declares an empty
+// `set … { flags dynamic, timeout }`; the kernel then fills it with offender
+// addresses carrying a per-second-decrementing `expires`. That live state is
+// never part of what nftably applied, so it must not count as drift.
 var (
 	reCounter = regexp.MustCompile(`counter packets \d+ bytes \d+`)
 	reHandle  = regexp.MustCompile(`# handle \d+`)
+	// An `elements = { … }` block that carries `expires` belongs to a dynamic
+	// (timeout) set — kernel-owned runtime, blanked so it compares equal to the
+	// empty set nftably applied. Static sets (lists, GeoIP) have no `expires`
+	// and are left intact, so genuine element edits still surface as drift.
+	reDynElems = regexp.MustCompile(`(?s)elements = \{[^}]*expires[^}]*\}`)
 )
 
 // normalizeTableText strips the volatile parts of one `nft list table` dump so
@@ -28,6 +37,10 @@ var (
 func normalizeTableText(s string) string {
 	s = reCounter.ReplaceAllString(s, "counter")
 	s = reHandle.ReplaceAllString(s, "")
+	// Drop the whole block (not blank it): the applied set has no elements line
+	// at all, so leaving an empty `elements = { }` behind would itself read as a
+	// difference. The now-empty line is discarded by the blank-line pass below.
+	s = reDynElems.ReplaceAllString(s, "")
 	var b strings.Builder
 	for _, line := range strings.Split(s, "\n") {
 		line = strings.TrimRight(line, " \t")

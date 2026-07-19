@@ -2,11 +2,20 @@ package render
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/floreabogdan/nftably/internal/store"
 )
+
+// counterNameRe mirrors nftcat.identRe: a counter name is emitted verbatim into
+// a table-level `counter <name> {` declaration, so it must be a bare identifier.
+// The rule-level render already enforces this before a rule can be stored, but
+// validating here too keeps the invariant local to the declaration site — a
+// future store path that skipped RenderRule couldn't turn a crafted cname into a
+// table-level injection.
+var counterNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,63}$`)
 
 // writeFlowtable emits a flowtable declaration: its ingress hook, priority, the
 // interfaces it binds, and `flags offload` when hardware offload is requested.
@@ -45,7 +54,7 @@ func namedCountersOf(t TableTree) []string {
 					continue
 				}
 				name := DecodeParams(st.Params)["cname"]
-				if name != "" && !seen[name] {
+				if name != "" && counterNameRe.MatchString(name) && !seen[name] {
 					seen[name] = true
 					names = append(names, name)
 				}

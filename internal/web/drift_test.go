@@ -38,3 +38,54 @@ func TestNormalizeTableTextIgnoresVolatileBits(t *testing.T) {
 		t.Error("a real rule change (dport 22 -> 2222) should normalize differently")
 	}
 }
+
+// TestNormalizeTableTextIgnoresDynamicSetContents guards the auto-ban feature:
+// nftably applies an EMPTY dynamic set, and the kernel fills it with offender
+// addresses whose `expires` counts down every second. That runtime state must
+// not read as drift, or every banned IP would trip a false "changed outside
+// nftably" alarm — and the countdown would make the fingerprint unstable.
+func TestNormalizeTableTextIgnoresDynamicSetContents(t *testing.T) {
+	// What nftably applied: the set is declared empty.
+	applied := `table inet filter {
+	set ssh_abusers {
+		type ipv4_addr
+		flags dynamic,timeout
+		timeout 1h
+	}
+}`
+	// Live, after the kernel banned two sources — an elements block appeared,
+	// each with a per-second-decrementing expires.
+	live := `table inet filter {
+	set ssh_abusers {
+		type ipv4_addr
+		flags dynamic,timeout
+		timeout 1h
+		elements = { 1.2.3.4 timeout 1h expires 59m58s,
+			     5.6.7.8 timeout 1h expires 12m3s }
+	}
+}`
+	if normalizeTableText(applied) != normalizeTableText(live) {
+		t.Errorf("kernel-populated dynamic set should not count as drift:\napplied=%q\nlive=%q",
+			normalizeTableText(applied), normalizeTableText(live))
+	}
+
+	// A STATIC set's elements have no `expires` and must still be compared — a
+	// changed member is genuine drift, not runtime noise.
+	s1 := `table inet filter {
+	set office {
+		type ipv4_addr
+		flags interval
+		elements = { 10.0.0.0/24 }
+	}
+}`
+	s2 := `table inet filter {
+	set office {
+		type ipv4_addr
+		flags interval
+		elements = { 10.0.0.0/24, 192.168.0.0/16 }
+	}
+}`
+	if normalizeTableText(s1) == normalizeTableText(s2) {
+		t.Error("an edited static set (added member) should normalize differently")
+	}
+}

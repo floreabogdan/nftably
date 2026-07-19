@@ -20,8 +20,12 @@
 		<a href="#ssh">Allow SSH from just your network</a>
 		<a href="#forward">Port-forward to an inside host</a>
 		<a href="#ratelimit">Rate-limit a public service</a>
-		<a href="#autoban">Auto-ban SSH brute-force</a>
+		<a href="#autoban">Auto-ban brute-force on any service</a>
 		<a href="#country">Block a country or a bad-IP feed</a>
+		<a href="#offload">Speed up a router with a flowtable</a>
+		<a href="#counters">Account for traffic with named counters</a>
+		<a href="#vmap">Route many verdicts with one map</a>
+		<a href="#raw">Write a rule nftably can't express yet</a>
 	</div>
 </nav>
 
@@ -84,15 +88,15 @@
 </section>
 
 <section id="autoban" class="card learn-section">
-	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Auto-ban SSH brute-force</span></div>
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Auto-ban brute-force on any service</span></div>
 	<div class="card-body">
-		<p class="learn-lead">Fail2ban in the kernel — a source that hammers SSH is dropped into a timeout set and blocked for an hour.</p>
+		<p class="learn-lead">Fail2ban in the kernel — a source that hammers a service faster than a threshold is dropped into a timeout set and blocked, no daemon and no log parsing.</p>
 		<ul class="learn-list learn-list-lg">
-			<li>Go to <a href="/harden">Security Posture</a> → <em>Brute-force auto-ban for SSH</em> → <strong>Protect SSH from brute-force</strong>.</li>
-			<li>It inserts the detect-and-ban rules and an early drop of the ban set, above any SSH allow, for IPv4 and IPv6.</li>
-			<li>Tune the rate or ban time afterwards on the <a href="/firewall">Firewall</a> page (the <em>Rate-ban the source</em> action).</li>
+			<li>Go to <a href="/harden">Security Posture</a> → <em>Brute-force auto-ban</em>. SSH is one click; for anything else pick <em>another service</em> and give it a name, protocol and port (e.g. <span class="mono">smtp</span> / tcp / <span class="mono">25, 587</span>, or a game server on udp).</li>
+			<li>It inserts, for IPv4 and IPv6: a detect-and-ban rule (over the rate you set → add the source to a timeout set) and an early drop of that set, above your allow rules.</li>
+			<li>Tune the rate, burst or ban time on the <a href="/firewall">Firewall</a> page — it's the <em>Rate-ban the source</em> action on the detect rule.</li>
 		</ul>
-		<div class="learn-tip">{{template "icon-info"}}<div>No daemon, no log parsing — it's a dynamic <span class="mono">timeout</span> set the kernel fills and clears itself.</div></div>
+		<div class="learn-tip">{{template "icon-info"}}<div>It's a dynamic <span class="mono">timeout</span> set the kernel fills and clears itself — offenders age out automatically. Unban someone early from <a href="/harden">Security Posture</a> or the block API.</div></div>
 	</div>
 </section>
 
@@ -106,6 +110,58 @@
 			tick <em>keep it refreshed</em>, then add an early input rule: <em>Source address</em> <span class="mono">= @yourset4</span>, action <em>Drop</em>.</li>
 		</ul>
 		<div class="learn-tip">{{template "icon-search"}}<div>Rule not biting? <a href="/learn/troubleshooting">Troubleshooting</a> covers set references and rule order.</div></div>
+	</div>
+</section>
+
+<section id="offload" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-spark"}}Speed up a router with a flowtable</span></div>
+	<div class="card-body">
+		<p class="learn-lead">On a box that forwards a lot of traffic, a flowtable hands established connections to the kernel's fast path — they skip the rest of the ruleset, for a big throughput win.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>On the <a href="/firewall">Firewall</a> page, add a <strong>flowtable</strong> to your forward table and bind it to the interfaces traffic crosses — e.g. <span class="mono">wan</span> and <span class="mono">lan</span>. Turn on <em>hardware offload</em> only if your NIC supports it.</li>
+			<li>In the <span class="mono">forward</span> chain add a rule: condition <em>Connection state</em> <span class="mono">= established, related</span>, action <em>Offload to flowtable</em> (<span class="mono">flow add @yourft</span>), placed early.</li>
+			<li>Only the first packet or two of a connection still walks the rules; the rest is offloaded. Your security rules keep applying to <em>new</em> connections.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-alert"}}<div>The bound interfaces must exist when you apply — nftables rejects a flowtable naming a device that isn't there (unlike an <span class="mono">iifname</span> match, which is fine to pre-stage). This is why presets describe the flowtable instead of seeding one.</div></div>
+	</div>
+</section>
+
+<section id="counters" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-activity"}}Account for traffic with named counters</span></div>
+	<div class="card-body">
+		<p class="learn-lead">A named counter is a running packet/byte total you can share across rules — "how much traffic did all my block rules drop?" in one number.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>On any rule, add the <em>Count</em> action and give it a <strong>name</strong> (e.g. <span class="mono">denied</span>). Add the same-named counter to other rules and they all add into the one total.</li>
+			<li>nftably declares the <span class="mono">counter denied { }</span> object for you automatically — it's derived from the name you used, so there's no separate thing to create or delete.</li>
+			<li>Leave the name blank for a plain per-rule (anonymous) counter when you only care about that one rule.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-info"}}<div>The hardened presets already route denied inbound into a <span class="mono">denied</span> counter — apply one, then watch the number climb as scanners hit you.</div></div>
+	</div>
+</section>
+
+<section id="vmap" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-compass"}}Route many verdicts with one map</span></div>
+	<div class="card-body">
+		<p class="learn-lead">A verdict map (vmap) turns a long if/else ladder into a single lookup — map a key like the destination port straight to accept, drop or a jump.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>Add a rule and choose the <em>Verdict map</em> action. Pick the key to look up (e.g. <em>TCP destination port</em>), then list the entries: <span class="mono">22 : accept</span>, <span class="mono">80 : accept</span>, <span class="mono">443 : accept</span>, and so on.</li>
+			<li>One rule now replaces one-per-port — faster to match and far easier to read than a stack of accepts.</li>
+			<li>Entries can jump to a chain (<span class="mono">25 : jump mail</span>) to branch into a whole sub-policy per key.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-route"}}<div>Prove it before applying: <a href="/simulate">simulate</a> a packet on one of the mapped ports and confirm it lands on the verdict you expect.</div></div>
+	</div>
+</section>
+
+<section id="raw" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-edit"}}Write a rule nftably can't express yet</span></div>
+	<div class="card-body">
+		<p class="learn-lead">The catalogue covers the common cases; the raw rule is the escape hatch for the rest — you type a verbatim nft line and nftably places it for you.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>On the <a href="/firewall">Firewall</a> page, add a rule and switch it to <strong>Raw</strong>. Type one nft rule line, e.g. <span class="mono">ip saddr 10.0.0.0/8 ct count over 20 drop</span>.</li>
+			<li>nftably validates the shape (single line, balanced braces, no rule-separators or comments — nothing that could break out of the chain) and every apply still passes the atomic <span class="mono">nft --check</span> first.</li>
+			<li>Tag it so future-you remembers why it's hand-written — tags show on the rule and group related ones together.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-alert"}}<div>Referencing a named counter from a raw line? Declare that counter by adding a normal <em>Count</em> action with the same name on any rule — a raw line alone won't auto-declare it, and apply would reject an undeclared counter.</div></div>
 	</div>
 </section>
 
