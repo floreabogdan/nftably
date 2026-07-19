@@ -61,11 +61,15 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, saved st
 		GeoIPErr:    geoErr,
 		CanDownload: s.managedGeoIPPath() != "",
 	}
-	// After a save (or an access-validation error), show the relevant tab.
+	// After a save (or an error), show the relevant tab rather than dropping the
+	// operator back to the default one — a click shouldn't move them off the tab
+	// they acted on.
 	if t, ok := savedTab[saved]; ok {
 		vm.Tab = t
 	} else if len(accessErrs) > 0 {
 		vm.Tab = "access"
+	} else if geoErr != "" {
+		vm.Tab = "geoip"
 	}
 	vm.GeoIPManaged = st.GeoIPDB != "" && st.GeoIPDB == s.managedGeoIPPath()
 	if st.GeoIPDB != "" {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -75,6 +76,29 @@ func TestRandomToken(t *testing.T) {
 			t.Fatalf("randomToken produced a duplicate: %q", tok)
 		}
 		seen[tok] = true
+	}
+}
+
+// TestGeoIPDownloadFailureStaysOnTab verifies a failed "download database" click
+// re-renders on the GeoIP tab (showing the error) instead of dropping the user
+// back to the default General tab — a click shouldn't move you off your tab.
+func TestGeoIPDownloadFailureStaysOnTab(t *testing.T) {
+	srv, cookie := newTestServer(t) // no data dir → download fails fast
+
+	rec := postForm(srv, "/settings/geoip/download", url.Values{}, cookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("download: status %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Download failed") {
+		t.Error("expected the download error to be shown")
+	}
+	// The GeoIP tab must be the selected one, not General.
+	if !strings.Contains(body, `aria-controls="panel-geoip" aria-selected="true"`) {
+		t.Error("after a failed download the GeoIP tab should stay active")
+	}
+	if strings.Contains(body, `aria-controls="panel-general" aria-selected="true"`) {
+		t.Error("the General tab should not be active after a GeoIP action")
 	}
 }
 
