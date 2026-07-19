@@ -88,6 +88,43 @@ func (s *Server) presets() []presetDef {
 			},
 			build: (*Server).buildHomeRouterPreset,
 		},
+		{
+			Key: "web-server", Name: "Web server", Tagline: "A public web host: HTTP/HTTPS open to the world, SSH kept to your network.",
+			Sets: []presetSet{
+				{"mgmt", "Where SSH and the nftably UI are allowed from — seeded with your current address."},
+			},
+			Adds: []string{
+				"The basic secure-server base: default-deny input, loopback, established/related, invalid-dropped and the essential ICMP/ICMPv6.",
+				"HTTP (80) and HTTPS (443) accepted from anywhere — the service you're publishing.",
+				"SSH (22) and the nftably UI accepted only from @mgmt; everything else to the box is dropped.",
+			},
+			build: (*Server).buildWebServerPreset,
+		},
+		{
+			Key: "database-server", Name: "Database server", Tagline: "Reachable only by your app tier: the DB port scoped to @app, never the internet.",
+			Sets: []presetSet{
+				{"mgmt", "Where SSH and the nftably UI are allowed from — seeded with your current address."},
+				{"app", "Your application tier — the only hosts allowed to reach the database. Add your app servers' addresses (v4 and v6)."},
+			},
+			Adds: []string{
+				"The basic secure-server base: default-deny input, the survivable rules and essential ICMP/ICMPv6.",
+				"PostgreSQL (5432) and MySQL (3306) accepted only from @app — keep the port you use and delete the other.",
+				"SSH (22) and the nftably UI accepted only from @mgmt. The database is never exposed to the internet.",
+			},
+			build: (*Server).buildDatabaseServerPreset,
+		},
+		{
+			Key: "container-host", Name: "Docker / container host", Tagline: "Harden the host without touching container networking — Docker keeps its own rules.",
+			Sets: []presetSet{
+				{"mgmt", "Where SSH and the nftably UI are allowed from — seeded with your current address."},
+			},
+			Adds: []string{
+				"A default-deny input chain that protects the host: loopback, established/related, invalid-dropped, essential ICMP/ICMPv6, and SSH + the UI from @mgmt.",
+				"No forward chain — Docker manages container forwarding and NAT in its own tables, and a drop-policy forward chain here would break container traffic. nftably only hardens the host's own input.",
+				"Publish container ports the way you already do (Docker's -p handles the DNAT); this preset just keeps the host itself locked down.",
+			},
+			build: (*Server).buildContainerHostPreset,
+		},
 	}
 }
 
@@ -497,6 +534,94 @@ func (s *Server) buildHomeRouterPreset(r *http.Request) error {
 		return err
 	}
 	return s.addRule(post, "masquerade LAN traffic out the WAN", []store.RuleMatch{mt("meta.oifname", homeWAN)}, []store.RuleStatement{stmt("masquerade")})
+}
+
+// secureBase builds the common single-host filter table used by the server-style
+// presets: an inet filter table, a default-deny input with the survivable base +
+// SSH/UI from @mgmt, a drop forward and an accept output. It returns the input
+// chain id so the caller can add its service-specific accepts before the log.
+func (s *Server) secureBase(r *http.Request, comment string, forward bool) (int64, error) {
+	if err := s.resetTables(); err != nil {
+		return 0, err
+	}
+	mgmt, err := s.ensureList("mgmt", "Management networks — SSH and the nftably UI are allowed only from here.")
+	if err != nil {
+		return 0, err
+	}
+	s.seedMgmtWithClient(mgmt, r)
+	if _, err := s.ensureList("blacklist", "Addresses to drop outright, before anything else. The Connections page's Block button appends here."); err != nil {
+		return 0, err
+	}
+	tableID, err := s.store.CreateTable(store.Table{Family: "inet", Name: "filter", Comment: comment})
+	if err != nil {
+		return 0, err
+	}
+	input, err := s.store.CreateChain(store.Chain{TableID: tableID, Name: "input", Kind: "base", Hook: "input", ChainType: "filter", Priority: "filter", Policy: "drop"})
+	if err != nil {
+		return 0, err
+	}
+	// A container host deliberately has no forward chain — Docker owns that hook.
+	if forward {
+		if _, err := s.store.CreateChain(store.Chain{TableID: tableID, Name: "forward", Kind: "base", Hook: "forward", ChainType: "filter", Priority: "filter", Policy: "drop"}); err != nil {
+			return 0, err
+		}
+	}
+	if _, err := s.store.CreateChain(store.Chain{TableID: tableID, Name: "output", Kind: "base", Hook: "output", ChainType: "filter", Priority: "filter", Policy: "accept"}); err != nil {
+		return 0, err
+	}
+	if err := s.baseInputRules(input); err != nil {
+		return 0, err
+	}
+	if err := s.mgmtAccessRules(input, s.ownListenPort()); err != nil {
+		return 0, err
+	}
+	return input, nil
+}
+
+func (s *Server) buildWebServerPreset(r *http.Request) error {
+	input, err := s.secureBase(r, "Web server (nftably preset)", true)
+	if err != nil {
+		return err
+	}
+	if err := s.addRule(input, "HTTP and HTTPS from anywhere", []store.RuleMatch{mt("tcp.dport", "80, 443")}, []store.RuleStatement{stmt("accept")}); err != nil {
+		return err
+	}
+	return s.dropLogRule(input)
+}
+
+func (s *Server) buildDatabaseServerPreset(r *http.Request) error {
+	input, err := s.secureBase(r, "Database server (nftably preset)", true)
+	if err != nil {
+		return err
+	}
+	if _, err := s.ensureList("app", "Your application tier — the only hosts allowed to reach the database."); err != nil {
+		return err
+	}
+	// PostgreSQL + MySQL from @app only, both families. Keep the one you use.
+	db := []struct {
+		comment, saddrKey, saddr string
+	}{
+		{"database from the app tier (IPv4)", "ip.saddr", "@app4"},
+		{"database from the app tier (IPv6)", "ip6.saddr", "@app6"},
+	}
+	for _, d := range db {
+		if err := s.addRule(input, d.comment,
+			[]store.RuleMatch{mt(d.saddrKey, d.saddr), mt("tcp.dport", "5432, 3306")},
+			[]store.RuleStatement{stmt("accept")}); err != nil {
+			return err
+		}
+	}
+	return s.dropLogRule(input)
+}
+
+func (s *Server) buildContainerHostPreset(r *http.Request) error {
+	// No forward chain: Docker manages the forward hook and container NAT itself,
+	// and a drop-policy forward here would break container traffic.
+	input, err := s.secureBase(r, "Docker / container host (nftably preset)", false)
+	if err != nil {
+		return err
+	}
+	return s.dropLogRule(input)
 }
 
 func (s *Server) buildBGPPreset(r *http.Request) error {

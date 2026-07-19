@@ -67,11 +67,13 @@ make** and **easy to get right**:
   let it maintain itself. Referenced sets render into the tables that use them.
   On the Connections view, **one click blocks an entire country** — it builds the
   GeoIP set and the early drop rules for you.
-- **Presets to start from.** One-click, best-practice starting points — a hardened
-  **BGP edge router**, a **basic secure server**, a **WireGuard VPN server** and a
-  **home router / gateway** (NAT, masquerade, port-forward-ready) — that scaffold the
-  tables, chains, rules and editable named sets for you, each explaining what it adds
-  and why.
+- **Presets to start from.** One-click, best-practice starting points that scaffold
+  the tables, chains, rules and editable named sets for you, each explaining what it
+  adds and why: a hardened **BGP edge router**, a **basic secure server**, a
+  **WireGuard VPN server**, a **home router / gateway** (NAT + masquerade,
+  port-forward-ready), a **web server**, a **database server** (scoped to your app
+  tier), and a **Docker / container host** (hardens the host without touching
+  container networking).
 - **See, then act.** The Connections page shows every flow conntrack knows about —
   to, from and through the box, with countries when you point nftably at a GeoIP
   database. The live ruleset viewer shows exactly what the kernel is running; a

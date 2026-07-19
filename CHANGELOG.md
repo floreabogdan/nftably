@@ -86,6 +86,12 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **Three more presets for the hosts people actually run.** A **web server** (HTTP/
+  HTTPS open, SSH from @mgmt); a **database server** (PostgreSQL/MySQL scoped to an
+  @app tier, never the internet); and a **Docker / container host** — which
+  deliberately creates *no* forward chain, since Docker manages the forward hook and
+  container NAT itself and a drop-policy forward chain would break container traffic,
+  so it only hardens the host's own input.
 - **Config backup & restore** (Settings → Backup). Export the whole model — tables,
   chains, rules, and named sets with their entries — as one portable JSON file. It's
   the model, not the database: no login credentials, no settings, so it's safe to

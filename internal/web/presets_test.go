@@ -103,6 +103,50 @@ func TestWireGuardPresetBuildsValidConfig(t *testing.T) {
 	}
 }
 
+func TestServerStylePresets(t *testing.T) {
+	cases := []struct {
+		key   string
+		wants []string
+		// forbid asserts a string is NOT present.
+		forbid []string
+	}{
+		{"web-server", []string{"tcp dport { 80, 443 } accept", "ip saddr @mgmt4 tcp dport 22 accept", "chain forward {"}, nil},
+		{"database-server", []string{"ip saddr @app4 tcp dport { 5432, 3306 } accept", "ip saddr @mgmt4 tcp dport 22 accept"}, nil},
+		// Container host: hardens input, but must NOT create a forward chain
+		// (Docker owns that hook).
+		{"container-host", []string{"chain input {", "ip saddr @mgmt4 tcp dport 22 accept", "chain output {"}, []string{"chain forward {"}},
+	}
+	for _, c := range cases {
+		t.Run(c.key, func(t *testing.T) {
+			srv, cookie := newTestServer(t)
+			if rec := postForm(srv, "/presets/apply", url.Values{"preset": {c.key}}, cookie); rec.Code != 303 {
+				t.Fatalf("apply %s: %d %s", c.key, rec.Code, rec.Body.String())
+			}
+			m, err := srv.loadModel()
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := nftconf.Config(m)
+			for _, w := range c.wants {
+				if !strings.Contains(out, w) {
+					t.Errorf("%s config missing %q:\n%s", c.key, w, out)
+				}
+			}
+			for _, f := range c.forbid {
+				if strings.Contains(out, f) {
+					t.Errorf("%s config should not contain %q:\n%s", c.key, f, out)
+				}
+			}
+			// Seeded @mgmt keeps lint from warning about SSH/UI lockout.
+			for _, wn := range nftconf.Lint(m, "0.0.0.0:8080") {
+				if strings.Contains(wn, "SSH") || strings.Contains(wn, "UI port") {
+					t.Errorf("%s preset should not trigger a lockout warning: %q", c.key, wn)
+				}
+			}
+		})
+	}
+}
+
 func TestHomeRouterPresetBuildsValidConfig(t *testing.T) {
 	srv, cookie := newTestServer(t)
 
