@@ -34,7 +34,8 @@ const (
 // the keys its statement needs and ignores the rest.
 var paramKeys = []string{
 	"target", "addr", "port", "with", "prefix", "level", "rate", "per", "burst", "value",
-	"mss", "wscale", "size", "dir", "amount", "unit", "num", "bypass",
+	"mss", "wscale", "size", "dir", "amount", "unit", "num", "bypass", "name", "group",
+	"vmapkey", "vmapentries",
 }
 
 // ── overview ────────────────────────────────────────────────────────────────

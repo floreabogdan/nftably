@@ -292,6 +292,32 @@ var statements = []Statement{
 			}
 			return "goto " + t, nil
 		}},
+	{Key: "vmap", Label: "Verdict map (vmap)", Group: "Verdict", Example: "tcp dport vmap { 22 : accept, 80 : drop, 443 : accept }",
+		Help: "One O(1) lookup instead of a long list of rules: map a field's value straight to a verdict. Ideal for a big 'port → accept/drop' table or 'source → jump chain'. The whole rule becomes this map — put any pre-conditions in the matches above.",
+		Params: []Param{
+			{Key: "vmapkey", Label: "Map on", Kind: KindEnum, Help: "The field whose value picks the verdict.",
+				Options: []Option{
+					{"tcp dport", "TCP destination port", ""}, {"tcp sport", "TCP source port", ""},
+					{"udp dport", "UDP destination port", ""}, {"udp sport", "UDP source port", ""},
+					{"ip saddr", "Source address (IPv4)", ""}, {"ip daddr", "Destination address (IPv4)", ""},
+					{"ip6 saddr", "Source address (IPv6)", ""}, {"ip6 daddr", "Destination address (IPv6)", ""},
+					{"meta mark", "Packet mark", ""}, {"ct mark", "Connection mark", ""},
+					{"meta l4proto", "L4 protocol", ""}, {"meta iifname", "Inbound interface", ""},
+				}},
+			{Key: "vmapentries", Label: "Entries (value : verdict, …)", Kind: KindText, Placeholder: "22 : accept, 80 : drop, 443 : accept",
+				Help: "Comma-separated value : verdict pairs. Verdicts: accept, drop, continue, return, or jump/goto <chain>."},
+		},
+		render: func(p map[string]string, _ Ctx) (string, error) {
+			key := strings.TrimSpace(p["vmapkey"])
+			if !vmapKeys[key] {
+				return "", fmt.Errorf("a verdict map's 'map on' must be one of the supported fields")
+			}
+			body, err := parseVmapEntries(strings.TrimSpace(p["vmapentries"]), key)
+			if err != nil {
+				return "", err
+			}
+			return key + " vmap { " + body + " }", nil
+		}},
 
 	// Logging / accounting
 	{Key: "log", Label: "Log", Group: "Observe", Example: `log prefix "drop " level info`,
@@ -750,6 +776,62 @@ var identRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,63}$`)
 
 // helperNameRe validates a conntrack helper name (e.g. "ftp", "sip-5060").
 var helperNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,31}$`)
+
+// vmapKeys are the fields a verdict map may key on. meta iifname values are
+// quoted (interface names); the rest are emitted bare.
+var vmapKeys = map[string]bool{
+	"tcp dport": true, "tcp sport": true, "udp dport": true, "udp sport": true,
+	"ip saddr": true, "ip daddr": true, "ip6 saddr": true, "ip6 daddr": true,
+	"meta mark": true, "ct mark": true, "meta l4proto": true, "meta iifname": true,
+}
+
+// parseVmapEntries validates and renders the "value : verdict" pairs of a vmap.
+// The commas and colons are consumed here, so each value is checked with the
+// same structural deny-list as any other value.
+func parseVmapEntries(entries, key string) (string, error) {
+	if entries == "" {
+		return "", fmt.Errorf("a verdict map needs at least one value : verdict entry")
+	}
+	quote := key == "meta iifname"
+	var out []string
+	for _, raw := range strings.Split(entries, ",") {
+		lhs, rhs, ok := strings.Cut(raw, ":")
+		if !ok {
+			return "", fmt.Errorf("each entry must be value : verdict (got %q)", strings.TrimSpace(raw))
+		}
+		val := strings.TrimSpace(lhs)
+		if val == "" {
+			return "", fmt.Errorf("a verdict-map entry is missing its value")
+		}
+		if err := checkSafe("verdict-map value", val); err != nil {
+			return "", err
+		}
+		verdict, err := vmapVerdict(strings.TrimSpace(rhs))
+		if err != nil {
+			return "", err
+		}
+		if quote {
+			val = fmt.Sprintf("%q", val)
+		}
+		out = append(out, val+" : "+verdict)
+	}
+	return strings.Join(out, ", "), nil
+}
+
+// vmapVerdict validates one verdict on the right of a vmap entry.
+func vmapVerdict(v string) (string, error) {
+	switch v {
+	case "accept", "drop", "continue", "return":
+		return v, nil
+	}
+	if kw, target, ok := strings.Cut(v, " "); ok {
+		kw, target = strings.TrimSpace(kw), strings.TrimSpace(target)
+		if (kw == "jump" || kw == "goto") && identRe.MatchString(target) {
+			return kw + " " + target, nil
+		}
+	}
+	return "", fmt.Errorf("verdict %q must be accept, drop, continue, return, or jump/goto <chain>", v)
+}
 
 // checkSafe rejects a value carrying nft structural characters. label names the
 // field for the message.

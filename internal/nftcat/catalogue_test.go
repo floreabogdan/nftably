@@ -94,6 +94,13 @@ func TestRenderStatement(t *testing.T) {
 		{"log", map[string]string{"prefix": "drop ", "group": "2"}, "inet", `log prefix "drop " group 2`},
 		// assign a conntrack helper.
 		{"ct.helper.set", map[string]string{"name": "ftp"}, "inet", `ct helper set "ftp"`},
+		// verdict maps.
+		{"vmap", map[string]string{"vmapkey": "tcp dport", "vmapentries": "22 : accept, 80 : drop, 443 : accept"}, "inet",
+			"tcp dport vmap { 22 : accept, 80 : drop, 443 : accept }"},
+		{"vmap", map[string]string{"vmapkey": "ip saddr", "vmapentries": "10.0.0.0/8 : jump internal, 0.0.0.0/0 : drop"}, "inet",
+			"ip saddr vmap { 10.0.0.0/8 : jump internal, 0.0.0.0/0 : drop }"},
+		{"vmap", map[string]string{"vmapkey": "meta iifname", "vmapentries": "lo : accept, eth0 : jump wan_in"}, "inet",
+			`meta iifname vmap { "lo" : accept, "eth0" : jump wan_in }`},
 	}
 	for _, c := range cases {
 		got, err := RenderStatement(c.key, c.params, Ctx{Family: c.family})
@@ -142,6 +149,11 @@ func TestRejectsInjection(t *testing.T) {
 		{"queue", map[string]string{"num": "0 drop"}},                                                   // non-numeric queue
 		{"tcp.mss.clamp", map[string]string{"size": "huge"}},                                            // non-number, non-'rt mtu'
 		{"ban.rate", map[string]string{"set": "a; drop", "family": "ip", "rate": "10"}},                 // non-identifier set
+		{"vmap", map[string]string{"vmapkey": "tcp dport", "vmapentries": "22 : accept } table evil {"}}, // brace escape in verdict
+		{"vmap", map[string]string{"vmapkey": "tcp dport", "vmapentries": "22 : reboot"}},                // bogus verdict
+		{"vmap", map[string]string{"vmapkey": "tcp dport", "vmapentries": "22}: accept"}},                // brace in value
+		{"vmap", map[string]string{"vmapkey": "bad field", "vmapentries": "22 : accept"}},                // unsupported key
+		{"vmap", map[string]string{"vmapkey": "tcp dport", "vmapentries": "22 : jump a; drop"}},          // separator in jump target
 		{"ban.rate", map[string]string{"set": "ok", "family": "arp", "rate": "10"}},                     // family nft can't ban by
 		{"ban.rate", map[string]string{"set": "ok", "family": "ip", "rate": "x"}},                       // non-numeric rate
 		{"ban.rate", map[string]string{"set": "ok", "family": "ip", "rate": "10", "timeout": "1 drop"}}, // bad duration
