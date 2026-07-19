@@ -261,6 +261,18 @@ func TestHardenIDSRecipe(t *testing.T) {
 		t.Errorf("forward chain has %d queue rules, want 1", queued)
 	}
 
+	// The Posture page renders the IDS card (HaveForward) with its setup modal.
+	req := httptest.NewRequest(http.MethodGet, "/harden", nil)
+	req.AddCookie(cookie)
+	prec := httptest.NewRecorder()
+	srv.ServeHTTP(prec, req)
+	body := prec.Body.String()
+	for _, want := range []string{"Inspect transit with an IDS", "modal-ids-setup", "suricata -q 0", "--daq nfq"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Posture page missing IDS setup content %q", want)
+		}
+	}
+
 	// Idempotent: a second click adds no further queue rule.
 	if rec := postForm(srv, "/harden/ids", url.Values{}, cookie); rec.Code != http.StatusSeeOther {
 		t.Fatalf("second ids: status %d, want 303", rec.Code)

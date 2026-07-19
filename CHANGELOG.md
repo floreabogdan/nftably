@@ -79,7 +79,12 @@ typed, explained control instead of a fixed form.
   an NFQUEUE for an inline Suricata/Snort to inspect. It's fail-open (a stopped
   inspector lets traffic through rather than blackholing transit) and touches only
   the forward chain, so the operator's own session is never queued — built on the
-  existing `queue` action.
+  existing `queue` action. A **Setup examples** modal shows copy-pasteable Suricata
+  and Snort commands for attaching to the queue.
+- **Posture page grouped into bands.** Assessment (score, best-practice checks,
+  exposed services) reads top-to-bottom, then the one-click recipes sit together
+  under a *One-click hardening* heading — kept as one scannable page rather than
+  tabs, since a posture read is most useful all at once.
 - **WireGuard VPN server preset.** The basic secure-server base plus the WireGuard
   essentials: UDP 51820 accepted (the tunnel is key-authenticated), the wg0
   interface trusted for traffic to this box, and a default-drop forward chain that

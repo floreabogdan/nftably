@@ -60,66 +60,6 @@
 	</div>
 </div>
 
-{{if .HaveModel}}
-<div class="card">
-	<div class="card-header">
-		<span class="card-title">{{template "icon-shield"}}Brute-force auto-ban for SSH</span>
-		{{if .SSHBanActive}}<span class="badge badge-success">on</span>{{end}}
-	</div>
-	<div class="card-body">
-		<p class="check-detail">Fail2ban, in the kernel — no daemon, no log parsing. A source that opens SSH
-		connections faster than <strong>10/minute</strong> (burst 5) is dropped into a dynamic timeout set and
-		blocked for <strong>1 hour</strong>; the set clears itself as bans expire. The rules go in at the top of your
-		input chain — above any SSH allow — and cover IPv4 and IPv6.</p>
-		{{if .SSHBanActive}}
-		<div class="check check-pass">
-			<div class="check-icon" aria-hidden="true">&#10003;</div>
-			<div class="check-body"><strong>Active.</strong>
-			<p class="check-detail">The auto-ban rules are in your input chain. Tune the rate or ban time on the
-			<a href="/firewall">Firewall</a> page (the <em>Rate-ban the source</em> action), and watch bans land in the
-			<a href="/logs">firewall log</a>.</p></div>
-		</div>
-		{{else}}
-		<form method="post" action="/harden/ssh-ban">
-			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-shield"}} Protect SSH from brute-force</button>
-		</form>
-		<p class="field-hint text-muted">Model-only — it drops you on <a href="/changes">Review</a>, behind the armed
-		auto-revert. Legitimate admins from your management network stay well under the limit.</p>
-		{{end}}
-	</div>
-</div>
-{{end}}
-
-{{if .HaveForward}}
-<div class="card">
-	<div class="card-header">
-		<span class="card-title">{{template "icon-route"}}Inspect transit with an IDS/IPS</span>
-		{{if .IDSActive}}<span class="badge badge-success">on</span>{{end}}
-	</div>
-	<div class="card-body">
-		<p class="check-detail">Hand forwarded traffic to an inline intrusion detector — <strong>Suricata</strong> or
-		<strong>Snort</strong> running on an NFQUEUE — so it can flag or block known-bad flows. It's <strong>fail-open</strong>:
-		if the inspector isn't running, traffic keeps flowing, so a stopped Suricata never blackholes your transit. Only the
-		forward chain is touched — your own session is never queued.</p>
-		{{if .IDSActive}}
-		<div class="check check-pass">
-			<div class="check-icon" aria-hidden="true">&#10003;</div>
-			<div class="check-body"><strong>Active.</strong>
-			<p class="check-detail">Forwarded traffic is sent to NFQUEUE 0. Run your IDS against it (e.g.
-			<span class="mono">suricata -q 0</span>). Tune the queue on the <a href="/firewall">Firewall</a> page (the
-			<em>Send to userspace program</em> action).</p></div>
-		</div>
-		{{else}}
-		<form method="post" action="/harden/ids">
-			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-route"}} Send transit to an IDS</button>
-		</form>
-		<p class="field-hint text-muted">Adds one fail-open <span class="mono">queue num 0 bypass</span> rule at the top of
-		the forward chain and drops you on <a href="/changes">Review</a>. Your IDS attaches to queue 0.</p>
-		{{end}}
-	</div>
-</div>
-{{end}}
-
 <div class="card">
 	<div class="card-header">
 		<span class="card-title">{{template "icon-bulb"}}Exposed services</span>
@@ -180,5 +120,120 @@
 		{{end}}
 	</div>
 </div>
+
+{{if or .HaveModel .HaveForward}}
+<div class="section-head">
+	<span class="section-title">{{template "icon-shield"}}One-click hardening</span>
+	<span class="text-muted">Optional, model-only — each drops you on Review behind the auto-revert.</span>
+</div>
+{{end}}
+
+{{if .HaveModel}}
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-shield"}}Brute-force auto-ban for SSH</span>
+		{{if .SSHBanActive}}<span class="badge badge-success">on</span>{{end}}
+	</div>
+	<div class="card-body">
+		<p class="check-detail">Fail2ban's trick, done entirely in the kernel — <strong>nothing to install</strong>, no
+		daemon, no log parsing. A source that opens SSH connections faster than <strong>10/minute</strong> (burst 5) is
+		dropped into a dynamic timeout set and blocked for <strong>1 hour</strong>; the kernel clears the set as bans
+		expire. The rules go in at the top of your input chain — above any SSH allow — and cover IPv4 and IPv6.</p>
+		{{if .SSHBanActive}}
+		<div class="check check-pass">
+			<div class="check-icon" aria-hidden="true">&#10003;</div>
+			<div class="check-body"><strong>Active.</strong>
+			<p class="check-detail">The auto-ban rules are in your input chain. Tune the rate or ban time on the
+			<a href="/firewall">Firewall</a> page (the <em>Rate-ban the source</em> action), and watch bans land in the
+			<a href="/logs">firewall log</a>.</p></div>
+		</div>
+		{{else}}
+		<form method="post" action="/harden/ssh-ban">
+			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-shield"}} Protect SSH from brute-force</button>
+		</form>
+		<p class="field-hint text-muted">Legitimate admins from your management network stay well under the limit.</p>
+		{{end}}
+	</div>
+</div>
+{{end}}
+
+{{if .HaveForward}}
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-route"}}Inspect transit with an IDS/IPS</span>
+		{{if .IDSActive}}<span class="badge badge-success">on</span>{{end}}
+	</div>
+	<div class="card-body">
+		<p class="check-detail">Hand forwarded traffic to an inline intrusion detector — <strong>Suricata</strong> or
+		<strong>Snort</strong> running on an NFQUEUE — so it can flag or block known-bad flows. It's <strong>fail-open</strong>:
+		if the inspector isn't running, traffic keeps flowing, so a stopped Suricata never blackholes your transit. Only the
+		forward chain is touched — your own session is never queued.</p>
+		<p><button type="button" class="btn btn-sm btn-ghost" data-modal-open="modal-ids-setup">{{template "icon-book"}} Setup examples (Suricata / Snort)</button></p>
+		{{if .IDSActive}}
+		<div class="check check-pass">
+			<div class="check-icon" aria-hidden="true">&#10003;</div>
+			<div class="check-body"><strong>Active.</strong>
+			<p class="check-detail">Forwarded traffic is sent to NFQUEUE 0. Run your IDS against it (e.g.
+			<span class="mono">suricata -q 0</span>). Tune the queue on the <a href="/firewall">Firewall</a> page (the
+			<em>Send to userspace program</em> action).</p></div>
+		</div>
+		{{else}}
+		<form method="post" action="/harden/ids">
+			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-route"}} Send transit to an IDS</button>
+		</form>
+		<p class="field-hint text-muted">Adds one fail-open <span class="mono">queue num 0 bypass</span> rule at the top of
+		the forward chain. Your IDS attaches to queue 0.</p>
+		{{end}}
+	</div>
+</div>
+
+<div class="modal-backdrop" id="modal-ids-setup" data-modal>
+	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-ids-setup-title">
+		<div class="modal-head">
+			<h2 id="modal-ids-setup-title">{{template "icon-route"}} Attach an IDS/IPS to NFQUEUE 0</h2>
+			<button type="button" class="icon-btn" data-modal-close title="Close">&times;</button>
+		</div>
+		<div class="modal-body">
+			<p class="check-detail">nftably's rule sends forwarded packets to <span class="mono">queue num 0</span>. Point one
+			inspector at that queue and it inspects the traffic inline. The rule is <strong>fail-open</strong>, so start the
+			inspector before you rely on it to block — while nothing is attached, traffic passes uninspected. The kernel needs
+			the <span class="mono">nfnetlink_queue</span> module (usually auto-loaded on first use).</p>
+
+			<div class="panel">
+				<div class="panel-head">Suricata (inline IPS)</div>
+				<div class="card-body">
+					<p class="field-hint text-muted">Install it, make sure the ruleset uses <span class="mono">drop</span>
+					actions (that's what makes it an IPS, not just an IDS), then run it inline on queue 0:</p>
+					<pre class="code-block mono pre-scroll">sudo apt install suricata            # Debian/Ubuntu
+
+# run inline on NFQUEUE 0 (foreground, to try it)
+sudo suricata -q 0
+
+# as a service: add "-q 0" to the run options and enable
+# IPS mode, e.g. in /etc/default/suricata or the systemd unit.
+sudo systemctl enable --now suricata</pre>
+					<p class="field-hint text-muted">A source dropped by Suricata never reaches the rest of your forward
+					chain. Alerts land in <span class="mono">/var/log/suricata/</span>.</p>
+				</div>
+			</div>
+
+			<div class="panel mt-md">
+				<div class="panel-head">Snort 3 (inline via the nfq DAQ)</div>
+				<div class="card-body">
+					<pre class="code-block mono pre-scroll"># Snort 3 reading NFQUEUE 0 in inline mode (-Q)
+sudo snort -c /etc/snort/snort.lua \
+  -Q --daq nfq --daq-var queue=0 -s 65535</pre>
+					<p class="field-hint text-muted">Snort 2.x is similar:
+					<span class="mono">snort -Q --daq nfq --daq-var queue=0 -c /etc/snort/snort.conf</span>.</p>
+				</div>
+			</div>
+
+			<p class="field-hint text-muted mt-md">Want a different queue number or fail-closed behaviour? Edit the
+			<em>Send to userspace program</em> action on the <a href="/firewall">Firewall</a> page.</p>
+			<div class="form-actions"><button type="button" class="btn" data-modal-close>Close</button></div>
+		</div>
+	</div>
+</div>
+{{end}}
 {{end}}
 {{template "shell-close" .}}
