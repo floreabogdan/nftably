@@ -126,6 +126,7 @@ current lesson from nav.Active. */}}
 	{{template "sidebar" .}}
 	<div class="main">
 		{{template "topbar" .}}
+		{{if .Drifted}}<div class="drift-strip" role="alert">{{template "icon-alert"}} <span>The live firewall was changed <strong>outside nftably</strong> — it no longer matches what was last applied. <a href="/changes">Review &amp; re-apply</a> to take back control.</span></div>{{end}}
 		<main class="page" id="main-content">
 {{end}}
 

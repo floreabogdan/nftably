@@ -185,6 +185,9 @@ func (s *Server) handleApplyConfirm(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	_ = s.store.SetAppliedTables(applied)
+	// Baseline the live owned tables now that this apply is the kernel's truth,
+	// so any out-of-band change from here on registers as drift.
+	s.recordAppliedFingerprint(context.Background())
 	s.pendingAppliedTables = nil
 	_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventConfigApply,
 		fmt.Sprintf("confirmed config #%d", p.VersionID))

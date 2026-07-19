@@ -69,10 +69,13 @@ type nav struct {
 	ThemeMode    string // "" (system) | light | dark
 	ThemeAccent  string // ocean | emerald | violet | amber
 	ThemeDensity string // comfortable | compact
+	// Drifted is true when the live firewall no longer matches what nftably last
+	// applied; the shell shows a warning strip on every page when set.
+	Drifted bool
 }
 
 func (s *Server) navFor(r *http.Request, active string) nav {
-	n := nav{Active: active, Username: s.currentUser(r).Username, ThemeAccent: "ocean", ThemeDensity: "comfortable"}
+	n := nav{Active: active, Username: s.currentUser(r).Username, ThemeAccent: "ocean", ThemeDensity: "comfortable", Drifted: s.Drifted()}
 	if st, ok, err := s.store.GetSettings(); err == nil && ok {
 		n.RouterLabel = st.RouterLabel
 		n.ThemeMode = st.ThemeMode

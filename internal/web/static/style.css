@@ -544,6 +544,19 @@ svg:not(.sparkline) { width: 18px; height: 18px; flex-shrink: 0; vertical-align:
 .topbar-right { display: flex; align-items: center; gap: 6px; }
 .topbar-theme-form { display: flex; margin: 0; }
 
+/* Out-of-band change warning strip, shown under the top bar on every page when
+   the live firewall no longer matches what nftably last applied. */
+.drift-strip {
+	display: flex; align-items: center; gap: var(--space-2);
+	padding: var(--space-2) var(--space-6);
+	background: color-mix(in srgb, var(--warning) 18%, var(--surface));
+	color: var(--warning-deep);
+	border-bottom: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+	font-size: var(--fs-sm); font-weight: 500;
+}
+.drift-strip a { color: var(--warning-deep); text-decoration: underline; font-weight: 600; }
+.drift-strip svg { color: var(--warning-deep); flex-shrink: 0; }
+
 .icon-btn {
 	position: relative;
 	display: inline-flex; align-items: center; justify-content: center;

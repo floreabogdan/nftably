@@ -46,6 +46,7 @@ const exposureEveryN = 5
 type alertPollState struct {
 	tick          int
 	nftUp         bool
+	drifted       bool // last drift verdict, so the alert fires only on transition
 	firstBanRun   bool
 	firstExpoRun  bool
 	seenBans      map[string]bool // "<setkey>|<member>"
@@ -100,6 +101,7 @@ func (s *Server) pollAlertsOnce(st *alertPollState) {
 	if st.tick == 1 || st.tick%exposureEveryN == 0 {
 		s.checkNewExposures(st)
 	}
+	s.checkDrift(ctx, st)
 }
 
 // checkNewBans diffs the dynamic timeout sets against what we've already seen and

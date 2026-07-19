@@ -113,6 +113,29 @@ func (s *Store) SaveTheme(mode, accent, density string) error {
 	return notFoundIfZero(res)
 }
 
+// SaveAppliedFingerprint records the fingerprint of the owned tables as applied.
+func (s *Store) SaveAppliedFingerprint(fp string) error {
+	res, err := s.db.Exec(`UPDATE settings SET applied_fingerprint = ?, updated_at = ? WHERE id = 1`, fp, now())
+	if err != nil {
+		return fmt.Errorf("store: save applied fingerprint: %w", err)
+	}
+	return notFoundIfZero(res)
+}
+
+// GetAppliedFingerprint returns the last-applied owned-table fingerprint ("" if
+// none has been recorded yet).
+func (s *Store) GetAppliedFingerprint() (string, error) {
+	var fp string
+	err := s.db.QueryRow(`SELECT applied_fingerprint FROM settings WHERE id = 1`).Scan(&fp)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("store: get applied fingerprint: %w", err)
+	}
+	return fp, nil
+}
+
 // SaveAccessWhitelist updates only the access whitelist.
 func (s *Store) SaveAccessWhitelist(text string) error {
 	res, err := s.db.Exec(`UPDATE settings SET access_whitelist = ?, updated_at = ? WHERE id = 1`, text, now())

@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS settings (
 	theme_mode       TEXT NOT NULL DEFAULT '',
 	theme_accent     TEXT NOT NULL DEFAULT 'ocean',
 	theme_density    TEXT NOT NULL DEFAULT 'comfortable',
+	-- Fingerprint of the owned tables as they were in the kernel at the last
+	-- confirmed apply; the poller compares the live fingerprint against it to
+	-- detect out-of-band (drift) changes.
+	applied_fingerprint TEXT NOT NULL DEFAULT '',
 	created_at       TEXT NOT NULL,
 	updated_at       TEXT NOT NULL
 );

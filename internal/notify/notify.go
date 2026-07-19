@@ -23,6 +23,7 @@ var throttled = map[string]bool{
 	store.AlertAutoBan: true, store.AlertFeedFailed: true,
 	store.AlertNftDown: true, store.AlertNftUp: true,
 	store.AlertNewExposure: true, store.AlertLoginFailed: true,
+	store.AlertConfigDrift: true,
 }
 
 // Dispatcher fans one event out to every enabled destination. Safe for
@@ -110,6 +111,8 @@ func (a alert) title() string {
 		return "nft is unreachable"
 	case store.AlertNftUp:
 		return "nft is reachable again"
+	case store.AlertConfigDrift:
+		return "Firewall changed outside nftably"
 	default:
 		return "nftably alert"
 	}
@@ -117,7 +120,7 @@ func (a alert) title() string {
 
 func (a alert) severity() string {
 	switch a.Kind {
-	case store.AlertApplyReverted, store.AlertNftDown, store.AlertFeedFailed, store.AlertNewExposure:
+	case store.AlertApplyReverted, store.AlertNftDown, store.AlertFeedFailed, store.AlertNewExposure, store.AlertConfigDrift:
 		return "danger"
 	case store.AlertApplyConfirmed, store.AlertNftUp:
 		return "good"

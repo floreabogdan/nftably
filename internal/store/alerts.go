@@ -39,6 +39,7 @@ const (
 	AlertAutoBan         = "ban.new"
 	AlertNewExposure     = "exposure.new"
 	AlertLoginFailed     = "login.failed"
+	AlertConfigDrift     = "config.drift"
 )
 
 var (
@@ -62,6 +63,7 @@ func AlertEventKinds() []AlertEventKind {
 		{AlertAutoBan, "Automatic ban"},
 		{AlertNewExposure, "New exposed service"},
 		{AlertLoginFailed, "Failed-login burst"},
+		{AlertConfigDrift, "Firewall changed outside nftably"},
 		{AlertFeedFailed, "Blocklist feed failed"},
 		{AlertNftDown, "nft unavailable"},
 		{AlertNftUp, "nft recovered"},

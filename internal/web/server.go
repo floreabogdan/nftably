@@ -76,7 +76,26 @@ type Server struct {
 	// nil — with no destinations every call is a no-op.
 	notifier *notify.Dispatcher
 
+	// driftMu guards drifted, the cached "the live firewall no longer matches
+	// what nftably last applied" flag. The poller sets it; the dashboard and
+	// changes pages read it for a banner, so those renders never shell out.
+	driftMu sync.RWMutex
+	drifted bool
+
 	mux *http.ServeMux
+}
+
+// Drifted reports the last cached drift state (set by the alert poller).
+func (s *Server) Drifted() bool {
+	s.driftMu.RLock()
+	defer s.driftMu.RUnlock()
+	return s.drifted
+}
+
+func (s *Server) setDrifted(v bool) {
+	s.driftMu.Lock()
+	s.drifted = v
+	s.driftMu.Unlock()
 }
 
 // Config is the dependency set and options New needs to build a Server.
