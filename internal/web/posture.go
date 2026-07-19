@@ -285,6 +285,9 @@ type hardenVM struct {
 	ScanNote string
 	Warns    int
 	Infos    int
+	// Bans are the sources the kernel's auto-ban timeout sets are currently
+	// blocking — live runtime state, each liftable early.
+	Bans []banEntry
 }
 
 func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
@@ -333,6 +336,10 @@ func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
 		// a silently-empty section is diagnosable rather than a mystery.
 		s.log.Warn("exposed-services scan failed", "error", ferr)
 	}
+	// Live auto-ban members, so the operator can see who's blocked and lift a ban.
+	banCtx, banCancel := reqCtx(r)
+	vm.Bans = s.currentBans(banCtx)
+	banCancel()
 	render(w, s.log, "harden.html", vm)
 }
 

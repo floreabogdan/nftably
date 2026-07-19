@@ -216,6 +216,37 @@
 </div>
 {{end}}
 
+{{if .Bans}}
+<div class="card">
+	<div class="card-header">
+		<span class="card-title">{{template "icon-ban"}}Currently banned</span>
+		<span class="text-muted">{{len .Bans}} source{{if ne (len .Bans) 1}}s{{end}} the kernel is blocking now</span>
+	</div>
+	<div class="table-scroll">
+		<table data-search-target>
+			<thead><tr><th>Source</th><th>Ban set</th><th></th></tr></thead>
+			<tbody>
+				{{range .Bans}}
+				<tr>
+					<td class="mono">{{.IP}}</td>
+					<td class="mono text-muted">{{.Set}}</td>
+					<td>
+						<form method="post" action="/harden/unban" data-confirm="Lift the ban on {{.IP}} now? It will be let back in until it trips the limit again.">
+							<input type="hidden" name="family" value="{{.Family}}">
+							<input type="hidden" name="table" value="{{.Table}}">
+							<input type="hidden" name="set" value="{{.Set}}">
+							<input type="hidden" name="ip" value="{{.IP}}">
+							<button type="submit" class="btn btn-sm">Unban</button>
+						</form>
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+	</div>
+</div>
+{{end}}
+
 {{if .HaveForward}}
 <div class="card">
 	<div class="card-header">

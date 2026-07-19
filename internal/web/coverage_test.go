@@ -92,6 +92,32 @@ func TestVersionRestoreRoundTrip(t *testing.T) {
 	}
 }
 
+// TestUnbanValidation checks canonicalAddr canonicalizes real addresses and
+// rejects anything that could inject nft tokens, and that the unban handler
+// refuses a malformed reference.
+func TestUnbanValidation(t *testing.T) {
+	if got := canonicalAddr("1.2.3.4"); got != "1.2.3.4" {
+		t.Errorf("canonicalAddr(1.2.3.4) = %q", got)
+	}
+	if got := canonicalAddr("10.0.0.0/8"); got != "10.0.0.0/8" {
+		t.Errorf("canonicalAddr(prefix) = %q", got)
+	}
+	for _, bad := range []string{"", "not-an-ip", "1.2.3.4 } add element x", "1.2.3.4; drop"} {
+		if got := canonicalAddr(bad); got != "" {
+			t.Errorf("canonicalAddr(%q) = %q, want rejected", bad, got)
+		}
+	}
+
+	srv, cookie := newTestServer(t)
+	// A bad family / table must be refused before nft is touched.
+	rec := postForm(srv, "/harden/unban", url.Values{
+		"family": {"inet"}, "table": {"bad table"}, "set": {"ssh_abusers"}, "ip": {"1.2.3.4"},
+	}, cookie)
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "err=") {
+		t.Errorf("unban with a bad table name should error, got %q", loc)
+	}
+}
+
 // TestGenericAutoBan checks the generic auto-ban builds detect-and-drop rules
 // for an arbitrary service on a per-service ban set.
 func TestGenericAutoBan(t *testing.T) {

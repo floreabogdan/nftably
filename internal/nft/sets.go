@@ -18,6 +18,15 @@ func (c *Client) DynamicSetMembers(ctx context.Context) (map[string][]string, er
 	return parseDynamicSets([]byte(out))
 }
 
+// DeleteSetElement removes one element from a live set — used to lift an
+// auto-ban early. It operates directly on the kernel (a ban is transient state,
+// not part of the reviewed model). The caller must have validated element as a
+// real address/prefix; family/table/set come from DynamicSetMembers.
+func (c *Client) DeleteSetElement(ctx context.Context, family, table, set, element string) error {
+	_, err := c.run(ctx, "delete", "element", family, table, set, "{", element, "}")
+	return err
+}
+
 func parseDynamicSets(jsonOut []byte) (map[string][]string, error) {
 	var doc struct {
 		Nftables []map[string]json.RawMessage `json:"nftables"`

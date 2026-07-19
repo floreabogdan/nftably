@@ -283,6 +283,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /harden/fix/{id}", s.requireAuth(s.handleHardenFix))
 	s.mux.Handle("POST /harden/ssh-ban", s.requireAuth(s.handleHardenSSHBan))
 	s.mux.Handle("POST /harden/ban", s.requireAuth(s.handleHardenBan))
+	s.mux.Handle("POST /harden/unban", s.requireAuth(s.handleHardenUnban))
 	s.mux.Handle("POST /harden/ids", s.requireAuth(s.handleHardenIDS))
 
 	s.mux.Handle("GET /advisor", s.requireAuth(s.handleAdvisor))
