@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS settings (
 	-- confirmed apply; the poller compares the live fingerprint against it to
 	-- detect out-of-band (drift) changes.
 	applied_fingerprint TEXT NOT NULL DEFAULT '',
+	api_token        TEXT NOT NULL DEFAULT '',
 	created_at       TEXT NOT NULL,
 	updated_at       TEXT NOT NULL
 );

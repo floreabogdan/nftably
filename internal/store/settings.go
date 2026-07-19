@@ -33,6 +33,9 @@ type Settings struct {
 	ThemeMode    string
 	ThemeAccent  string
 	ThemeDensity string
+	// APIToken, when non-empty, enables the automation API (POST /api/block etc.),
+	// which then requires "Authorization: Bearer <token>". Empty disables it.
+	APIToken string
 }
 
 // GetSettings returns the single settings row, or (Settings{}, false, nil) if
@@ -41,10 +44,10 @@ func (s *Store) GetSettings() (Settings, bool, error) {
 	var st Settings
 	row := s.db.QueryRow(`
 		SELECT router_label, listen_addr, nft_binary, access_whitelist, geoip_db, geoip_autoupdate, metrics_token,
-			theme_mode, theme_accent, theme_density
+			theme_mode, theme_accent, theme_density, api_token
 		FROM settings WHERE id = 1`)
 	err := row.Scan(&st.RouterLabel, &st.ListenAddr, &st.NftBinary, &st.AccessWhitelist, &st.GeoIPDB, &st.GeoIPAutoUpdate, &st.MetricsToken,
-		&st.ThemeMode, &st.ThemeAccent, &st.ThemeDensity)
+		&st.ThemeMode, &st.ThemeAccent, &st.ThemeDensity, &st.APIToken)
 	if err == sql.ErrNoRows {
 		return Settings{}, false, nil
 	}
@@ -109,6 +112,15 @@ func (s *Store) SaveTheme(mode, accent, density string) error {
 		mode, accent, density, now())
 	if err != nil {
 		return fmt.Errorf("store: save theme: %w", err)
+	}
+	return notFoundIfZero(res)
+}
+
+// SaveAPIToken updates only the automation-API bearer token. Empty disables it.
+func (s *Store) SaveAPIToken(token string) error {
+	res, err := s.db.Exec(`UPDATE settings SET api_token = ?, updated_at = ? WHERE id = 1`, token, now())
+	if err != nil {
+		return fmt.Errorf("store: save api token: %w", err)
 	}
 	return notFoundIfZero(res)
 }

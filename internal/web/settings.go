@@ -203,6 +203,33 @@ func (s *Server) handleSettingsMetrics(w http.ResponseWriter, r *http.Request) {
 	s.renderSettings(w, r, "metrics", nil, "")
 }
 
+// handleSettingsAPI generates, sets or clears the automation-API bearer token.
+func (s *Server) handleSettingsAPI(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	token := strings.TrimSpace(r.FormValue("api_token"))
+	if r.FormValue("generate") == "1" {
+		tok, err := randomToken()
+		if err != nil {
+			s.serverError(w, "generate api token", err)
+			return
+		}
+		token = tok
+	}
+	if err := s.store.SaveAPIToken(token); err != nil {
+		s.serverError(w, "save api token", err)
+		return
+	}
+	action := "set the automation-API token"
+	if token == "" {
+		action = "disabled the automation API"
+	}
+	_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventSettings, action)
+	s.renderSettings(w, r, "metrics", nil, "")
+}
+
 // randomToken returns a URL-safe 32-byte random token for /metrics bearer auth.
 func randomToken() (string, error) {
 	buf := make([]byte, 24)

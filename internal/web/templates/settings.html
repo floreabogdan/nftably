@@ -156,6 +156,48 @@
 			{{end}}
 		</div>
 	</div>
+
+	<div class="card">
+		<div class="card-header"><span class="card-title">{{template "icon-route"}}Automation API</span></div>
+		<div class="card-body">
+			<p class="field-hint text-muted">A tiny bearer-token API to manage the <span class="mono">blacklist</span> set programmatically — feed it
+			from an external IDS, a threat-intel list, or a script. Blocks are model-consistent: they go into the blacklist and take
+			effect on the next <a href="/changes">apply</a>, behind the armed auto-revert. Endpoints:
+			<span class="mono">POST /api/block</span>, <span class="mono">POST /api/unblock</span>, <span class="mono">GET /api/blocked</span>.</p>
+			{{if .Settings.APIToken}}
+			<div class="panel panel-success">
+				<div class="panel-head">API enabled <span class="badge badge-success">on</span></div>
+				<div class="card-body">
+					<div class="field">
+						<label for="api_token_view">Bearer token</label>
+						<input type="text" id="api_token_view" class="mono" value="{{.Settings.APIToken}}" readonly autocomplete="off" spellcheck="false">
+					</div>
+					<p class="field-hint text-muted">Example — block an address:</p>
+					<pre class="code-block mono pre-scroll">curl -sX POST http://127.0.0.1:8080/api/block \
+  -H "Authorization: Bearer {{.Settings.APIToken}}" \
+  -H "Content-Type: application/json" \
+  -d '{"ip":"203.0.113.9","note":"from my IDS"}'</pre>
+					<p class="field-hint text-muted">Still behind the access list — allow the calling host under <strong>Access</strong> if it's off-box.</p>
+					<div class="form-actions">
+						<form method="post" action="/settings/api"><input type="hidden" name="generate" value="1"><button type="submit" class="btn">Regenerate token</button></form>
+						<form method="post" action="/settings/api"><input type="hidden" name="api_token" value=""><button type="submit" class="btn btn-ghost">Disable</button></form>
+					</div>
+				</div>
+			</div>
+			{{else}}
+			<div class="panel">
+				<div class="panel-head">API disabled <span class="badge badge-muted">off</span></div>
+				<div class="card-body">
+					<p class="field-hint text-muted">Off by default. Enabling mints a random bearer token; the endpoints return
+					<span class="mono">404</span> until then, and reject any request without the token.</p>
+					<div class="form-actions">
+						<form method="post" action="/settings/api"><input type="hidden" name="generate" value="1"><button type="submit" class="btn btn-primary">{{template "icon-route"}} Generate token &amp; enable</button></form>
+					</div>
+				</div>
+			</div>
+			{{end}}
+		</div>
+	</div>
 </section>
 
 <section data-tab-panel="import" id="panel-import" role="tabpanel" aria-labelledby="tab-import" {{if ne .Tab "import"}}hidden{{end}} class="tab-panel">
