@@ -170,6 +170,7 @@
 					<div class="field-row">
 						<div class="field"><label>Name</label><input type="text" name="name" placeholder="ft" required></div>
 						<div class="field"><label>Devices (comma-separated)</label><input type="text" name="devices" class="mono" placeholder="eth0, eth1" required></div>
+						<div class="field"><label>Priority</label><input type="text" name="priority" class="mono" placeholder="filter"><span class="field-hint text-muted">Ingress-hook priority — a keyword (<span class="mono">filter</span>) or a number. Leave blank for the default.</span></div>
 					</div>
 					<label class="check-label"><input type="checkbox" name="hw_offload"> Hardware offload (<span class="mono">flags offload</span>) — only if your NIC/driver supports it</label>
 					<div class="form-actions"><button type="submit" class="btn btn-sm btn-primary">Add flowtable</button></div>

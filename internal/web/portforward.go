@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/netip"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/floreabogdan/nftably/internal/store"
@@ -15,10 +16,15 @@ import (
 // so the redirected traffic passes a drop-policy forward chain. Model-only —
 // the operator reviews and applies it behind the armed auto-revert.
 
-var (
-	pfPortRe  = regexp.MustCompile(`^[0-9]{1,5}$`)
-	pfIfaceRe = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
-)
+var pfIfaceRe = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+
+// validPort reports whether s is a single TCP/UDP port in the valid 1–65535
+// range. The `[0-9]{1,5}` shape checks alone would wave through 99999 (caught
+// only later by nft --check); this rejects it at the door with a clear message.
+func validPort(s string) bool {
+	n, err := strconv.Atoi(s)
+	return err == nil && n >= 1 && n <= 65535
+}
 
 func (s *Server) handlePortForward(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
@@ -35,8 +41,8 @@ func (s *Server) handlePortForward(w http.ResponseWriter, r *http.Request) {
 		redirectErr(w, r, "/firewall", "Protocol must be tcp or udp.")
 		return
 	}
-	if !pfPortRe.MatchString(extPort) {
-		redirectErr(w, r, "/firewall", "External port must be a number.")
+	if !validPort(extPort) {
+		redirectErr(w, r, "/firewall", "External port must be a number between 1 and 65535.")
 		return
 	}
 	dest, err := netip.ParseAddr(destHost)
@@ -47,8 +53,8 @@ func (s *Server) handlePortForward(w http.ResponseWriter, r *http.Request) {
 	if destPort == "" {
 		destPort = extPort
 	}
-	if !pfPortRe.MatchString(destPort) {
-		redirectErr(w, r, "/firewall", "Destination port must be a number.")
+	if !validPort(destPort) {
+		redirectErr(w, r, "/firewall", "Destination port must be a number between 1 and 65535.")
 		return
 	}
 	if iface != "" && !pfIfaceRe.MatchString(iface) {

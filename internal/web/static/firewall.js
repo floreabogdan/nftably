@@ -14,6 +14,7 @@
 	var interfaces = (page && page.interfaces) || [];
 	var sets = (page && page.sets) || [];
 	var chains = (page && page.chains) || [];
+	var flowtables = (page && page.flowtables) || [];
 
 	var ADDR_KEYS = { "ip.saddr": 1, "ip.daddr": 1, "ip6.saddr": 1, "ip6.daddr": 1 };
 
@@ -50,6 +51,7 @@
 		document.body.appendChild(dl);
 	}
 	buildDatalist("chain-list", chains);
+	buildDatalist("flowtable-list", flowtables);
 
 	// One document handler closes any open combobox list when a click lands
 	// outside it — registered once, so rebuilding value cells never leaks
@@ -407,6 +409,9 @@
 		// jump/goto target suggests sibling chains.
 		var target = row.querySelector("[name^='a_target_']");
 		if (target) target.setAttribute("list", "chain-list");
+		// the flow action suggests flowtables defined in this table.
+		var ft = row.querySelector("[name^='a_ft_']");
+		if (ft) ft.setAttribute("list", "flowtable-list");
 		// Put the action select and its remove control on one line.
 		var head = document.createElement("div");
 		head.className = "act-head";

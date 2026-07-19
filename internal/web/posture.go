@@ -519,9 +519,17 @@ func (s *Server) handleHardenBan(w http.ResponseWriter, r *http.Request) {
 		redirectErr(w, r, "/harden", "Protocol must be tcp or udp.")
 		return
 	}
-	if port != "" && !banPortRe.MatchString(port) {
-		redirectErr(w, r, "/harden", "Port must be a number, a comma list, or blank for any.")
-		return
+	if port != "" {
+		if !banPortRe.MatchString(port) {
+			redirectErr(w, r, "/harden", "Port must be a number, a comma list, or blank for any.")
+			return
+		}
+		for _, p := range strings.Split(port, ",") {
+			if !validPort(p) {
+				redirectErr(w, r, "/harden", "Each port must be between 1 and 65535.")
+				return
+			}
+		}
 	}
 	if _, e := strconv.Atoi(rate); e != nil {
 		redirectErr(w, r, "/harden", "Rate must be a whole number.")

@@ -1,7 +1,7 @@
 // Package notify delivers nftably alerts to the operator's configured
-// destinations — a generic JSON webhook, Slack, Discord, or email. Each gets a
-// payload shaped for its platform. No enabled destinations means every call is a
-// silent no-op. Adapted from the sister project birdy.
+// destinations — a generic JSON webhook, Slack, Discord, email, Telegram, ntfy,
+// or Gotify. Each gets a payload shaped for its platform. No enabled destinations
+// means every call is a silent no-op. Adapted from the sister project birdy.
 package notify
 
 import (

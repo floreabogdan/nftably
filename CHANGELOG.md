@@ -6,6 +6,53 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — power features & integrations
+
+- **Verdict maps (vmap).** A rule can now be a single O(1) map — `tcp dport vmap
+  { 22 : accept, 80 : accept, 443 : accept }` — instead of a stack of one-per-port
+  rules. Entries can jump to a chain to branch into a sub-policy per key.
+- **Flowtable fast-path offload.** A first-class flowtable object (created per table
+  on the Firewall page, bound to interfaces, optional hardware offload) plus a *Flow
+  offload* action (`flow add @ft`) that hands established connections to the kernel
+  fast path — a big throughput win on a router. The rule editor suggests the
+  flowtables defined in the table as you type.
+- **Named counters.** The *Count* action takes an optional name; same-named counters
+  across rules add into one running total, and nftably declares the `counter <name>`
+  object automatically from usage.
+- **Raw rules + tags.** A guarded *raw* rule type accepts a verbatim nft line for what
+  the catalogue can't yet express (validated so it can't break out of its chain and
+  still gated by `nft --check`), and freeform comma-separated **tags** organise and
+  filter rules.
+- **Generic brute-force auto-ban.** The kernel fail2ban is no longer SSH-only — a form
+  on the Posture page protects any service (name, tcp/udp, port(s), rate) with the
+  detect-and-ban dynamic set.
+- **DNS-sourced named sets.** A set can track a hostname, resolved to its live A/AAAA
+  addresses and refreshed on schedule — alongside the existing GeoIP and remote-feed
+  sources.
+- **Port-forward wizard.** Turns "expose external tcp/443 to 192.168.1.10:8443" into
+  the DNAT rule (creating a nat table/prerouting chain if needed) plus the matching
+  forward-accept, model-only.
+- **Token-gated block API.** `/api/block`, `/api/unblock`, `/api/blocked` let external
+  tooling feed addresses into a blocklist set behind a bearer token.
+- **Drift detection.** nftably fingerprints the tables it owns and detects when the
+  live ruleset was changed outside nftably, with a matching **config-drift** alert.
+- **More alert channels and triggers.** Telegram, ntfy and Gotify join webhook /
+  Slack / Discord / email; new triggers for new-exposure, failed-login bursts and
+  config drift.
+- **Scheduled automatic backups** (rolling daily on-disk snapshots, pruned) and
+  **config-version restore** from a past version's saved model snapshot.
+
+### Fixed — data integrity & false alarms
+
+- **Backup / version-restore now round-trips raw rules, tags and flowtables.** The
+  export format carried none of them: restoring a config that contained any raw rule
+  aborted outright, and tags/flowtables were silently dropped. All three are now
+  exported and rebuilt (flowtables validated up front, before the destructive reset).
+- **Drift no longer false-alarms on the auto-ban set.** The kernel fills the dynamic
+  ban set with offender addresses whose `expires` counts down every second; the
+  fingerprint now ignores dynamic (timeout) set contents while still catching edits
+  to static sets.
+
 ### Changed — interface cleanup
 
 - **Named sets are just address groups now.** The per-set *role* (address group /

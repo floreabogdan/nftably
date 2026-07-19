@@ -479,8 +479,9 @@ func (s *Server) ruleForm(w http.ResponseWriter, r *http.Request, vm ruleFormVM)
 }
 
 // rulePageData is the JSON the editor uses to offer real choices: the box's
-// interfaces (for iifname/oifname), the named sets a rule can reference, and the
-// sibling chains a jump/goto can target.
+// interfaces (for iifname/oifname), the named sets a rule can reference, the
+// sibling chains a jump/goto can target, and the flowtables in this table a
+// `flow add` can offload into.
 func (s *Server) rulePageData(chain store.Chain) string {
 	var setNames []string
 	if lists, err := s.store.ListLists(); err == nil {
@@ -489,6 +490,7 @@ func (s *Server) rulePageData(chain store.Chain) string {
 		}
 	}
 	var chainNames []string
+	var flowtableNames []string
 	if chain.TableID != 0 {
 		if chains, err := s.store.ListChains(chain.TableID); err == nil {
 			for _, c := range chains {
@@ -497,11 +499,18 @@ func (s *Server) rulePageData(chain store.Chain) string {
 				}
 			}
 		}
+		// A flow action can only offload into a flowtable in its own table.
+		if fts, err := s.store.AllFlowtables(); err == nil {
+			for _, f := range fts[chain.TableID] {
+				flowtableNames = append(flowtableNames, f.Name)
+			}
+		}
 	}
 	b, err := json.Marshal(map[string]any{
 		"interfaces": hostInterfaces(),
 		"sets":       setNames,
 		"chains":     chainNames,
+		"flowtables": flowtableNames,
 	})
 	if err != nil {
 		return "{}"

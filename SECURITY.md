@@ -1,7 +1,7 @@
 # Security Policy
 
-nftably manages a router's firewall — the thing standing between the machine and the
-network. Please treat a security report here as you would for any infrastructure tool.
+nftably manages a host's nftables firewall — the thing standing between the machine and
+the network. Please treat a security report here as you would for any infrastructure tool.
 
 ## Reporting a vulnerability
 
@@ -29,22 +29,23 @@ a reasonable window before publishing details.
 Some properties are documented and by design, not vulnerabilities:
 
 - **nftably listens on every interface out of the box** (`0.0.0.0:8080`), and its IP allow-list
-  starts as allow-all. This is deliberate: a router UI that will not answer until a config file
+  starts as allow-all. This is deliberate: a firewall UI that will not answer until a config file
   is edited does not get set up. nftably warns once in its startup log while it is in that state,
   and flags it on the Access settings page. Narrow it under Settings → Access control — an
   unlisted address then has its connection closed with no response — or bind it closed with
   `--listen 127.0.0.1:8080` and reach it over an SSH tunnel.
-- **There is no TLS.** On a public address the login and session cookie travel in the clear, and
-  the allow-list does nothing about that — it governs who may connect, not what is readable on
-  the wire. Put nftably on a management network you trust, or on loopback behind an SSH tunnel.
-  Operator actions are recorded in an audit trail on the event timeline.
+- **TLS is off by default.** Unless you pass `--tls-cert`/`--tls-key` (TLS 1.2 minimum),
+  nftably serves plain HTTP, so on a public address the login and session cookie travel in the
+  clear; the allow-list governs who may connect, not what is readable on the wire. Give it a
+  certificate, or put nftably on a management network you trust or on loopback behind an SSH
+  tunnel. Operator actions are recorded in an audit trail on the event timeline.
 - **The database file is sensitive.** It holds the admin password hash (bcrypt) and session
   tokens (stored only as SHA-256 hashes, so a read does not hand over usable cookies); protect it
-  like any credential store on the router.
+  like any credential store on the host.
 
 Reports that amount to "you can do damage if you already have the nftably database, the login
-cookie, or root on the router" are out of scope — those are equivalent to already controlling
-the router.
+cookie, or root on the host" are out of scope — those are equivalent to already controlling
+the machine.
 
 ## Supported versions
 

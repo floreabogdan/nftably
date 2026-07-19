@@ -42,11 +42,18 @@ make** and **easy to get right**:
 - **The real model, not a curated subset.** You manage tables, chains (base chains
   hook into the traffic path; regular chains are jump/goto targets) and rules. A
   rule is a set of match conditions and action statements — and every knob nftables
-  offers is a first-class, explained control, so you're never dropped to raw syntax.
+  offers is a first-class, explained control. The catalogue reaches into the powerful
+  corners too: **verdict maps** (`tcp dport vmap { 22 : accept, … }` — one O(1)
+  lookup instead of a stack of rules), **named counters** you can share across rules
+  for one running total, and **flowtable** fast-path offload for a router. For the
+  rare construct the catalogue can't yet express, a guarded **raw rule** lets you
+  type a verbatim nft line (validated so it can't break out of its chain), and
+  freeform **tags** organise and filter rules.
 - **Explained as you build.** Pick a condition and the editor tells you, in plain
   words, what it matches and gives an example; pick an action and only its relevant
-  fields appear. Interfaces come from the box's real list, and you point a rule at a
-  named set instead of retyping addresses.
+  fields appear. Interfaces come from the box's real list, sibling chains and the
+  flowtables in the table are offered as you type, and you point a rule at a named
+  set instead of retyping addresses.
 - **One model for v4 and v6.** netfilter's `inet` family carries both in a single
   table, so a rule written once covers both protocols.
 - **Lockout safety.** Every apply is an atomic `nft -f` transaction — validated by
@@ -62,9 +69,11 @@ make** and **easy to get right**:
 - **Named sets, static or living.** A named set is a group of IPs/ranges. Point
   rules at one (`ip saddr @office`) and edit the set later — every rule that
   references it follows. Fill a set by hand, or have it **built from a country**
-  (GeoIP) or a **remote feed** (a threat-intel blocklist) and kept refreshed on a
-  schedule — so you can `drop` an entire country or subscribe to a blocklist and
-  let it maintain itself. Referenced sets render into the tables that use them.
+  (GeoIP), a **remote feed** (a threat-intel blocklist), or a **DNS hostname**
+  (resolved to its live A/AAAA addresses and kept tracking the name) and refreshed
+  on a schedule — so you can `drop` an entire country, subscribe to a blocklist, or
+  allow a host that roams, and let it maintain itself. Referenced sets render into
+  the tables that use them.
   On the Connections view, **one click blocks an entire country** — it builds the
   GeoIP set and the early drop rules for you.
 - **Presets to start from.** One-click, best-practice starting points that scaffold
@@ -91,9 +100,17 @@ make** and **easy to get right**:
 - **Brute-force auto-ban, in the kernel.** One click on the Posture page installs a
   fail2ban-style guard for SSH — no daemon, no log parsing. A source that opens
   connections faster than the allowed rate is added to a **dynamic timeout set** and
-  dropped for the ban window (the set clears itself as bans expire). It's built from
-  a first-class *Rate-ban the source* action you can also drop onto any rule to
-  protect any port.
+  dropped for the ban window (the set clears itself as bans expire). The same page
+  has a **generic form** to protect *any* service — name it, pick tcp/udp and the
+  port(s), set the rate — and it's built from a first-class *Rate-ban the source*
+  action you can also drop onto any rule by hand.
+- **Expose an inside service, safely.** A **port-forward wizard** turns "expose
+  external tcp/443 to 192.168.1.10:8443" into the DNAT rule (creating a nat table and
+  prerouting chain if needed) plus the matching forward-accept — model-only, so it
+  lands on Changes for review first.
+- **A block API for your own tooling.** An opt-in, token-gated HTTP API
+  (`/api/block`, `/api/unblock`, `/api/blocked`) lets a script or SIEM feed addresses
+  into a blocklist set — wire up your own detection and let nftably do the dropping.
 - **Learn while you harden.** A **Learn** section teaches nftables in plain language:
   a **Concepts** page (the packet's journey through the hooks, chains, connection
   tracking, sets), plus task-oriented lessons — **NAT & port-forwarding**, a **recipe
@@ -109,14 +126,23 @@ make** and **easy to get right**:
   `_bytes_total`) — watch drops and accepts move — plus table/chain/rule counts and
   an `nftably_up` health gauge. Off by default; enabling it under Settings mints a
   bearer token the scraper must present.
-- **Alerts when it matters.** Get a notification — to a webhook, Slack, Discord or
-  email — when an armed apply auto-reverts (you may have been cut off), a source is
-  auto-banned, a blocklist feed fails to refresh, or nft goes unreachable. Configure
-  destinations under Settings → Alerts and filter each to the events you care about.
+- **Alerts when it matters.** Get a notification — to a webhook, **Slack**,
+  **Discord**, **email**, **Telegram**, **ntfy** or **Gotify** — when an armed apply
+  auto-reverts (you may have been cut off), a source is auto-banned, a blocklist feed
+  fails to refresh, nft goes unreachable, a new exposure appears, someone burns
+  through failed logins, or the **live ruleset drifts** from what nftably applied.
+  Configure destinations under Settings → Alerts and filter each to the events you
+  care about.
+- **Notices when the kernel changes underneath you.** nftably fingerprints the tables
+  it owns and, if someone edits them with `nft` directly or loads a hand-written
+  config, **detects the drift** and can alert — so "the firewall no longer matches
+  what I applied" is something you find out, not something that bites you later.
 - **Back it up, move it around.** Export your whole configuration — tables, chains,
-  rules and named sets — as one portable JSON file (the model, not the database: no
-  credentials), and restore it on any box. Restore is model-only, so it lands on the
-  Changes page for review behind the auto-revert.
+  rules, named sets and flowtables — as one portable JSON file (the model, not the
+  database: no credentials), and restore it on any box. Turn on **scheduled automatic
+  backups** to keep a rolling set of daily snapshots on disk, and **roll back to any
+  past config version** from its saved snapshot. Every restore is model-only, so it
+  lands on the Changes page for review behind the auto-revert.
 
 ## The BGP edge router preset
 
@@ -130,7 +156,8 @@ that `nft` accepts as-is:
   you're connecting from, so applying it can't lock you out;
 - **BGP (TCP 179) and BFD (UDP 3784/3785/4784) accepted only from `@peers`** —
   everything else to the box is dropped;
-- a rate-limited log of denied inbound, so scans are visible without flooding the log;
+- denied inbound tallied into a named `denied` counter and rate-limited-logged, so
+  scans are both counted and visible without flooding the log;
 - a forward chain that routes transit but drops invalid.
 
 You then fill in two sets — `@peers` (your peers, v4 and v6) and `@mgmt` (widen to your
@@ -216,8 +243,8 @@ cmd/nftably/       CLI: init · doctor · detect · server
 internal/nft/      shell out to nft (-j JSON for structure, -a text for wording,
                    -c for dry-run validation); backend detection; iptables preview
 internal/store/    SQLite: settings, users, sessions, events; the object model
-                   (tables, chains, rules with match/statement rows), named sets,
-                   config versions + the persisted pending apply
+                   (tables, chains, rules with match/statement rows, flowtables),
+                   named sets, config versions + snapshots, the persisted pending apply
 internal/nftcat/   the knob catalogue: every match and statement as an explained,
                    typed spec — the single source both the editor and renderer use
 internal/render/   model → nft config text (generic over tables/chains/rules/sets);
@@ -228,7 +255,10 @@ internal/advisor/  scan the box's listeners, run each through the simulator, and
                    report what the firewall actually does about each exposure
 internal/conntrack/ read the kernel's live connection table
 internal/klog/     read netfilter LOG lines from the kernel ring buffer (dmesg)
-internal/web/      server-rendered UI (html/template), auth, access control, presets
+internal/notify/   alert destinations: webhook, Slack, Discord, email, Telegram,
+                   ntfy, Gotify — fan out an event to the channels you configured
+internal/web/      server-rendered UI (html/template), auth, access control, presets,
+                   drift detection, the token-gated block API, scheduled backups
 ```
 
 The live ruleset is **always read fresh from `nft`** — never cached in the database.
