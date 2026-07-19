@@ -36,6 +36,11 @@ All notable changes to nftably are recorded here. The format follows
 
 ### Fixed
 
+- **Port-forward lint warning.** A DNAT/SNAT/redirect that maps to a port needs the
+  rule to have matched a transport protocol first, or nft rejects the config with a
+  cryptic error. The Firewall and Changes pages now warn about that specific combo
+  before you apply — surfaced by a full real-kernel sweep that applied every
+  catalogue knob and tweak to an isolated nftables container.
 - **Prometheus label values were double-escaped.** A rule comment (or table/chain
   name) containing a quote or backslash came out escaped twice in `/metrics`,
   storing the wrong value in Prometheus. The purpose-built escaper now runs once.

@@ -83,11 +83,47 @@ func Lint(m Model, listenAddr string) []string {
 						warns = append(warns, fmt.Sprintf("A rule in chain %q uses an unknown action (%s) and will not be applied.", c.Name, st.Key))
 					}
 				}
+				// A NAT action that maps to a port needs the rule to have matched a
+				// transport protocol first; nft rejects the port otherwise, with a
+				// cryptic "transport protocol mapping is only valid after transport
+				// protocol match". Easy to miss when hand-building a port-forward.
+				if natMapsPort(r) && !hasTransportMatch(r) {
+					warns = append(warns, fmt.Sprintf(
+						"A rule in chain %q forwards to a port (DNAT/SNAT/redirect) but doesn't match a transport protocol first — add a TCP or UDP port condition (e.g. tcp dport 443) on the same rule, or nft will reject the config.", c.Name))
+				}
 			}
 		}
 	}
 
 	return warns
+}
+
+// natMapsPort reports whether a rule carries a dnat/snat/redirect action that
+// maps to a specific port (an empty port needs no transport match).
+func natMapsPort(r store.ChainRule) bool {
+	for _, st := range r.Statements {
+		switch st.Key {
+		case "dnat", "snat", "redirect":
+			if strings.TrimSpace(DecodeParams(st.Params)["port"]) != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasTransportMatch reports whether a rule matches a transport protocol — either
+// a tcp/udp field, or meta l4proto tcp/udp — which nft needs before a port map.
+func hasTransportMatch(r store.ChainRule) bool {
+	for _, m := range r.Matches {
+		if strings.HasPrefix(m.Key, "tcp.") || strings.HasPrefix(m.Key, "udp.") {
+			return true
+		}
+		if m.Key == "meta.l4proto" && (strings.Contains(m.Value, "tcp") || strings.Contains(m.Value, "udp")) {
+			return true
+		}
+	}
+	return false
 }
 
 // dropChainRules gathers the rules of every base chain on the given hook that

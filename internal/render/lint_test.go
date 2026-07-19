@@ -73,6 +73,29 @@ func TestLintWarnsOnOutputLockout(t *testing.T) {
 	}
 }
 
+func TestLintWarnsOnNatPortWithoutTransport(t *testing.T) {
+	dnatPort := store.RuleStatement{Key: "dnat", Params: `{"addr":"192.168.1.10","port":"80"}`}
+
+	// DNAT to a port with no tcp/udp match — nft would reject it.
+	m := model("accept", rule("fwd", nil, []store.RuleStatement{dnatPort}))
+	if warns := Lint(m, "0.0.0.0:8080"); !hasWarnAbout(warns, "transport protocol") {
+		t.Errorf("expected a transport-protocol warning, got %v", warns)
+	}
+
+	// A tcp match on the same rule quiets it.
+	m2 := model("accept", rule("fwd",
+		[]store.RuleMatch{{Key: "tcp.dport", Op: "==", Value: "443"}}, []store.RuleStatement{dnatPort}))
+	if warns := Lint(m2, "0.0.0.0:8080"); hasWarnAbout(warns, "transport protocol") {
+		t.Errorf("a tcp match should quiet the warning, got %v", warns)
+	}
+
+	// A portless DNAT needs no transport match.
+	m3 := model("accept", rule("fwd", nil, []store.RuleStatement{{Key: "dnat", Params: `{"addr":"192.168.1.10"}`}}))
+	if warns := Lint(m3, "0.0.0.0:8080"); hasWarnAbout(warns, "transport protocol") {
+		t.Errorf("a portless DNAT should not warn, got %v", warns)
+	}
+}
+
 func TestLintFlagsUnknownKnob(t *testing.T) {
 	m := model("accept", rule("bad",
 		[]store.RuleMatch{{Key: "not.a.real.knob", Op: "==", Value: "x"}},
