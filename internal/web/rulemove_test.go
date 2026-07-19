@@ -77,6 +77,37 @@ func TestRuleEditMovesAcrossChains(t *testing.T) {
 	}
 }
 
+// TestRuleReorderPersistsNewOrder checks the drag-and-drop reorder endpoint
+// rewrites a chain's rule order, and that the store method is defensive: a rule
+// omitted from the posted list is kept (appended), not dropped.
+func TestRuleReorderPersistsNewOrder(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	_, chainA, _ := seedTwoChains(t, srv)
+	var ids []int64
+	for _, name := range []string{"r1", "r2", "r3"} {
+		id, err := srv.store.CreateChainRule(store.ChainRule{ChainID: chainA, Enabled: true, Comment: name,
+			Statements: []store.RuleStatement{{Key: "drop", Params: "{}"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	// Drag r3 to the front, r1 next; deliberately omit r2 to prove it's retained.
+	form := url.Values{"ids": {itoa(ids[2]) + "," + itoa(ids[0])}}
+	rec := postForm(srv, "/firewall/chains/"+itoa(chainA)+"/rules/reorder", form, cookie)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("reorder: status %d, want 204", rec.Code)
+	}
+	rules, _ := srv.store.ListChainRules(chainA)
+	got := []int64{rules[0].ID, rules[1].ID, rules[2].ID}
+	want := []int64{ids[2], ids[0], ids[1]} // r3, r1, then the omitted r2 appended
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("order = %v, want %v (omitted rule must be kept, not dropped)", got, want)
+		}
+	}
+}
+
 // TestRuleDuplicateCarriesRawAndTags guards the regression where duplicate
 // silently dropped a rule's raw text (yielding an empty rule) and its tags.
 func TestRuleDuplicateCarriesRawAndTags(t *testing.T) {

@@ -741,6 +741,33 @@ func (s *Server) handleRuleMove(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/firewall", http.StatusSeeOther)
 }
 
+// handleRuleReorder persists a drag-and-drop reordering of one chain's rules.
+// The body carries `ids` as a comma-separated list of rule ids in the new order;
+// the store method is defensive, so a stale list can't drop a rule. It answers
+// 204 (the page already reflects the new order in the DOM) and is same-origin
+// only, like the live preview — the up/down buttons remain the no-JS fallback.
+func (s *Server) handleRuleReorder(w http.ResponseWriter, r *http.Request) {
+	chainID := pathID(r)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	var ids []int64
+	for _, tok := range strings.Split(r.FormValue("ids"), ",") {
+		if tok = strings.TrimSpace(tok); tok != "" {
+			if id, err := strconv.ParseInt(tok, 10, 64); err == nil {
+				ids = append(ids, id)
+			}
+		}
+	}
+	if err := s.store.SetChainRuleOrder(chainID, ids); err != nil {
+		s.serverError(w, "reorder rules", err)
+		return
+	}
+	s.audit(r, "reordered rules in a chain")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleRuleDuplicate clones a rule to the end of its chain, so authoring a
 // batch of similar rules doesn't mean re-entering every match by hand. The copy
 // keeps the enabled state and carries a "(copy)" comment so it's easy to spot.

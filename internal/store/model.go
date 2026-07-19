@@ -677,6 +677,65 @@ func (s *Store) MoveChainRule(id int64, dir int) error {
 	return s.moveScoped("nft_rules", "chain_id", id, dir)
 }
 
+// SetChainRuleOrder rewrites a chain's rule positions to match orderedIDs
+// (drag-and-drop reordering on the Firewall page). It's defensive against a
+// stale or partial list: ids that don't belong to the chain are ignored, and any
+// of the chain's rules missing from the list keep their existing relative order,
+// appended after the listed ones — so a reorder can never drop or duplicate a
+// rule even if the page's view was out of date.
+func (s *Store) SetChainRuleOrder(chainID int64, orderedIDs []int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.Query(`SELECT id FROM nft_rules WHERE chain_id = ? ORDER BY position, id`, chainID)
+	if err != nil {
+		return fmt.Errorf("store: reorder rules: %w", err)
+	}
+	var current []int64
+	member := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return fmt.Errorf("store: reorder rules: %w", err)
+		}
+		current = append(current, id)
+		member[id] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	// Build the final order: requested ids that really belong here (de-duped),
+	// then any remaining chain rules in their existing order.
+	final := make([]int64, 0, len(current))
+	placed := map[int64]bool{}
+	for _, id := range orderedIDs {
+		if member[id] && !placed[id] {
+			final = append(final, id)
+			placed[id] = true
+		}
+	}
+	for _, id := range current {
+		if !placed[id] {
+			final = append(final, id)
+			placed[id] = true
+		}
+	}
+
+	ts := now()
+	for i, id := range final {
+		if _, err := tx.Exec(`UPDATE nft_rules SET position = ?, updated_at = ? WHERE id = ?`, i+1, ts, id); err != nil {
+			return fmt.Errorf("store: reorder rules: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
 // ReassignChainRule moves a rule to the end of a different chain. The editor's
 // chain selector uses it so a rule authored in the wrong chain can be relocated
 // without re-entering it. The row lands at the bottom of the target (position

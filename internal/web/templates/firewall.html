@@ -116,9 +116,10 @@
 				{{if $ch.Rules}}
 				<div class="table-scroll">
 				<table class="rule-table">
-					<tbody data-search-target>
+					<tbody data-search-target data-reorder data-chain-id="{{$ch.ID}}">
 					{{range $ch.Rules}}
-					<tr class="{{if not .Enabled}}row-disabled{{end}}">
+					<tr class="{{if not .Enabled}}row-disabled{{end}}" data-rule-id="{{.ID}}">
+						<td class="rule-grip-cell"><span class="rule-grip" title="Drag to reorder" aria-hidden="true"></span></td>
 						<td class="rule-preview">
 							{{if .Preview}}<code class="mono">{{.Preview}}</code>{{else}}<span class="badge badge-warning">won't render{{if .RenderErr}}: {{.RenderErr}}{{end}}</span>{{end}}
 							{{if .Comment}}<div class="hint">{{.Comment}}</div>{{end}}
@@ -219,4 +220,5 @@
 	</div>
 </div>
 
+<script src="/static/rules.js" defer></script>
 {{template "shell-close" .}}{{end}}
