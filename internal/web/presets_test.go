@@ -102,3 +102,39 @@ func TestWireGuardPresetBuildsValidConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestHomeRouterPresetBuildsValidConfig(t *testing.T) {
+	srv, cookie := newTestServer(t)
+
+	rec := postForm(srv, "/presets/apply", url.Values{"preset": {"home-router"}}, cookie)
+	if rec.Code != 303 {
+		t.Fatalf("apply preset: %d %s", rec.Code, rec.Body.String())
+	}
+
+	m, err := srv.loadModel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := nftconf.Config(m)
+
+	for _, want := range []string{
+		"table inet filter {",
+		"table inet nat {",
+		`iifname "lan" tcp dport 22 accept`,          // LAN-side management
+		`iifname "lan" oifname "wan" accept`,         // LAN out to the internet
+		"type nat hook prerouting priority dstnat;",  // empty dstnat chain for port-forwards
+		"type nat hook postrouting priority srcnat;", // the masquerade chain
+		`oifname "wan" masquerade`,                   // share one connection
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("home-router preset config missing %q:\n%s", want, out)
+		}
+	}
+
+	// Seeded mgmt keeps lint from warning about SSH/UI lockout.
+	for _, w := range nftconf.Lint(m, "0.0.0.0:8080") {
+		if strings.Contains(w, "SSH") || strings.Contains(w, "UI port") {
+			t.Errorf("home-router preset should not trigger a lockout warning: %q", w)
+		}
+	}
+}

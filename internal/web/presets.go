@@ -75,6 +75,19 @@ func (s *Server) presets() []presetDef {
 			},
 			build: (*Server).buildWireGuardPreset,
 		},
+		{
+			Key: "home-router", Name: "Home router / gateway", Tagline: "Share one internet connection: NAT the LAN out, keep the internet from reaching in.",
+			Sets: []presetSet{
+				{"mgmt", "Extra networks allowed to manage the router (on top of the LAN side) — seeded with your current address so applying it can't lock you out."},
+			},
+			Adds: []string{
+				"Two interfaces by convention: rename wan (your uplink to the ISP) and lan (your internal network) to match this box on the Firewall page.",
+				"An inet filter table: input drops by default; the LAN side reaches SSH, this UI, DHCP and DNS on the router, and @mgmt may too; the internet side reaches nothing.",
+				"A default-drop forward chain that lets the LAN reach the internet and lets replies back — but stops the internet from opening connections into your LAN.",
+				"An inet nat table that masquerades LAN traffic out the wan interface (the 'share one connection' setting), with an empty prerouting chain ready for port-forwards.",
+			},
+			build: (*Server).buildHomeRouterPreset,
+		},
 	}
 }
 
@@ -381,6 +394,109 @@ func (s *Server) buildWireGuardPreset(r *http.Request) error {
 		}
 	}
 	return nil
+}
+
+// homeWAN / homeLAN are the home-router preset's conventional uplink and internal
+// interface names — placeholders the operator renames to their real interfaces.
+const (
+	homeWAN = "wan"
+	homeLAN = "lan"
+)
+
+func (s *Server) buildHomeRouterPreset(r *http.Request) error {
+	if err := s.resetTables(); err != nil {
+		return err
+	}
+	mgmt, err := s.ensureList("mgmt", "Networks allowed to manage the router, in addition to the LAN side.")
+	if err != nil {
+		return err
+	}
+	s.seedMgmtWithClient(mgmt, r)
+	if _, err := s.ensureList("blacklist", "Addresses to drop outright, before anything else. The Connections page's Block button appends here."); err != nil {
+		return err
+	}
+
+	// ── filter table ────────────────────────────────────────────────────────
+	filterID, err := s.store.CreateTable(store.Table{Family: "inet", Name: "filter", Comment: "Home router / gateway (nftably preset)"})
+	if err != nil {
+		return err
+	}
+	input, err := s.store.CreateChain(store.Chain{TableID: filterID, Name: "input", Kind: "base", Hook: "input", ChainType: "filter", Priority: "filter", Policy: "drop"})
+	if err != nil {
+		return err
+	}
+	forward, err := s.store.CreateChain(store.Chain{TableID: filterID, Name: "forward", Kind: "base", Hook: "forward", ChainType: "filter", Priority: "filter", Policy: "drop"})
+	if err != nil {
+		return err
+	}
+	if _, err := s.store.CreateChain(store.Chain{TableID: filterID, Name: "output", Kind: "base", Hook: "output", ChainType: "filter", Priority: "filter", Policy: "accept"}); err != nil {
+		return err
+	}
+
+	if err := s.baseInputRules(input); err != nil {
+		return err
+	}
+	if err := s.mgmtAccessRules(input, s.ownListenPort()); err != nil {
+		return err
+	}
+	// LAN-side management and the services a home router hands out (DHCP, DNS).
+	lan := []struct {
+		comment string
+		matches []store.RuleMatch
+	}{
+		{"SSH from the LAN", []store.RuleMatch{mt("meta.iifname", homeLAN), mt("tcp.dport", "22")}},
+		{"DHCP requests from the LAN", []store.RuleMatch{mt("meta.iifname", homeLAN), mt("udp.dport", "67")}},
+		{"DNS from the LAN (router as resolver)", []store.RuleMatch{mt("meta.iifname", homeLAN), mt("udp.dport", "53")}},
+		{"DNS over TCP from the LAN", []store.RuleMatch{mt("meta.iifname", homeLAN), mt("tcp.dport", "53")}},
+	}
+	if port := s.ownListenPort(); port > 0 {
+		lan = append(lan, struct {
+			comment string
+			matches []store.RuleMatch
+		}{"this UI from the LAN", []store.RuleMatch{mt("meta.iifname", homeLAN), mt("tcp.dport", fmt.Sprintf("%d", port))}})
+	}
+	for _, l := range lan {
+		if err := s.addRule(input, l.comment, l.matches, []store.RuleStatement{stmt("accept")}); err != nil {
+			return err
+		}
+	}
+	if err := s.dropLogRule(input); err != nil {
+		return err
+	}
+
+	// Forward: let the LAN out and replies back; the internet can't start anything.
+	fwd := []struct {
+		comment string
+		matches []store.RuleMatch
+	}{
+		{"drop invalid transit", []store.RuleMatch{mt("ct.state", "invalid")}},
+		{"established/related back to the LAN", []store.RuleMatch{mt("ct.state", "established, related")}},
+		{"LAN out to the internet", []store.RuleMatch{mt("meta.iifname", homeLAN), mt("meta.oifname", homeWAN)}},
+	}
+	for i, f := range fwd {
+		verdict := stmt("accept")
+		if i == 0 {
+			verdict = stmt("drop")
+		}
+		if err := s.addRule(forward, f.comment, f.matches, []store.RuleStatement{verdict}); err != nil {
+			return err
+		}
+	}
+
+	// ── nat table ───────────────────────────────────────────────────────────
+	natID, err := s.store.CreateTable(store.Table{Family: "inet", Name: "nat", Comment: "Home router NAT (nftably preset)"})
+	if err != nil {
+		return err
+	}
+	// An empty prerouting dstnat chain, ready for port-forwards the operator adds.
+	if _, err := s.store.CreateChain(store.Chain{TableID: natID, Name: "prerouting", Kind: "base", Hook: "prerouting", ChainType: "nat", Priority: "dstnat"}); err != nil {
+		return err
+	}
+	post, err := s.store.CreateChain(store.Chain{TableID: natID, Name: "postrouting", Kind: "base", Hook: "postrouting", ChainType: "nat", Priority: "srcnat"})
+	if err != nil {
+		return err
+	}
+	return s.addRule(post, "masquerade LAN traffic out the WAN", []store.RuleMatch{mt("meta.oifname", homeWAN)}, []store.RuleStatement{stmt("masquerade")})
 }
 
 func (s *Server) buildBGPPreset(r *http.Request) error {
