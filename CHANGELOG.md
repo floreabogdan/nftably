@@ -81,6 +81,15 @@ typed, explained control instead of a fixed form.
   stays hidden until you pick a field, choosing a field jumps focus to its value,
   every condition and action has an explicit **remove (×)**, and *Add
   condition*/*Add action* grey out when no slots remain.
+- **One smart field instead of a box-plus-dropdown.** A value that has
+  suggestions — an address (your named sets), an interface (the box's real ones),
+  a connection-state / ICMP-type / flag set (the explained choices) — is now a
+  single **combobox**: type what you want *or* pick from the dropdown, in the same
+  field. Multiple values accumulate as removable chips (`@office4`, `10.0.0.0/8`),
+  each suggestion carries its one-line explanation, and free text is always
+  allowed, so nothing the field can express is lost. This replaces the old split
+  of a text box beside a separate "use a set…" menu and the flag chips tucked in
+  the help line.
 - **Live per-rule hit counters.** A rule that carries a *Count* action now shows
   its running packet/byte total next to it on the Firewall page, read live from
   the kernel — build a rule, apply it, and watch it catch traffic. Counters are

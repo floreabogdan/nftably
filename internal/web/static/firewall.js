@@ -41,7 +41,7 @@
 		return o;
 	}
 
-	// Shared datalists so text fields can suggest real values.
+	// Shared datalist so the jump/goto target can suggest sibling chains.
 	function buildDatalist(id, values) {
 		if (document.getElementById(id)) return;
 		var dl = document.createElement("datalist");
@@ -49,43 +49,214 @@
 		values.forEach(function (v) { dl.appendChild(opt(v, v, false)); });
 		document.body.appendChild(dl);
 	}
-	buildDatalist("iface-list", interfaces);
 	buildDatalist("chain-list", chains);
 
+	// One document handler closes any open combobox list when a click lands
+	// outside it — registered once, so rebuilding value cells never leaks
+	// listeners.
+	document.addEventListener("mousedown", function (e) {
+		document.querySelectorAll(".combo").forEach(function (c) {
+			if (!c.contains(e.target)) {
+				var l = c.querySelector(".combo-list");
+				if (l) l.hidden = true;
+				var inp = c.querySelector(".combo-input");
+				if (inp) inp.setAttribute("aria-expanded", "false");
+			}
+		});
+	});
+
 	// renderHelp fills a row's help area with the plain-language help and an
-	// example. For a flags condition (multi-choice) it adds clickable chips that
-	// accumulate into the value box.
-	function renderHelp(helpEl, info, valInput) {
+	// example. (Multi-choice picking now lives in the value field's combobox.)
+	function renderHelp(helpEl, info) {
 		if (!helpEl) return;
 		if (!info) { helpEl.innerHTML = ""; return; }
 		var html = "";
 		if (info.help) html += '<div class="knob-help-text">' + esc(info.help) + "</div>";
 		if (info.example) html += '<div class="knob-example">Example: <code>' + esc(info.example) + "</code></div>";
 		helpEl.innerHTML = html;
-		if (valInput && info.kind === "flags" && info.options && info.options.length) {
-			var wrap = document.createElement("div");
-			wrap.className = "knob-chips";
-			info.options.forEach(function (o) {
-				var chip = document.createElement("button");
-				chip.type = "button";
-				chip.className = "chip chip-pick";
-				chip.textContent = o.value;
-				if (o.help) chip.title = o.help;
-				chip.addEventListener("click", function () { addToList(valInput, o.value); });
-				wrap.appendChild(chip);
-			});
-			helpEl.appendChild(wrap);
-		}
 	}
 
-	function addToList(input, value) {
-		var parts = input.value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
-		if (parts.indexOf(value) === -1) parts.push(value);
-		input.value = parts.join(", ");
+	// makeCombo builds a "smart" value field: the operator can TYPE a value or
+	// PICK one from a dropdown of suggestions, in the same control — replacing the
+	// old split of a text box beside a separate set/flag picker. In multi mode the
+	// chosen/typed values become removable chips and the form value is their
+	// comma-join (so `@office4, 10.0.0.0/8` is one field); in single mode the
+	// value is simply what's typed or picked. Suggestions come from the field
+	// (named sets, interfaces, a flag's options); free text is always allowed, so
+	// nothing the field can express is lost. Returns { el, input } — el to place,
+	// input to focus.
+	//
+	// opts: { name, value, options:[{value,label,help}], multi, placeholder }
+	function makeCombo(opts) {
+		var multi = !!opts.multi;
+		var options = opts.options || [];
+		var chips = [];
+		var highlight = -1;
+
+		var wrap = document.createElement("div");
+		wrap.className = "combo" + (multi ? " combo-multi" : "");
+		var control = document.createElement("div");
+		control.className = "combo-control";
+		var input = document.createElement("input");
+		input.type = "text";
+		input.className = "combo-input";
+		input.autocomplete = "off";
+		input.setAttribute("role", "combobox");
+		input.setAttribute("aria-autocomplete", "list");
+		input.setAttribute("aria-expanded", "false");
+		if (opts.placeholder) input.placeholder = opts.placeholder;
+		var toggle = document.createElement("button");
+		toggle.type = "button";
+		toggle.className = "combo-toggle";
+		toggle.tabIndex = -1;
+		toggle.setAttribute("aria-label", "Show suggestions");
+		toggle.textContent = "▾";
+		var list = document.createElement("ul");
+		list.className = "combo-list";
+		list.setAttribute("role", "listbox");
+		list.hidden = true;
+		var hidden = document.createElement("input");
+		hidden.type = "hidden";
+		hidden.name = opts.name;
+
+		// The form value: committed chips plus whatever is half-typed, so an
+		// uncommitted token still applies and shows in the live preview.
+		function syncValue() {
+			var v;
+			if (multi) {
+				var pend = input.value.trim();
+				v = chips.concat(pend ? [pend] : []).join(", ");
+			} else {
+				v = input.value.trim();
+			}
+			hidden.value = v;
+			hidden.dispatchEvent(new Event("input", { bubbles: true }));
+		}
+		function renderChips() {
+			[].slice.call(control.querySelectorAll(".combo-chip")).forEach(function (c) { c.remove(); });
+			chips.forEach(function (val, i) {
+				var chip = document.createElement("span");
+				chip.className = "combo-chip mono";
+				chip.appendChild(document.createTextNode(val));
+				var x = document.createElement("button");
+				x.type = "button";
+				x.className = "combo-chip-x";
+				x.textContent = "×";
+				x.setAttribute("aria-label", "Remove " + val);
+				x.addEventListener("click", function () {
+					chips.splice(i, 1); renderChips(); syncValue(); input.focus();
+				});
+				chip.appendChild(x);
+				control.insertBefore(chip, input);
+			});
+		}
+		function addChip(val) {
+			val = String(val).trim();
+			if (val && chips.indexOf(val) === -1) chips.push(val);
+			input.value = "";
+			renderChips();
+			syncValue();
+		}
+		function choose(val) {
+			if (multi) { addChip(val); openList(""); input.focus(); }
+			else { input.value = val; syncValue(); closeList(); input.focus(); }
+		}
+		function openList(filter) {
+			var q = (filter || "").toLowerCase();
+			list.innerHTML = "";
+			highlight = -1;
+			var shown = options.filter(function (o) {
+				if (multi && chips.indexOf(o.value) !== -1) return false;
+				if (!q) return true;
+				return (o.value + " " + (o.label || "")).toLowerCase().indexOf(q) !== -1;
+			});
+			if (!shown.length) { closeList(); return; }
+			shown.forEach(function (o) {
+				var li = document.createElement("li");
+				li.className = "combo-option";
+				li.setAttribute("role", "option");
+				li.setAttribute("data-value", o.value);
+				var main = document.createElement("span");
+				main.className = "combo-option-main mono";
+				main.textContent = o.label || o.value;
+				li.appendChild(main);
+				if (o.help) {
+					var h = document.createElement("span");
+					h.className = "combo-option-help";
+					h.textContent = o.help;
+					li.appendChild(h);
+				}
+				li.addEventListener("mousedown", function (e) { e.preventDefault(); choose(o.value); });
+				list.appendChild(li);
+			});
+			list.hidden = false;
+			input.setAttribute("aria-expanded", "true");
+		}
+		function closeList() {
+			list.hidden = true;
+			highlight = -1;
+			input.setAttribute("aria-expanded", "false");
+		}
+		function moveHighlight(d) {
+			if (list.hidden) { openList(input.value); }
+			var items = list.querySelectorAll(".combo-option");
+			if (!items.length) return;
+			highlight = (highlight + d + items.length) % items.length;
+			items.forEach(function (it, i) {
+				var on = i === highlight;
+				it.classList.toggle("active", on);
+				if (on) it.scrollIntoView({ block: "nearest" });
+			});
+		}
+
+		input.addEventListener("input", function () { openList(input.value); syncValue(); });
+		input.addEventListener("keydown", function (e) {
+			if (e.key === "ArrowDown") { e.preventDefault(); moveHighlight(1); }
+			else if (e.key === "ArrowUp") { e.preventDefault(); moveHighlight(-1); }
+			else if (e.key === "Enter") {
+				var items = list.querySelectorAll(".combo-option");
+				if (!list.hidden && highlight >= 0 && items[highlight]) {
+					e.preventDefault(); choose(items[highlight].getAttribute("data-value"));
+				} else if (multi && input.value.trim()) {
+					e.preventDefault(); addChip(input.value); closeList();
+				}
+			} else if (e.key === "Escape") {
+				if (!list.hidden) { e.stopPropagation(); closeList(); }
+			} else if (e.key === "," && multi) {
+				e.preventDefault(); addChip(input.value);
+			} else if (e.key === "Backspace" && multi && input.value === "" && chips.length) {
+				chips.pop(); renderChips(); syncValue();
+			}
+		});
+		toggle.addEventListener("mousedown", function (e) {
+			e.preventDefault();
+			if (list.hidden) { input.focus(); openList(""); } else { closeList(); }
+		});
+
+		// seed from the stored value
+		if (opts.value != null && opts.value !== "") {
+			if (multi) {
+				opts.value.split(",").forEach(function (t) { t = t.trim(); if (t) chips.push(t); });
+			} else {
+				input.value = opts.value;
+			}
+		}
+
+		control.appendChild(input);
+		control.appendChild(toggle);
+		wrap.appendChild(control);
+		wrap.appendChild(list);
+		wrap.appendChild(hidden);
+		renderChips();
+		syncValue();
+		return { el: wrap, input: input };
 	}
 
 	// buildValue replaces a condition row's value cell with the control that fits
-	// the chosen field, preserving the current text and keeping the c_val_N name.
+	// the chosen field, preserving the current value and keeping the c_val_N name.
+	// Fields that have suggestions (a named-set address, an interface, a flag set)
+	// get a combobox — type or pick, in one field; the rest get a plain text box,
+	// and a fixed enum keeps its dropdown.
 	function buildValue(cell, name, fieldKey, current) {
 		cell.innerHTML = "";
 		var info = matches[fieldKey];
@@ -100,7 +271,43 @@
 				sel.appendChild(opt(o.value, label, o.value === current));
 			});
 			cell.appendChild(sel);
-			return;
+			return sel;
+		}
+
+		// Address: type an address/CIDR/range or pick a named set (as @name4/@name6).
+		if (fieldKey && ADDR_KEYS[fieldKey]) {
+			var suffix = fieldKey.indexOf("ip6.") === 0 ? "6" : "4";
+			var setOpts = sets.map(function (s) {
+				return { value: "@" + s + suffix, label: "@" + s, help: "named set" };
+			});
+			var addr = makeCombo({
+				name: name, value: current, options: setOpts, multi: true,
+				placeholder: (info && info.example) ? info.example + ", or @set…" : "address or @set",
+			});
+			cell.appendChild(addr.el);
+			return addr.input;
+		}
+
+		// Flags / enum-list: pick one or more of the field's options, or type.
+		if (fieldKey && kind === "flags" && info.options && info.options.length) {
+			var flagOpts = info.options.map(function (o) {
+				return { value: o.value, label: o.value, help: o.help || o.label };
+			});
+			var flags = makeCombo({
+				name: name, value: current, options: flagOpts, multi: true, placeholder: "pick or type…",
+			});
+			cell.appendChild(flags.el);
+			return flags.input;
+		}
+
+		// Interface: type a name or pick a real one off the box (multiple allowed).
+		if (fieldKey && kind === "iface") {
+			var ifOpts = interfaces.map(function (v) { return { value: v, label: v }; });
+			var iface = makeCombo({
+				name: name, value: current, options: ifOpts, multi: true, placeholder: "interface name",
+			});
+			cell.appendChild(iface.el);
+			return iface.input;
 		}
 
 		var input = document.createElement("input");
@@ -109,29 +316,8 @@
 		input.className = "knob-val";
 		input.autocomplete = "off";
 		input.value = current || "";
-
-		if (fieldKey && kind === "iface") {
-			input.setAttribute("list", "iface-list");
-			input.placeholder = "interface name";
-		} else if (fieldKey) {
-			input.placeholder = info && info.example ? info.example : "value";
-		} else {
-			input.placeholder = "value";
-		}
+		input.placeholder = fieldKey && info && info.example ? info.example : "value";
 		cell.appendChild(input);
-
-		// Address fields get a named-set picker that inserts @name4 / @name6.
-		if (fieldKey && ADDR_KEYS[fieldKey] && sets.length) {
-			var suffix = fieldKey.indexOf("ip6.") === 0 ? "6" : "4";
-			var pick = document.createElement("select");
-			pick.className = "set-pick";
-			pick.appendChild(opt("", "use a set…", false));
-			sets.forEach(function (s) { pick.appendChild(opt(s, "@" + s, false)); });
-			pick.addEventListener("change", function () {
-				if (pick.value) { addToList(input, "@" + pick.value + suffix); pick.value = ""; }
-			});
-			cell.appendChild(pick);
-		}
 		return input;
 	}
 
@@ -186,7 +372,7 @@
 			if (op) buildOps(op, field.value, op.value);
 			var valInput = buildValue(cell, name, field.value, cur);
 			remove.hidden = !field.value;
-			renderHelp(help, matches[field.value], valInput || null);
+			renderHelp(help, matches[field.value]);
 			if (focusVal && valInput && valInput.focus) valInput.focus();
 		}
 		field.addEventListener("change", function () { update(true); });

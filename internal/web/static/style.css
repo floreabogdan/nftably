@@ -1171,15 +1171,34 @@ details[open] .collapse-hint::before { content: "hide"; }
 .knob-help-text { font-size: 0.78rem; color: var(--text); }
 .knob-example { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 .knob-example code { background: var(--surface-alt); padding: 1px 5px; border-radius: 4px; }
-.knob-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-.chip-pick { cursor: pointer; font-size: 0.72rem; padding: 2px 8px; border: 1px solid var(--border); border-radius: var(--radius-badge); background: var(--surface-alt); color: var(--text); }
-.chip-pick:hover { border-color: var(--primary); color: var(--primary-deep); }
 .split-side { min-width: 0; }
 
-/* rule editor value cell (smart widgets) */
+/* rule editor value cell */
 .knob-val-cell { display: flex; gap: 6px; align-items: center; }
 .knob-val-cell .knob-val { flex: 1 1 auto; min-width: 0; }
-.set-pick { flex: 0 0 auto; max-width: 130px; font-size: 0.78rem; }
+.knob-val-cell .combo { flex: 1 1 auto; min-width: 0; }
+
+/* combobox: type a value or pick from suggestions, in one field */
+.combo { position: relative; }
+.combo-control { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 34px;
+	padding: 3px 6px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); }
+.combo-control:focus-within { border-color: var(--primary); }
+.combo-input { flex: 1 1 70px; min-width: 70px; border: none; outline: none; background: transparent;
+	color: var(--text); font: inherit; padding: 3px 2px; }
+.combo-toggle { flex: 0 0 auto; border: none; background: transparent; color: var(--text-muted);
+	cursor: pointer; font-size: 0.75rem; line-height: 1; padding: 0 2px; }
+.combo-chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 3px 1px 8px; font-size: 0.8rem;
+	background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-badge); }
+.combo-chip-x { border: none; background: transparent; color: var(--text-muted); cursor: pointer;
+	font-size: 0.95rem; line-height: 1; padding: 0 2px; }
+.combo-chip-x:hover { color: var(--danger); }
+.combo-list { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 3px); margin: 0; padding: 4px;
+	list-style: none; max-height: 230px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border);
+	border-radius: var(--radius-control); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14); }
+.combo-option { display: flex; flex-direction: column; gap: 1px; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+.combo-option:hover, .combo-option.active { background: var(--surface-alt); }
+.combo-option-main { font-size: 0.85rem; color: var(--text); }
+.combo-option-help { font-size: 0.72rem; color: var(--text-muted); }
 
 /* ---------- chains as tabs ---------- */
 .chain-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 14px; }
