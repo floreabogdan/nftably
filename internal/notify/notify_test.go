@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/floreabogdan/nftably/internal/store"
 )
@@ -57,6 +58,55 @@ func TestSendTestDeliversWebhook(t *testing.T) {
 	}
 	if txt, _ := payload["text"].(string); !strings.Contains(txt, "test alert") {
 		t.Errorf("payload text = %q, want a test-alert line", txt)
+	}
+}
+
+// TestThrottleOpensOnlyAfterSuccess confirms a failed delivery does NOT start
+// the cooldown: the alert that follows a transient outage must still get out.
+// Once a send succeeds, a same-(kind,subject) repeat inside the window is
+// suppressed.
+func TestThrottleOpensOnlyAfterSuccess(t *testing.T) {
+	var (
+		mu   sync.Mutex
+		hits int
+		fail = true // first delivery fails, later ones succeed
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits++
+		shouldFail := fail
+		mu.Unlock()
+		if shouldFail {
+			http.Error(w, "nope", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	st := tempStore(t)
+	if _, err := st.CreateAlertDestination(store.Destination{
+		Name: "hook", Type: store.AlertWebhook, Enabled: true, URL: srv.URL,
+	}); err != nil {
+		t.Fatalf("CreateAlertDestination: %v", err)
+	}
+	// A long cooldown so any suppression would be from the throttle, not timing.
+	d := NewDispatcher(st, nil, time.Hour)
+
+	// 1) First send fails — the cooldown must NOT open.
+	d.deliverAllSync(store.AlertAutoBan, "203.0.113.7", "banned")
+	// 2) Second send (now succeeding) must therefore still be attempted.
+	mu.Lock()
+	fail = false
+	mu.Unlock()
+	d.deliverAllSync(store.AlertAutoBan, "203.0.113.7", "banned")
+	// 3) Third send is a same-key repeat inside the window — must be suppressed.
+	d.deliverAllSync(store.AlertAutoBan, "203.0.113.7", "banned")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if hits != 2 {
+		t.Errorf("endpoint hit %d times, want 2 (fail, success, then throttled)", hits)
 	}
 }
 

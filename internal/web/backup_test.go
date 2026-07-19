@@ -74,6 +74,50 @@ func TestBackupRoundTrip(t *testing.T) {
 	}
 }
 
+// TestConfigRestoreRejectsBadRuleWithoutWiping checks that a structurally valid
+// backup (good JSON, valid table + chain) whose rule cannot render is refused
+// during the up-front validation pass, leaving the existing model intact — the
+// restore must never wipe the current config and then fail partway through the
+// rebuild.
+func TestConfigRestoreRejectsBadRuleWithoutWiping(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	if rec := postForm(srv, "/presets/apply", url.Values{"preset": {"secure-server"}}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("apply preset: %d", rec.Code)
+	}
+	before, _ := srv.store.ListTables()
+	if len(before) == 0 {
+		t.Fatal("preset produced no tables to protect")
+	}
+
+	doc := backupDoc{
+		Version: backupVersion,
+		Tables: []backupTable{{
+			Family: "inet", Name: "filter",
+			Chains: []backupChain{{
+				Name: "block", Kind: "regular",
+				Rules: []backupRule{{
+					Enabled: true,
+					// A match key nft never defines — valid shape, cannot render.
+					Matches: []backupMatch{{Key: "not_a_real_match_key", Op: "==", Value: "x"}},
+				}},
+			}},
+		}},
+	}
+	data, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := postBackup(srv, cookie, data)
+	if rec.Header().Get("Location") == "/changes" {
+		t.Error("a backup with an unrenderable rule was accepted")
+	}
+	// Crucially, the pre-existing model must be exactly as it was.
+	if after, _ := srv.store.ListTables(); len(after) != len(before) {
+		t.Errorf("a rejected restore mutated the model: %d tables → %d", len(before), len(after))
+	}
+}
+
 // TestConfigExportDownload checks the export streams a JSON attachment.
 func TestConfigExportDownload(t *testing.T) {
 	srv, cookie := newTestServer(t)
