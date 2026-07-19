@@ -84,6 +84,17 @@ func (v inputView) any(pred func(store.ChainRule) bool) bool {
 	return false
 }
 
+// has is like any but ignores the enabled flag — used for idempotency, so a
+// recipe rule the operator disabled (rather than deleted) isn't re-added.
+func (v inputView) has(pred func(store.ChainRule) bool) bool {
+	for _, r := range v.rules {
+		if pred(r) {
+			return true
+		}
+	}
+	return false
+}
+
 // matchHas reports whether a rule carries a match on key whose value contains
 // sub (sub "" matches the key regardless of value).
 func matchHas(r store.ChainRule, key, sub string) bool {
@@ -266,7 +277,7 @@ func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
 		vm.Checks = checks
 		vm.Pass, vm.Total = postureScore(checks)
 		vm.HaveModel = v.haveInput
-		vm.SSHBanActive = v.any(hasBanRule)
+		vm.SSHBanActive = v.has(hasBanRule)
 		if _, fwRules, ok := s.forwardChain(); ok {
 			vm.HaveForward = true
 			for _, r := range fwRules {
@@ -362,7 +373,7 @@ func (s *Server) handleHardenSSHBan(w http.ResponseWriter, r *http.Request) {
 		redirectErr(w, r, "/harden", "There's no input chain to protect yet — start from a preset.")
 		return
 	}
-	if v.any(hasBanRule) {
+	if v.has(hasBanRule) {
 		http.Redirect(w, r, "/harden", http.StatusSeeOther)
 		return
 	}

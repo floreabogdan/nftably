@@ -40,7 +40,8 @@ All notable changes to nftably are recorded here. The format follows
   rule to have matched a transport protocol first, or nft rejects the config with a
   cryptic error. The Firewall and Changes pages now warn about that specific combo
   before you apply — surfaced by a full real-kernel sweep that applied every
-  catalogue knob and tweak to an isolated nftables container.
+  catalogue knob and tweak to an isolated nftables container, now repeatable via
+  `scripts/validate-catalogue.sh` (95 variations load cleanly on nft 1.0.9).
 - **Prometheus label values were double-escaped.** A rule comment (or table/chain
   name) containing a quote or backslash came out escaped twice in `/metrics`,
   storing the wrong value in Prometheus. The purpose-built escaper now runs once.
@@ -51,9 +52,8 @@ All notable changes to nftably are recorded here. The format follows
 - **The Connections *Block* button no longer leaves an empty `blacklist` set
   behind** when handed an address that doesn't parse — the value is validated
   before the set is created.
-- Two stale "Changes" links on the Named-sets pages now read **Review**, and the
-  exposed-services scan logs a warning instead of silently blanking on a read
-  error.
+- The exposed-services scan logs a warning instead of silently blanking on a read
+  error, and the Named-sets save banners link to the **Changes** page.
 
 ### Changed — the general-model redesign
 
@@ -131,7 +131,7 @@ typed, explained control instead of a fixed form.
   address's country, a single click builds a GeoIP set of that country's CIDRs
   (auto-refreshing, so it stays current) and adds early `ip saddr @blk_xx drop`
   rules to the input chain — before the accepts, so it drops even established
-  connections — then drops you on Review & apply. Idempotent, and model-only
+  connections — then drops you on Changes. Idempotent, and model-only
   until you apply.
 - **Firewall log viewer** (`/logs`). Packets logged by a rule's **Log** action now
   show in-app — time, prefix, interfaces, source → destination, protocol/ports —
@@ -154,7 +154,7 @@ typed, explained control instead of a fixed form.
   scoped SSH — explaining *why each matters*. On the same page, an **Exposed
   services** section scans what's actually listening and runs each through the
   simulator against your model (the former *Advisor*, now merged in). Both halves
-  offer safe one-click fixes that land on Review & apply behind the armed
+  offer safe one-click fixes that land on Changes behind the armed
   auto-revert. A compact score card on the Dashboard links straight to it.
   (`/advisor` now redirects here.)
 - **Prometheus metrics** (`/metrics`) — an opt-in exposition endpoint so the
@@ -197,7 +197,7 @@ typed, explained control instead of a fixed form.
   actually does: "sshd listens on :22 — a connection from the internet would be
   DROPPED" or "PostgreSQL is reachable from the internet (would ACCEPT)". Each
   finding offers a one-click *Allow* (adds the accept rule and drops you on
-  Review & apply), a deep link into the simulator, and a dismiss/restore.
+  Changes), a deep link into the simulator, and a dismiss/restore.
 - **Live rule preview.** The editor's "renders as" panel now updates as you type
   (debounced, server-rendered so it can't drift from what applies) and shows the
   rule inside its chain — `chain input { … <your rule> … }`.
@@ -225,8 +225,8 @@ typed, explained control instead of a fixed form.
   yet) and are aligned to model rules by position, only when the applied ruleset
   matches the model, so a count is never shown against the wrong rule.
 - **Closing the build → apply loop.** Lockout warnings now also appear on the
-  Firewall page, one screen before Review & apply, with a link to simulate the
-  concern. Review & apply gained a scannable "What this applies" outline (tables,
+  Firewall page, one screen before Changes, with a link to simulate the
+  concern. Changes gained a scannable "What this applies" outline (tables,
   chains, hooks, policies, rule counts) above the raw diff, and both pages
   cross-link to the packet simulator.
 - **Opt-in GeoIP download.** Settings → GeoIP can fetch the free DB-IP Lite
@@ -262,7 +262,7 @@ typed, explained control instead of a fixed form.
   yields usable bearer tokens. Changing your password now evicts every other
   session, and the login path always runs bcrypt so an unknown username can't be
   told apart from a wrong password by timing.
-- **Adoption warning.** Review & apply now flags a kernel table you are about to
+- **Adoption warning.** Changes now flags a kernel table you are about to
   replace that nftably did not create (a hand-written `nftables.conf`, another
   tool), before you overwrite it.
 - **The apply's kernel operations run on a background context**, so an apply that
@@ -324,7 +324,7 @@ typed, explained control instead of a fixed form.
 - WCAG AA contrast for muted explanatory text; accessible names on icon-only
   controls; a skip link and `main` landmark; a complete, keyboard-navigable chain
   tab pattern; modal focus trap/restore; a stateful theme toggle. The apply page
-  is now consistently named **Review & apply**.
+  is now consistently named **Changes**.
 
 ### Removed
 

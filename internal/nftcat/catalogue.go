@@ -15,7 +15,6 @@ import (
 	"net/netip"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -433,7 +432,7 @@ var statements = []Statement{
 
 	{Key: "ban.rate", Label: "Rate-ban the source (brute-force auto-ban)", Group: "Defense",
 		Example: `meter ssh_abusers_m4 { ip saddr limit rate over 10/minute burst 5 packets } add @ssh_abusers { ip saddr timeout 1h } drop`,
-		Help: "Fail2ban in the kernel: a source that opens new connections faster than the allowed rate is added to a timeout set and dropped for the ban period — no userspace daemon, no log parsing. Put it on new connections to the port you're protecting (match `tcp dport 22` and connection state `new`), and add a companion rule higher up that drops the same set. nftably declares the dynamic set for you.",
+		Help:    "Fail2ban in the kernel: a source that opens new connections faster than the allowed rate is added to a timeout set and dropped for the ban period — no userspace daemon, no log parsing. Put it on new connections to the port you're protecting (match `tcp dport 22` and connection state `new`), and add a companion rule higher up that drops the same set. nftably declares the dynamic set for you.",
 		Params: []Param{
 			{Key: "set", Label: "Ban set", Kind: KindText, Placeholder: "ssh_abusers", Help: "Name of the dynamic set offenders are added to. A companion `saddr @<set> drop` rule does the blocking; nftably emits the set declaration automatically."},
 			{Key: "family", Label: "Address family", Kind: KindEnum, Help: "A dynamic set holds one family. Ban IPv4 and IPv6 with a rule (and set) each.",
@@ -938,14 +937,4 @@ func kindName(k Kind) string {
 	default:
 		return "text"
 	}
-}
-
-// SortedMatchKeys is a stable list of match keys (for tests/tools).
-func SortedMatchKeys() []string {
-	out := make([]string, 0, len(matches))
-	for _, m := range matches {
-		out = append(out, m.Key)
-	}
-	sort.Strings(out)
-	return out
 }

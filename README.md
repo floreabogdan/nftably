@@ -68,8 +68,10 @@ make** and **easy to get right**:
   On the Connections view, **one click blocks an entire country** — it builds the
   GeoIP set and the early drop rules for you.
 - **Presets to start from.** One-click, best-practice starting points — a hardened
-  **BGP edge router**, a **basic secure server** — that scaffold the tables, chains,
-  rules and editable named sets for you, each explaining what it adds and why.
+  **BGP edge router**, a **basic secure server**, a **WireGuard VPN server** and a
+  **home router / gateway** (NAT, masquerade, port-forward-ready) — that scaffold the
+  tables, chains, rules and editable named sets for you, each explaining what it adds
+  and why.
 - **See, then act.** The Connections page shows every flow conntrack knows about —
   to, from and through the box, with countries when you point nftably at a GeoIP
   database. The live ruleset viewer shows exactly what the kernel is running; a
@@ -83,17 +85,19 @@ make** and **easy to get right**:
   simulator against your model, telling you what your firewall really does about it —
   *"PostgreSQL is reachable from the internet"* or *"sshd is listening but a
   connection from outside would be dropped"*. Both halves offer safe one-click fixes
-  that land on the Review page behind the auto-revert.
+  that land on the Changes page behind the auto-revert.
 - **Brute-force auto-ban, in the kernel.** One click on the Posture page installs a
   fail2ban-style guard for SSH — no daemon, no log parsing. A source that opens
   connections faster than the allowed rate is added to a **dynamic timeout set** and
   dropped for the ban window (the set clears itself as bans expire). It's built from
   a first-class *Rate-ban the source* action you can also drop onto any rule to
   protect any port.
-- **Learn while you harden.** A **Concepts** page teaches how nftables actually works
-  (the packet's journey through the hooks, chains, connection tracking, sets) in
-  plain language, so someone new to firewalls can go from *"what's a chain?"* to a
-  hardened box.
+- **Learn while you harden.** A **Learn** section teaches nftables in plain language:
+  a **Concepts** page (the packet's journey through the hooks, chains, connection
+  tracking, sets), plus task-oriented lessons — **NAT & port-forwarding**, a **recipe
+  cookbook**, **Troubleshooting** ("why isn't my rule matching?"), and **Coming from
+  iptables** — each tying the idea to where you act on it. Someone new can go from
+  *"what's a chain?"* to a hardened box.
 - **Send traffic to an IDS/IPS.** One click sends forwarded traffic to an NFQUEUE
   for **Suricata** or **Snort** to inspect inline — fail-open, so a stopped inspector
   never blackholes transit, and only the forward chain is touched. Built on the
@@ -120,7 +124,7 @@ that `nft` accepts as-is:
 - a forward chain that routes transit but drops invalid.
 
 You then fill in two sets — `@peers` (your peers, v4 and v6) and `@mgmt` (widen to your
-management network) — then Review to apply.
+management network) — then go to Changes to apply.
 
 ## Quick start
 

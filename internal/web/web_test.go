@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,9 @@ import (
 	"github.com/floreabogdan/nftably/internal/nft"
 	"github.com/floreabogdan/nftably/internal/store"
 )
+
+// itoa is a compact int64→string for building URLs with row ids in tests.
+func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 
 // newTestServer builds a Server backed by a temp database with one admin user,
 // and returns it alongside a valid session cookie. nft is pointed at a name

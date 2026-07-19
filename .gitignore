@@ -3,6 +3,9 @@
 /nftably.exe
 /nftably-linux-amd64
 /dist/
+# Dev tool binaries (go build ./... drops these for main packages under tools/)
+/nftcheck
+/nftcheck.exe
 
 # Runtime state — an nftably database holds local login hashes and the router's
 # firewall model. It must never be committed.

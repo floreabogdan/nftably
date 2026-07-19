@@ -30,10 +30,6 @@ func (s *Server) audit(r *http.Request, message string) {
 	_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventModelChange, message)
 }
 
-// itoa is the compact int64→string used throughout the handlers for row ids in
-// URLs and form values.
-func itoa(n int64) string { return strconv.FormatInt(n, 10) }
-
 // urlEscape encodes a value for a query string (used for ?err= flash messages).
 func urlEscape(s string) string { return url.QueryEscape(s) }
 

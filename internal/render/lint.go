@@ -119,7 +119,9 @@ func hasTransportMatch(r store.ChainRule) bool {
 		if strings.HasPrefix(m.Key, "tcp.") || strings.HasPrefix(m.Key, "udp.") {
 			return true
 		}
-		if m.Key == "meta.l4proto" && (strings.Contains(m.Value, "tcp") || strings.Contains(m.Value, "udp")) {
+		// meta l4proto tcp establishes the transport; a negated one (!= tcp) does
+		// not, so a port map after it is still invalid.
+		if m.Key == "meta.l4proto" && m.Op != "!=" && (strings.Contains(m.Value, "tcp") || strings.Contains(m.Value, "udp")) {
 			return true
 		}
 	}
