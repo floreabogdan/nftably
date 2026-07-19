@@ -88,6 +88,11 @@ make** and **easy to get right**:
   packet's journey through the hooks, chains, connection tracking, sets) in plain
   language, so someone new to firewalls can go from *"what's a chain?"* to a
   hardened box.
+- **Graph it in Grafana.** An opt-in Prometheus **`/metrics`** endpoint turns every
+  rule with a *Count* action into a time series (`nftably_rule_packets_total` /
+  `_bytes_total`) — watch drops and accepts move — plus table/chain/rule counts and
+  an `nftably_up` health gauge. Off by default; enabling it under Settings mints a
+  bearer token the scraper must present.
 
 ## The BGP edge router preset
 

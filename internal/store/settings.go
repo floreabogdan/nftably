@@ -23,6 +23,9 @@ type Settings struct {
 	// database monthly (opt-in — the only thing that ever makes nftably reach
 	// the network).
 	GeoIPAutoUpdate bool
+	// MetricsToken, when non-empty, enables the Prometheus /metrics endpoint,
+	// which then requires "Authorization: Bearer <token>". Empty disables it.
+	MetricsToken string
 }
 
 // GetSettings returns the single settings row, or (Settings{}, false, nil) if
@@ -30,9 +33,9 @@ type Settings struct {
 func (s *Store) GetSettings() (Settings, bool, error) {
 	var st Settings
 	row := s.db.QueryRow(`
-		SELECT router_label, listen_addr, nft_binary, access_whitelist, geoip_db, geoip_autoupdate
+		SELECT router_label, listen_addr, nft_binary, access_whitelist, geoip_db, geoip_autoupdate, metrics_token
 		FROM settings WHERE id = 1`)
-	err := row.Scan(&st.RouterLabel, &st.ListenAddr, &st.NftBinary, &st.AccessWhitelist, &st.GeoIPDB, &st.GeoIPAutoUpdate)
+	err := row.Scan(&st.RouterLabel, &st.ListenAddr, &st.NftBinary, &st.AccessWhitelist, &st.GeoIPDB, &st.GeoIPAutoUpdate, &st.MetricsToken)
 	if err == sql.ErrNoRows {
 		return Settings{}, false, nil
 	}
@@ -77,6 +80,16 @@ func (s *Store) SaveGeoIP(path string, autoUpdate bool) error {
 		path, autoUpdate, now())
 	if err != nil {
 		return fmt.Errorf("store: save geoip: %w", err)
+	}
+	return notFoundIfZero(res)
+}
+
+// SaveMetricsToken updates only the Prometheus /metrics bearer token. An empty
+// token disables the endpoint.
+func (s *Store) SaveMetricsToken(token string) error {
+	res, err := s.db.Exec(`UPDATE settings SET metrics_token = ?, updated_at = ? WHERE id = 1`, token, now())
+	if err != nil {
+		return fmt.Errorf("store: save metrics token: %w", err)
 	}
 	return notFoundIfZero(res)
 }

@@ -174,6 +174,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /login", s.handleLoginForm)
 	s.mux.HandleFunc("POST /login", s.handleLoginSubmit)
 	s.mux.HandleFunc("GET /healthz", s.handleHealthz)
+	// Prometheus metrics: session-exempt so a scraper can reach it, but gated by
+	// an opt-in bearer token (disabled and 404 until one is set under Settings).
+	s.mux.HandleFunc("GET /metrics", s.handleMetrics)
 	s.mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandler()))
 
 	// Authenticated pages
@@ -255,6 +258,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /settings/identity", s.requireAuth(s.handleSettingsIdentity))
 	s.mux.Handle("POST /settings/access", s.requireAuth(s.handleSettingsAccess))
 	s.mux.Handle("POST /settings/geoip", s.requireAuth(s.handleSettingsGeoIP))
+	s.mux.Handle("POST /settings/metrics", s.requireAuth(s.handleSettingsMetrics))
 	s.mux.Handle("POST /settings/geoip/download", s.requireAuth(s.handleGeoIPDownload))
 
 	s.mux.Handle("GET /profile", s.requireAuth(s.handleProfilePage))

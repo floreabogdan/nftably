@@ -51,6 +51,17 @@ func (c *Client) TableCounters(ctx context.Context, family, name string) (counte
 	return counters, true, nil
 }
 
+// CounterOf returns the inline packet/byte counter carried by a rule, if it has
+// a `counter` statement (Present is false otherwise). It reads the rule's raw
+// nft expression, so it works on any rule from a parsed Ruleset without a second
+// nft call.
+func CounterOf(r *Rule) RuleCounter {
+	if r == nil {
+		return RuleCounter{}
+	}
+	return counterFromExpr(r.Expr)
+}
+
 // counterFromExpr pulls the inline counter out of a rule's expression array, if
 // it has one: nft renders a `counter` statement as {"counter":{"packets":N,
 // "bytes":M}} among the rule's expr elements.

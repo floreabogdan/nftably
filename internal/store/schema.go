@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS settings (
 	-- Opt-in: refresh a downloaded DB-IP Lite database monthly. The only thing
 	-- that ever makes nftably reach the network.
 	geoip_autoupdate INTEGER NOT NULL DEFAULT 0,
+	-- Opt-in Prometheus /metrics bearer token. Empty means /metrics is disabled
+	-- (returns 404); non-empty enables the endpoint, which then requires
+	-- "Authorization: Bearer <token>". The endpoint is session-exempt so a scraper
+	-- can reach it, so it is gated by this token instead.
+	metrics_token    TEXT NOT NULL DEFAULT '',
 	created_at       TEXT NOT NULL,
 	updated_at       TEXT NOT NULL
 );

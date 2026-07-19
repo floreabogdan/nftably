@@ -89,4 +89,53 @@
 		</form>
 	</div>
 </div>
+
+<div class="card">
+	<div class="card-header"><span class="card-title">{{template "icon-activity"}}Prometheus metrics</span></div>
+	<div class="card-body">
+		{{if eq .Saved "metrics"}}<div class="field-hint hint-ok">Saved.</div>{{end}}
+		<p class="field-hint text-muted">Expose a Prometheus <span class="mono">/metrics</span> endpoint so your firewall can be graphed
+		and alerted on in Grafana/Prometheus. Every rule with a <strong>Count</strong> action becomes a time series
+		(<span class="mono">nftably_rule_packets_total</span>, <span class="mono">nftably_rule_bytes_total</span>), alongside
+		table/chain/rule counts, an <span class="mono">nftably_up</span> health gauge, and build info.</p>
+
+		{{if .Settings.MetricsToken}}
+		<div class="panel">
+			<div class="panel-head">Endpoint enabled <span class="badge badge-success">on</span></div>
+			<div class="card-body">
+				<div class="field">
+					<label for="metrics_token_view">Bearer token</label>
+					<input type="text" id="metrics_token_view" class="mono" value="{{.Settings.MetricsToken}}" readonly autocomplete="off" spellcheck="false">
+					<div class="field-hint text-muted">Scrapers must send this as <span class="mono">Authorization: Bearer &lt;token&gt;</span>. Keep it secret; treat it like a password.</div>
+				</div>
+				<p class="field-hint text-muted">Example Prometheus scrape config:</p>
+				<pre class="code-block mono">scrape_configs:
+  - job_name: nftably
+    scheme: http
+    authorization:
+      credentials: {{.Settings.MetricsToken}}
+    static_configs:
+      - targets: ['{{if .Settings.ListenAddr}}{{.Settings.ListenAddr}}{{else}}127.0.0.1:8080{{end}}']</pre>
+				<p class="field-hint text-muted">Note: <span class="mono">/metrics</span> is still behind the access list above — add your Prometheus server's
+				IP there if it scrapes from another host.</p>
+				<div class="form-actions">
+					<form method="post" action="/settings/metrics"><input type="hidden" name="generate" value="1"><button type="submit" class="btn">Regenerate token</button></form>
+					<form method="post" action="/settings/metrics"><input type="hidden" name="metrics_token" value=""><button type="submit" class="btn btn-ghost">Disable</button></form>
+				</div>
+			</div>
+		</div>
+		{{else}}
+		<div class="panel">
+			<div class="panel-head">Endpoint disabled <span class="badge badge-muted">off</span></div>
+			<div class="card-body">
+				<p class="field-hint text-muted">Off by default. Enabling mints a random bearer token; the endpoint returns
+				<span class="mono">404</span> until then, and rejects any request without the token.</p>
+				<div class="form-actions">
+					<form method="post" action="/settings/metrics"><input type="hidden" name="generate" value="1"><button type="submit" class="btn btn-primary">{{template "icon-activity"}} Generate token &amp; enable</button></form>
+				</div>
+			</div>
+		</div>
+		{{end}}
+	</div>
+</div>
 {{template "shell-close" .}}

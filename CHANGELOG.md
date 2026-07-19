@@ -63,6 +63,15 @@ typed, explained control instead of a fixed form.
   missing rule and drops you on Review & apply (behind the armed auto-revert); the
   fixes only ever add an accept or drop clearly-bad traffic, so a fix can't lock
   you out. A compact score card on the Dashboard links straight to it.
+- **Prometheus metrics** (`/metrics`) — an opt-in exposition endpoint so the
+  firewall can be graphed and alerted on in Grafana/Prometheus. Every rule with a
+  **Count** action becomes a time series (`nftably_rule_packets_total`,
+  `nftably_rule_bytes_total`, labelled by table/chain/rule), alongside
+  table/chain/rule counts, an `nftably_up` health gauge, an `nftably_apply_pending`
+  gauge, and build info. It's off by default: enable it under Settings, which mints
+  a random bearer token; until then `/metrics` returns 404, and once enabled it
+  requires `Authorization: Bearer <token>` — on top of the access list that already
+  fronts every route. One live nft read per scrape; touches nothing.
 - **Concepts** (`/learn`) — a plain-language guide to how nftables actually works,
   for someone who has never written a firewall rule: the packet's journey through
   the hooks (input/forward/output/pre-/postrouting), base vs regular chains,

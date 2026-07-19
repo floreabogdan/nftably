@@ -1,6 +1,8 @@
 package web
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"net/http"
 	"os"
 	"strings"
@@ -105,6 +107,44 @@ func (s *Server) handleGeoIPDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventSettings, "downloaded the DB-IP Lite country database")
 	s.renderSettings(w, r, "geoip-download", nil, "")
+}
+
+// handleSettingsMetrics sets, generates or clears the Prometheus /metrics bearer
+// token. An empty token disables the endpoint; "generate" mints a fresh random
+// one server-side (no inline JS under the strict CSP).
+func (s *Server) handleSettingsMetrics(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	token := strings.TrimSpace(r.FormValue("metrics_token"))
+	if r.FormValue("generate") == "1" {
+		tok, err := randomToken()
+		if err != nil {
+			s.serverError(w, "generate metrics token", err)
+			return
+		}
+		token = tok
+	}
+	if err := s.store.SaveMetricsToken(token); err != nil {
+		s.serverError(w, "save metrics token", err)
+		return
+	}
+	action := "set the Prometheus metrics token"
+	if token == "" {
+		action = "disabled the Prometheus metrics endpoint"
+	}
+	_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventSettings, action)
+	s.renderSettings(w, r, "metrics", nil, "")
+}
+
+// randomToken returns a URL-safe 32-byte random token for /metrics bearer auth.
+func randomToken() (string, error) {
+	buf := make([]byte, 24)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
 func (s *Server) handleSettingsAccess(w http.ResponseWriter, r *http.Request) {
