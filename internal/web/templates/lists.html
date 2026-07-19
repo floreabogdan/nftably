@@ -47,8 +47,17 @@
 			</div>
 			<div class="field source-field" data-source-field="url" hidden>
 				<label for="l-url">Feed URL</label>
-				<input id="l-url" type="text" name="feed_url" class="mono" placeholder="https://example.com/blocklist.txt" autocomplete="off">
-				<div class="field-hint">A text feed of IPs/CIDRs, one per line (<span class="mono">#</span>/<span class="mono">;</span> comments tolerated).</div>
+				<input id="l-url" type="text" name="feed_url" class="mono" placeholder="https://example.com/blocklist.txt" list="known-feeds" autocomplete="off">
+				<div class="field-hint">A text feed of IPs/CIDRs, one per line (<span class="mono">#</span>/<span class="mono">;</span> comments tolerated).
+				Pick a well-known public blocklist from the suggestions, or paste your own. Set the <strong>role</strong> to
+				<em>block</em> above so its addresses are dropped.</div>
+				<datalist id="known-feeds">
+					<option value="https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset" label="FireHOL Level 1 — safe aggregate blocklist (recommended)"></option>
+					<option value="https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level2.netset" label="FireHOL Level 2 — attackers seen in the last 48h"></option>
+					<option value="https://rules.emergingthreats.net/blockrules/compromised-ips.txt" label="Emerging Threats — compromised hosts"></option>
+					<option value="https://feodotracker.abuse.ch/downloads/ipblocklist.txt" label="abuse.ch Feodo Tracker — botnet C2 servers"></option>
+					<option value="https://cinsscore.com/list/ci-badguys.txt" label="CINS Army — poorly-rated attacker IPs"></option>
+				</datalist>
 			</div>
 			<div class="field-row">
 				<div class="field">

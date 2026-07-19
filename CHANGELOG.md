@@ -54,7 +54,9 @@ typed, explained control instead of a fixed form.
   addresses (a threat-intel blocklist), fetched and de-overlapped into a set nft
   accepts. Refresh on demand or let it refresh automatically in the background.
   Sourced sets are read-only in the UI; a cap keeps a runaway source bounded and
-  says so when it's hit.
+  says so when it's hit. The feed-URL field now suggests **well-known public
+  blocklists** (FireHOL Level 1/2, Emerging Threats, abuse.ch Feodo, CINS Army) so
+  you can subscribe to a reputable threat feed without hunting for the URL.
 - **Security check** (`/harden`) — a plain-language posture score. It grades your
   model against what a solid host firewall needs — default-deny inbound, the
   survivable base (loopback, established/related, invalid dropped), IPv6's
