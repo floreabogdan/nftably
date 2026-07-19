@@ -94,6 +94,7 @@
 								<form method="post" action="/firewall/rules/{{.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down" aria-label="Move rule down">{{template "icon-down"}}</button></form>
 								<form method="post" action="/firewall/rules/{{.ID}}/toggle"><button class="icon-action" title="{{if .Enabled}}Disable{{else}}Enable{{end}}" aria-label="{{if .Enabled}}Disable{{else}}Enable{{end}} rule">{{template "icon-power"}}</button></form>
 								<a class="icon-action a-primary" title="Edit rule" aria-label="Edit rule" href="/firewall/rules/{{.ID}}/edit">{{template "icon-edit"}}</a>
+								<form method="post" action="/firewall/rules/{{.ID}}/duplicate"><button class="icon-action" title="Duplicate rule" aria-label="Duplicate rule">{{template "icon-copy"}}</button></form>
 								<form method="post" action="/firewall/rules/{{.ID}}/delete" data-confirm="Delete this rule?"><button class="icon-action a-danger" title="Delete rule" aria-label="Delete rule">{{template "icon-trash"}}</button></form>
 							</div>
 						</td>

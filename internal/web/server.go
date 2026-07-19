@@ -239,6 +239,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /firewall/rules/{id}/delete", s.requireAuth(s.handleRuleDelete))
 	s.mux.Handle("POST /firewall/rules/{id}/toggle", s.requireAuth(s.handleRuleToggle))
 	s.mux.Handle("POST /firewall/rules/{id}/move", s.requireAuth(s.handleRuleMove))
+	s.mux.Handle("POST /firewall/rules/{id}/duplicate", s.requireAuth(s.handleRuleDuplicate))
 	s.mux.Handle("GET /changes", s.requireAuth(s.handleChanges))
 
 	// Simulate: trace a synthetic packet through the candidate model (no kernel).
@@ -254,6 +255,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /apply/confirm", s.requireAuth(s.handleApplyConfirm))
 	s.mux.Handle("POST /apply/rollback", s.requireAuth(s.handleApplyRollback))
 	s.mux.Handle("POST /changes/restore/{id}", s.requireAuth(s.handleVersionRestore))
+	s.mux.Handle("GET /changes/download", s.requireAuth(s.handleConfigNftDownload))
 
 	// Connections: the live conntrack view with one-click block.
 	s.mux.Handle("GET /connections", s.requireAuth(s.handleConnections))

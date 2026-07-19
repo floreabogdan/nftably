@@ -92,6 +92,35 @@ func TestVersionRestoreRoundTrip(t *testing.T) {
 	}
 }
 
+// TestRuleDuplicate checks a rule clones into its chain with matches/statements
+// intact and a distinguishing comment.
+func TestRuleDuplicate(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	chainID := seededInputChain(t, srv)
+	rid, err := srv.store.CreateChainRule(store.ChainRule{
+		ChainID: chainID, Enabled: true, Comment: "ssh",
+		Matches:    []store.RuleMatch{{Key: "tcp.dport", Op: "==", Value: "22"}},
+		Statements: []store.RuleStatement{{Key: "accept", Params: "{}"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec := postForm(srv, "/firewall/rules/"+strconv.FormatInt(rid, 10)+"/duplicate", nil, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("duplicate: code=%d, want 303", rec.Code)
+	}
+	rules, _ := srv.store.ListChainRules(chainID)
+	if len(rules) != 2 {
+		t.Fatalf("want 2 rules after duplicate, got %d", len(rules))
+	}
+	copyRule := rules[1]
+	if len(copyRule.Matches) != 1 || copyRule.Matches[0].Value != "22" || len(copyRule.Statements) != 1 {
+		t.Errorf("duplicate lost its match/statement: %+v", copyRule)
+	}
+	if !strings.Contains(copyRule.Comment, "copy") {
+		t.Errorf("duplicate comment = %q, want it to mark a copy", copyRule.Comment)
+	}
+}
+
 // TestAccessWhitelistEnforcement checks the outermost security boundary: with a
 // whitelist set, an in-range peer is served and an out-of-range peer is denied.
 // httptest's recorder is not a Hijacker, so denial surfaces as the 403 fallback.

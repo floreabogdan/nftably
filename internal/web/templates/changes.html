@@ -157,7 +157,10 @@
 <div class="card">
 	<div class="card-header">
 		<span class="card-title">{{template "icon-list"}}Rendered config</span>
-		<span class="text-muted">{{.RuleCount}} enabled rule{{if ne .RuleCount 1}}s{{end}}</span>
+		<div class="card-header-actions">
+			<span class="text-muted">{{.RuleCount}} enabled rule{{if ne .RuleCount 1}}s{{end}}</span>
+			<a class="btn btn-sm" href="/changes/download">{{template "icon-import"}} Download .nft</a>
+		</div>
 	</div>
 	<div class="card-body">
 		<pre class="code-block mono pre-scroll" data-search-target>{{.Candidate}}</pre>

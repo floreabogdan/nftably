@@ -128,6 +128,20 @@ func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
 	render(w, s.log, "changes.html", vm)
 }
 
+// handleConfigNftDownload serves the current model rendered as a plain nft
+// script, for version control, review, or loading elsewhere with `nft -f`.
+func (s *Server) handleConfigNftDownload(w http.ResponseWriter, r *http.Request) {
+	m, err := s.loadModel()
+	if err != nil {
+		s.serverError(w, "load model", err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="nftably.nft"`)
+	_, _ = w.Write([]byte(nftconf.Config(m)))
+	s.audit(r, "downloaded the rendered nft config")
+}
+
 // renderChangesError re-renders the changes page with an apply-failure banner —
 // apply errors carry nft's stderr, which is too much for a redirect URL.
 func (s *Server) renderChangesError(w http.ResponseWriter, r *http.Request, msg string) {

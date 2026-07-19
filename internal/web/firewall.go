@@ -671,6 +671,30 @@ func (s *Server) handleRuleMove(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/firewall", http.StatusSeeOther)
 }
 
+// handleRuleDuplicate clones a rule to the end of its chain, so authoring a
+// batch of similar rules doesn't mean re-entering every match by hand. The copy
+// keeps the enabled state and carries a "(copy)" comment so it's easy to spot.
+func (s *Server) handleRuleDuplicate(w http.ResponseWriter, r *http.Request) {
+	src, err := s.store.GetChainRule(pathID(r))
+	if err != nil {
+		s.notFoundOr(w, err)
+		return
+	}
+	dup := store.ChainRule{
+		ChainID:    src.ChainID,
+		Comment:    strings.TrimSpace(src.Comment + " (copy)"),
+		Enabled:    src.Enabled,
+		Matches:    append([]store.RuleMatch(nil), src.Matches...),
+		Statements: append([]store.RuleStatement(nil), src.Statements...),
+	}
+	if _, err := s.store.CreateChainRule(dup); err != nil {
+		redirectErr(w, r, "/firewall", "Could not duplicate rule: "+err.Error())
+		return
+	}
+	s.audit(r, "duplicated a rule")
+	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+}
+
 // ── form row parsing ────────────────────────────────────────────────────────
 
 func readConds(r *http.Request) []condRow {
