@@ -139,16 +139,13 @@ func writeChain(b *strings.Builder, family string, c ChainTree) {
 // the editor's live preview. Returns an error describing the first knob that
 // could not render.
 func RenderRule(family string, r store.ChainRule) (string, error) {
-	return renderRuleStrict(family, r)
+	return renderRule(family, r)
 }
 
-// renderRule is the lenient renderer used while emitting a table: it returns an
-// error so writeChain can skip a bad rule.
+// renderRule renders one rule's nft line, returning an error describing the
+// first knob that could not render so callers (writeChain, the preview) can
+// skip or report it.
 func renderRule(family string, r store.ChainRule) (string, error) {
-	return renderRuleStrict(family, r)
-}
-
-func renderRuleStrict(family string, r store.ChainRule) (string, error) {
 	ctx := nftcat.Ctx{Family: family}
 	var parts []string
 	for _, m := range r.Matches {

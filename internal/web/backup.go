@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 
+	nftconf "github.com/floreabogdan/nftably/internal/render"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
@@ -180,11 +181,33 @@ func (s *Server) handleConfigRestore(w http.ResponseWriter, r *http.Request) {
 // restoreBackup validates the whole document, then replaces the model and named
 // sets. It validates before mutating so a bad file is rejected without leaving a
 // half-restored model.
+// backupRuleToStore converts a backup rule into a store.ChainRule attached to
+// chainID. The same assembly drives both up-front validation (chainID 0) and
+// the rebuild insert, so the two can never drift.
+func backupRuleToStore(chainID int64, r backupRule) store.ChainRule {
+	rule := store.ChainRule{ChainID: chainID, Comment: r.Comment, Enabled: r.Enabled}
+	for _, m := range r.Matches {
+		rule.Matches = append(rule.Matches, store.RuleMatch{Key: m.Key, Op: m.Op, Value: m.Value})
+	}
+	for _, st := range r.Statements {
+		params := string(st.Params)
+		if params == "" {
+			params = "{}"
+		}
+		rule.Statements = append(rule.Statements, store.RuleStatement{Key: st.Key, Params: params})
+	}
+	return rule
+}
+
 func (s *Server) restoreBackup(doc backupDoc) error {
 	if doc.Version != backupVersion {
 		return fmt.Errorf("unsupported backup version %d (this build reads version %d)", doc.Version, backupVersion)
 	}
-	// Validate shape up front.
+	// Validate the whole document up front — tables, chains AND every rule —
+	// before anything destructive runs. The rebuild below wipes the current
+	// model first, so a rule that only reveals itself as malformed halfway
+	// through would otherwise leave a half-restored config with the old one
+	// already gone. Rendering each rule here is the same check the editor uses.
 	for _, t := range doc.Tables {
 		tbl := store.Table{Family: t.Family, Name: t.Name, Comment: t.Comment}
 		if errs := tbl.Validate(); len(errs) > 0 {
@@ -194,6 +217,11 @@ func (s *Server) restoreBackup(doc backupDoc) error {
 			ch := store.Chain{Name: c.Name, Kind: c.Kind, Hook: c.Hook, ChainType: c.ChainType, Priority: c.Priority, Policy: c.Policy, Device: c.Device}
 			if errs := ch.Validate(); len(errs) > 0 {
 				return fmt.Errorf("chain %s: %s", c.Name, errs[0])
+			}
+			for i, r := range c.Rules {
+				if _, err := nftconf.RenderRule(t.Family, backupRuleToStore(0, r)); err != nil {
+					return fmt.Errorf("table %s %s, chain %s, rule %d: %w", t.Family, t.Name, c.Name, i+1, err)
+				}
 			}
 		}
 	}
@@ -236,18 +264,7 @@ func (s *Server) restoreBackup(doc backupDoc) error {
 				return err
 			}
 			for _, r := range c.Rules {
-				rule := store.ChainRule{ChainID: cid, Comment: r.Comment, Enabled: r.Enabled}
-				for _, m := range r.Matches {
-					rule.Matches = append(rule.Matches, store.RuleMatch{Key: m.Key, Op: m.Op, Value: m.Value})
-				}
-				for _, st := range r.Statements {
-					params := string(st.Params)
-					if params == "" {
-						params = "{}"
-					}
-					rule.Statements = append(rule.Statements, store.RuleStatement{Key: st.Key, Params: params})
-				}
-				if _, err := s.store.CreateChainRule(rule); err != nil {
+				if _, err := s.store.CreateChainRule(backupRuleToStore(cid, r)); err != nil {
 					return err
 				}
 			}
