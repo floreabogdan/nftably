@@ -63,3 +63,42 @@ func TestBGPPresetBuildsValidConfig(t *testing.T) {
 		t.Error("mgmt should be seeded with the caller's address")
 	}
 }
+
+func TestWireGuardPresetBuildsValidConfig(t *testing.T) {
+	srv, cookie := newTestServer(t)
+
+	rec := postForm(srv, "/presets/apply", url.Values{"preset": {"wireguard"}}, cookie)
+	if rec.Code != 303 {
+		t.Fatalf("apply preset: %d %s", rec.Code, rec.Body.String())
+	}
+
+	m, err := srv.loadModel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := nftconf.Config(m)
+
+	for _, want := range []string{
+		"table inet filter {",
+		"chain input {",
+		`iifname "lo" accept`,
+		"ct state { established, related } accept",
+		"ip saddr @mgmt4 tcp dport 22 accept",
+		"udp dport 51820 accept", // WireGuard listen port
+		`iifname "wg0" accept`,   // trust the tunnel (input)
+		"chain forward {",
+		"policy drop;",         // the forward chain routes deliberately
+		`oifname "wg0" accept`, // traffic back to clients
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("wireguard preset config missing %q:\n%s", want, out)
+		}
+	}
+
+	// Seeded mgmt means no SSH/UI lockout warning.
+	for _, w := range nftconf.Lint(m, "0.0.0.0:8080") {
+		if strings.Contains(w, "SSH") || strings.Contains(w, "UI port") {
+			t.Errorf("wireguard preset should not trigger a lockout warning: %q", w)
+		}
+	}
+}

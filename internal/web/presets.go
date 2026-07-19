@@ -61,6 +61,20 @@ func (s *Server) presets() []presetDef {
 			},
 			build: (*Server).buildSecureServerPreset,
 		},
+		{
+			Key: "wireguard", Name: "WireGuard VPN server", Tagline: "A secure host that also terminates a WireGuard tunnel and routes its clients.",
+			Sets: []presetSet{
+				{"mgmt", "Where SSH and the nftably UI are allowed from — seeded with your current address. Widen it to your admin network (the tunnel side is trusted separately)."},
+			},
+			Adds: []string{
+				"Everything the basic secure server sets up (default-deny input, the survivable base, essential ICMP/ICMPv6, SSH + UI from @mgmt).",
+				"The WireGuard listen port UDP 51820 accepted from anywhere — the tunnel is authenticated by keys, so the port is safe to expose.",
+				"Traffic arriving on the wg0 interface accepted to this box, so services reachable over the tunnel work.",
+				"A default-drop forward chain that routes the tunnel: established/related, plus traffic in and out of wg0 — so clients reach what's behind this host.",
+				"Note: if clients need the internet through this host, add a postrouting nat chain with masquerade on the Firewall page — the uplink interface is yours to name.",
+			},
+			build: (*Server).buildWireGuardPreset,
+		},
 	}
 }
 
@@ -296,6 +310,77 @@ func (s *Server) buildSecureServerPreset(r *http.Request) error {
 		return err
 	}
 	return s.dropLogRule(input)
+}
+
+// wgIface / wgPort are the WireGuard preset's conventional interface and listen
+// port — the common defaults, editable afterwards on the Firewall page.
+const (
+	wgIface = "wg0"
+	wgPort  = "51820"
+)
+
+func (s *Server) buildWireGuardPreset(r *http.Request) error {
+	if err := s.resetTables(); err != nil {
+		return err
+	}
+	mgmt, err := s.ensureList("mgmt", "Management networks — SSH and the nftably UI are allowed only from here.")
+	if err != nil {
+		return err
+	}
+	s.seedMgmtWithClient(mgmt, r)
+	if _, err := s.ensureList("blacklist", "Addresses to drop outright, before anything else. The Connections page's Block button appends here."); err != nil {
+		return err
+	}
+
+	tableID, err := s.store.CreateTable(store.Table{Family: "inet", Name: "filter", Comment: "WireGuard VPN server (nftably preset)"})
+	if err != nil {
+		return err
+	}
+	input, err := s.store.CreateChain(store.Chain{TableID: tableID, Name: "input", Kind: "base", Hook: "input", ChainType: "filter", Priority: "filter", Policy: "drop"})
+	if err != nil {
+		return err
+	}
+	forward, err := s.store.CreateChain(store.Chain{TableID: tableID, Name: "forward", Kind: "base", Hook: "forward", ChainType: "filter", Priority: "filter", Policy: "drop"})
+	if err != nil {
+		return err
+	}
+	if _, err := s.store.CreateChain(store.Chain{TableID: tableID, Name: "output", Kind: "base", Hook: "output", ChainType: "filter", Priority: "filter", Policy: "accept"}); err != nil {
+		return err
+	}
+
+	if err := s.baseInputRules(input); err != nil {
+		return err
+	}
+	if err := s.mgmtAccessRules(input, s.ownListenPort()); err != nil {
+		return err
+	}
+	// The WireGuard handshake/data port, and full trust of the tunnel interface for
+	// traffic addressed to this box.
+	if err := s.addRule(input, "WireGuard listen port", []store.RuleMatch{mt("udp.dport", wgPort)}, []store.RuleStatement{stmt("accept")}); err != nil {
+		return err
+	}
+	if err := s.addRule(input, "trust the WireGuard tunnel", []store.RuleMatch{mt("meta.iifname", wgIface)}, []store.RuleStatement{stmt("accept")}); err != nil {
+		return err
+	}
+	if err := s.dropLogRule(input); err != nil {
+		return err
+	}
+
+	// Route the tunnel: replies, clients heading out, and traffic back to clients.
+	fwd := []struct {
+		comment string
+		matches []store.RuleMatch
+	}{
+		{"established/related transit", []store.RuleMatch{mt("ct.state", "established, related")}},
+		{"from WireGuard clients", []store.RuleMatch{mt("meta.iifname", wgIface)}},
+		{"to WireGuard clients", []store.RuleMatch{mt("meta.oifname", wgIface)}},
+	}
+	for _, f := range fwd {
+		if err := s.addRule(forward, f.comment, f.matches, []store.RuleStatement{stmt("accept")}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Server) buildBGPPreset(r *http.Request) error {
