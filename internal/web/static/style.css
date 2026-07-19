@@ -788,6 +788,14 @@ td.num, th.num { text-align: right; }
 .posture-arrow { color: var(--text-muted); font-size: 1.1rem; }
 
 /* ---------- Concepts / Learn page ---------- */
+/* Cross-lesson strip: a horizontal set of pills, the current lesson filled. */
+.learn-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.learn-nav a {
+	font-size: 0.82rem; font-weight: 500; padding: 5px 12px; border-radius: 999px;
+	border: 1px solid var(--border); color: var(--text-muted); background: var(--surface);
+}
+.learn-nav a:hover { color: var(--text); border-color: var(--primary); text-decoration: none; }
+.learn-nav a.current { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
 .learn-toc .card-body { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 18px; }
 .learn-toc-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; }
 .learn-toc a { font-size: 0.85rem; padding: 3px 2px; border-bottom: 1px solid transparent; }

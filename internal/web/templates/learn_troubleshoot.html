@@ -1,0 +1,125 @@
+{{define "learn_troubleshoot.html"}}{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Learn</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Troubleshooting</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>{{template "icon-search"}} Why isn't my rule matching?</h1>
+		<div class="page-sub">The handful of things that trip everyone up — rule order, connection state, address family, and
+		the difference between a chain that runs and one that doesn't — plus how to see the answer instead of guessing.</div>
+	</div>
+</div>
+
+{{template "learn-nav" .}}
+
+<nav class="learn-toc card" aria-label="On this page">
+	<div class="card-body">
+		<span class="learn-toc-label">On this page</span>
+		<a href="#order">Order &amp; how evaluation works</a>
+		<a href="#established">The established short-circuit</a>
+		<a href="#state">new vs established</a>
+		<a href="#family">Address-family mismatch</a>
+		<a href="#regular">A chain that never runs</a>
+		<a href="#see">Stop guessing — see it</a>
+	</div>
+</nav>
+
+<section id="order" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-list"}}Order, and how a chain is evaluated</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Rules in a chain are read <strong>top to bottom</strong>. When a rule matches <em>and</em> carries a
+		verdict (accept, drop, reject), evaluation stops there — that's the decision. A rule that matches but has no verdict
+		(just a <span class="mono">counter</span> or <span class="mono">log</span>) does its thing and evaluation <em>continues</em>
+		to the next rule.</p>
+		<p>So the classic bug: <strong>a broad accept above your specific rule.</strong> If <span class="mono">tcp dport 22 accept</span>
+		sits above your <span class="mono">ip saddr @banned drop</span>, the accept already decided — the drop never runs. Put the
+		narrow, protective rules (drops, bans) <em>above</em> the broad accepts.</p>
+		<div class="learn-tip">{{template "icon-info"}}<div>On the <a href="/firewall">Firewall</a> page, drag priority with the
+		up/down arrows on each rule. Presets already order the survivable base correctly.</div></div>
+	</div>
+</section>
+
+<section id="established" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-activity"}}The established-accept short-circuit</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Nearly every firewall starts with <span class="mono">ct state established, related accept</span> — it lets
+		the replies to allowed traffic back in. But it has a side effect that confuses people: <strong>a connection that was already
+		allowed keeps flowing even after you add a rule to block it.</strong></p>
+		<p>You add <span class="mono">ip saddr 1.2.3.4 drop</span>, but 1.2.3.4's existing SSH session stays up — because its packets
+		match <span class="mono">established</span> first and get accepted before they ever reach your new drop. New connections are
+		blocked; the live one isn't. To cut even active sessions, the drop has to sit <em>above</em> the established-accept — which is
+		exactly why nftably's <a href="/connections">Block</a> button and the presets put the blacklist drop first.</p>
+	</div>
+</section>
+
+<section id="state" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-route"}}new vs established</span></div>
+	<div class="card-body">
+		<p class="learn-lead">A rule matched on <span class="mono">ct state new</span> only sees the <em>first</em> packet of a
+		connection. If your rule doesn't match when you expect, check whether you've pinned it to a state that doesn't apply.</p>
+		<div class="concept-grid">
+			<div class="concept-card"><strong class="mono">new</strong><p>The opening packet. Right for rules that decide whether to
+			<em>allow a connection</em> — accepts, rate-limits, auto-bans.</p></div>
+			<div class="concept-card"><strong class="mono">established, related</strong><p>Packets belonging to a connection already
+			allowed (and its children, like FTP data). The "let replies back" rule.</p></div>
+			<div class="concept-card"><strong class="mono">invalid</strong><p>Packets conntrack can't place in any connection —
+			drop these early; matching anything else on them rarely does what you want.</p></div>
+		</div>
+	</div>
+</section>
+
+<section id="family" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Address-family mismatch</span></div>
+	<div class="card-body">
+		<p class="learn-lead">In the <span class="mono">inet</span> family a single rule sees both IPv4 and IPv6 packets — but an
+		<span class="mono">ip saddr …</span> match only applies to IPv4, and <span class="mono">ip6 saddr …</span> only to IPv6.</p>
+		<p>So a rule written only with <span class="mono">ip saddr @office</span> silently ignores all your IPv6 traffic — it's not
+		matching "nothing", it's matching <em>no v6</em>. When you scope by address, cover both families (that's why named sets render
+		as <span class="mono">@name4</span> <em>and</em> <span class="mono">@name6</span>, and presets add a rule for each). If a rule
+		seems to work for some clients and not others, family is the first suspect.</p>
+	</div>
+</section>
+
+<section id="regular" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-list"}}A chain that never runs</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Only <strong>base chains</strong> — the ones with a hook (input, forward, output…) — are run by the
+		kernel automatically. A <strong>regular chain</strong> is just a named list; it does nothing until another rule sends traffic
+		to it with a <span class="mono">jump</span> or <span class="mono">goto</span>.</p>
+		<p>So if you grouped rules into a regular chain and "none of them fire", check that a base chain actually jumps to it. And a
+		rule that <em>won't render at all</em> shows a <span class="badge badge-warning">won't render</span> badge on the Firewall
+		page — usually an empty value or a knob left half-filled; open it and complete the field.</p>
+	</div>
+</section>
+
+<section id="see" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-search"}}Stop guessing — see it</span></div>
+	<div class="card-body">
+		<p class="learn-lead">nftably is built so you never have to apply-and-pray:</p>
+		<ul class="learn-list learn-list-lg">
+			<li><strong>The <a href="/simulate">packet simulator</a></strong> traces a packet you describe through your model, hook by
+			hook, and names the exact rule that decides it — the fastest way to answer "why did this get dropped?".</li>
+			<li><strong>Live counters.</strong> A rule with a <em>Count</em> action shows its running packet/byte total on the
+			<a href="/firewall">Firewall</a> page — zero counts on a rule you expect to fire means traffic isn't reaching it.</li>
+			<li><strong>The <a href="/logs">firewall log</a>.</strong> Add a <em>Log</em> action above a drop to see exactly what's
+			being blocked, live from the kernel.</li>
+			<li><strong>The <a href="/ruleset">Live ruleset</a></strong> shows what's actually loaded — compare it against your model on
+			the <a href="/changes">Changes</a> page's diff.</li>
+		</ul>
+	</div>
+</section>
+
+<div class="card card-cta learn-cta">
+	<div class="card-body setup-cta">
+		<div>
+			<strong>Trace a packet now.</strong>
+			<div class="text-muted">Describe the traffic that's misbehaving and watch which rule decides it.</div>
+		</div>
+		<div class="setup-cta-actions">
+			<a class="btn btn-primary" href="/simulate">{{template "icon-route"}}Open the simulator</a>
+			<a class="btn" href="/learn/recipes">{{template "icon-book"}}Recipes</a>
+		</div>
+	</div>
+</div>
+{{template "shell-close" .}}{{end}}

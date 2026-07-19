@@ -1,0 +1,140 @@
+{{define "learn_iptables.html"}}{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Learn</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">From iptables</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>{{template "icon-import"}} Coming from iptables</h1>
+		<div class="page-sub">You already know firewalls — this is what's different in nftables, the terminology map, and how to
+		bring your existing iptables rules across.</div>
+	</div>
+</div>
+
+{{template "learn-nav" .}}
+
+<nav class="learn-toc card" aria-label="On this page">
+	<div class="card-body">
+		<span class="learn-toc-label">On this page</span>
+		<a href="#shift">The mental shift</a>
+		<a href="#map">Terminology map</a>
+		<a href="#families">One ruleset for v4 and v6</a>
+		<a href="#sets">Sets &amp; maps are built in</a>
+		<a href="#example">Side by side</a>
+		<a href="#import">Bring your rules across</a>
+	</div>
+</nav>
+
+<section id="shift" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-compass"}}The mental shift</span></div>
+	<div class="card-body">
+		<p class="learn-lead">The rules look similar; the structure doesn't. Three things change how you think:</p>
+		<div class="concept-grid">
+			<div class="concept-card"><strong>Nothing is built in</strong><p>iptables hands you <span class="mono">filter</span>/<span class="mono">nat</span>
+			tables and <span class="mono">INPUT</span>/<span class="mono">FORWARD</span>/<span class="mono">OUTPUT</span> chains. nftables
+			starts <em>empty</em> — you create the tables and chains you want, and a base chain only exists because you hooked it.</p></div>
+			<div class="concept-card"><strong>Many chains per hook</strong><p>iptables has one built-in chain per hook. nftables lets several
+			base chains attach to the same hook, ordered by <em>priority</em> — so you can keep concerns in separate chains.</p></div>
+			<div class="concept-card"><strong>Verdict, not target</strong><p>There's no <span class="mono">-j</span>. A rule ends in a verdict
+			(<span class="mono">accept</span>, <span class="mono">drop</span>, <span class="mono">jump X</span>) written inline, and a rule
+			can carry several statements before it.</p></div>
+		</div>
+	</div>
+</section>
+
+<section id="map" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-list"}}Terminology map</span></div>
+	<div class="card-body">
+		<div class="table-scroll">
+			<table>
+				<thead><tr><th>iptables</th><th>nftables / nftably</th></tr></thead>
+				<tbody>
+					<tr><td class="mono">-A INPUT …</td><td>Add a rule to your input base chain</td></tr>
+					<tr><td class="mono">-I INPUT 1 …</td><td>Add a rule at the top (the up-arrow on a rule)</td></tr>
+					<tr><td class="mono">-j ACCEPT / DROP / REJECT</td><td>The <em>Accept</em> / <em>Drop</em> / <em>Reject</em> action</td></tr>
+					<tr><td class="mono">-j MASQUERADE / DNAT / SNAT</td><td>The <em>Masquerade</em> / <em>DNAT</em> / <em>SNAT</em> action in a nat chain</td></tr>
+					<tr><td class="mono">-P INPUT DROP</td><td>The chain's <strong>policy</strong> (set when you create/edit a base chain)</td></tr>
+					<tr><td class="mono">-m state --state</td><td><span class="mono">ct state</span> (the <em>Connection state</em> match)</td></tr>
+					<tr><td class="mono">-m multiport --dports 80,443</td><td>Just list them: <span class="mono">tcp dport { 80, 443 }</span></td></tr>
+					<tr><td class="mono">ipset</td><td>Named sets — built in, not an add-on (<a href="/lists">Named sets</a>)</td></tr>
+					<tr><td class="mono">iptables + ip6tables</td><td>One <span class="mono">inet</span> table covers both families</td></tr>
+				</tbody>
+			</table>
+		</div>
+	</div>
+</section>
+
+<section id="families" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}One ruleset for v4 and v6</span></div>
+	<div class="card-body">
+		<p class="learn-lead">The big day-to-day win: no more maintaining <span class="mono">iptables</span> and
+		<span class="mono">ip6tables</span> in parallel. A table in the <span class="mono">inet</span> family sees both — write the
+		rule once. Where you do need a family-specific match (<span class="mono">ip saddr</span> vs <span class="mono">ip6 saddr</span>),
+		you add one of each, and named sets render a <span class="mono">@name4</span> and <span class="mono">@name6</span> for exactly
+		that. (If mixed results ever surprise you, the <a href="/learn/troubleshooting">family mismatch</a> note explains why.)</p>
+	</div>
+</section>
+
+<section id="sets" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-ban"}}Sets &amp; maps are built in</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Everything you used <span class="mono">ipset</span> for is native. A <a href="/lists">named set</a> holds
+		addresses or ranges and a rule points at it with <span class="mono">@name</span>; edit the set in one place and every rule
+		follows. Sets can be filled from a country (GeoIP) or a remote feed, and a <em>dynamic</em> set with a timeout is how the
+		<a href="/harden">auto-ban</a> works — the kernel adds and expires members itself, no <span class="mono">ipset</span> commands,
+		no cron.</p>
+	</div>
+</section>
+
+<section id="example" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-changes"}}Side by side</span></div>
+	<div class="card-body">
+		<p class="learn-lead">A default-deny host that allows established traffic and SSH from one network:</p>
+		<p class="field-hint text-muted">iptables</p>
+		<pre class="code-block mono pre-scroll">iptables -P INPUT DROP
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -s 203.0.113.0/24 -p tcp --dport 22 -j ACCEPT</pre>
+		<p class="field-hint text-muted">nftables (what nftably builds)</p>
+		<pre class="code-block mono pre-scroll">table inet filter {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		iifname "lo" accept
+		ct state established, related accept
+		ip saddr 203.0.113.0/24 tcp dport 22 accept
+	}
+}</pre>
+		<p>Same logic, one block, and it already covers IPv6 for everything except the v4-specific <span class="mono">ip saddr</span>
+		line (add an <span class="mono">ip6 saddr</span> twin for v6 SSH).</p>
+	</div>
+</section>
+
+<section id="import" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-import"}}Bring your rules across</span></div>
+	<div class="card-body">
+		<p class="learn-lead">nftably can show your current iptables ruleset translated to nftables syntax, as a reference to
+		rebuild from.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>Open <a href="/settings?tab=import">Settings → Import</a> — it runs <span class="mono">iptables-restore-translate</span>
+			over what's on the box and shows the nftables equivalent. Nothing is applied; it's a preview.</li>
+			<li>Use it to rebuild the rules in the <a href="/firewall">Firewall</a> editor, where each goes out under the armed
+			auto-revert — a safer path than importing wholesale.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-info"}}<div>On a mixed host, iptables and nftables share the same kernel netfilter —
+		the Dashboard warns when both carry rules so nothing ends up double-managed.</div></div>
+	</div>
+</section>
+
+<div class="card card-cta learn-cta">
+	<div class="card-body setup-cta">
+		<div>
+			<strong>Ready to rebuild?</strong>
+			<div class="text-muted">Start from a preset that mirrors a sane iptables baseline, or preview your existing rules.</div>
+		</div>
+		<div class="setup-cta-actions">
+			<a class="btn btn-primary" href="/presets">{{template "icon-spark"}}Use a preset</a>
+			<a class="btn" href="/settings?tab=import">{{template "icon-import"}}Preview import</a>
+		</div>
+	</div>
+</div>
+{{template "shell-close" .}}{{end}}

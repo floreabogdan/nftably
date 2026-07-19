@@ -1,0 +1,140 @@
+{{define "learn_nat.html"}}{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Learn</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">NAT &amp; forwarding</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>{{template "icon-route"}} NAT &amp; port-forwarding</h1>
+		<div class="page-sub">How a box rewrites addresses so a private network shares one public IP, and how a
+		port-forward reaches a server behind it. The confusing part is <em>where</em> it happens — this untangles it.</div>
+	</div>
+</div>
+
+{{template "learn-nav" .}}
+
+<nav class="learn-toc card" aria-label="On this page">
+	<div class="card-body">
+		<span class="learn-toc-label">On this page</span>
+		<a href="#what">What NAT is</a>
+		<a href="#where">Where it happens</a>
+		<a href="#masq">Masquerade vs SNAT</a>
+		<a href="#forward">Port-forwarding (DNAT)</a>
+		<a href="#filter">NAT rewrites, filter decides</a>
+	</div>
+</nav>
+
+<section id="what" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-route"}}What NAT actually is</span></div>
+	<div class="card-body">
+		<p class="learn-lead"><strong>Network Address Translation</strong> is the kernel rewriting the source or destination
+		address (and often the port) of a packet as it passes through. Two everyday jobs:</p>
+		<div class="concept-grid">
+			<div class="concept-card"><strong>Share one connection</strong><p>Your LAN uses private addresses (<span class="mono">192.168.0.0/16</span>,
+			<span class="mono">10.0.0.0/8</span>) that can't appear on the internet. The router rewrites their <em>source</em> to
+			its own public IP on the way out, and puts the replies back — <strong>source NAT</strong>.</p></div>
+			<div class="concept-card"><strong>Publish an inside service</strong><p>A server on your LAN has no public address. The router rewrites the
+			<em>destination</em> of traffic arriving on a chosen port to that inside host — a <strong>port-forward</strong>, or
+			<strong>destination NAT</strong>.</p></div>
+		</div>
+		<p>NAT is <em>not</em> a firewall. It rewrites addresses; it doesn't decide what's allowed — that's the filter
+		chains' job (<a href="/learn">Concepts</a> covers those). The two work together, which is exactly where people get
+		confused, so we'll come back to it.</p>
+	</div>
+</section>
+
+<section id="where" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-list"}}Where NAT happens: two hooks</span></div>
+	<div class="card-body">
+		<p class="learn-lead">NAT lives in <strong>nat-type base chains</strong> at two specific hooks. Which one depends on
+		whether you're rewriting the destination (do it <em>before</em> routing) or the source (do it <em>after</em>):</p>
+
+		<div class="packet-flow" role="img" aria-label="Destination NAT happens at prerouting before the routing decision; source NAT at postrouting after it">
+			<div class="flow-node flow-entry">arrives</div>
+			<div class="flow-arrow" aria-hidden="true">&rarr;</div>
+			<div class="flow-node flow-hot">prerouting<span class="flow-sub">DNAT — rewrite destination</span></div>
+			<div class="flow-arrow" aria-hidden="true">&rarr;</div>
+			<div class="flow-node">routing<span class="flow-sub">decision</span></div>
+			<div class="flow-arrow" aria-hidden="true">&rarr;</div>
+			<div class="flow-node flow-hot">postrouting<span class="flow-sub">SNAT — rewrite source</span></div>
+			<div class="flow-arrow" aria-hidden="true">&rarr;</div>
+			<div class="flow-node flow-exit">leaves</div>
+		</div>
+
+		<div class="concept-grid">
+			<div class="concept-card"><strong class="mono">prerouting</strong><p>Runs before the kernel decides where a packet goes — so
+			this is where you rewrite the <em>destination</em> (a port-forward), so routing then sends it to the right inside host.
+			Priority <span class="mono">dstnat</span>.</p></div>
+			<div class="concept-card"><strong class="mono">postrouting</strong><p>Runs after routing, just before the packet leaves — the last
+			chance to rewrite the <em>source</em> so replies come back. Masquerade lives here. Priority <span class="mono">srcnat</span>.</p></div>
+		</div>
+		<div class="learn-tip">{{template "icon-info"}}<div>In nftably you make these on the <a href="/firewall">Firewall</a> page:
+		add a table, then a <strong>base chain</strong> with type <span class="mono">nat</span> and the
+		<span class="mono">prerouting</span> or <span class="mono">postrouting</span> hook. The
+		<a href="/presets">home router preset</a> builds both for you.</div></div>
+	</div>
+</section>
+
+<section id="masq" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Masquerade vs SNAT</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Both rewrite the source address on the way out. The difference is whether your public address is
+		fixed:</p>
+		<div class="concept-grid">
+			<div class="concept-card"><strong>masquerade</strong><p>Uses whatever address the outgoing interface currently has — perfect for a
+			home connection whose IP changes. Slightly more work per packet, but you never have to name the address.
+			<span class="mono">oifname "wan" masquerade</span>.</p></div>
+			<div class="concept-card"><strong>snat to &lt;addr&gt;</strong><p>Rewrites to a fixed address you specify — use it when you have a
+			static public IP; it's a touch cheaper. <span class="mono">snat to 203.0.113.10</span>.</p></div>
+		</div>
+		<p>When in doubt, <strong>masquerade</strong> — it always works. Put it in a <span class="mono">postrouting</span> nat
+		chain, matched on your uplink interface so only outbound traffic is translated.</p>
+	</div>
+</section>
+
+<section id="forward" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-route"}}Port-forwarding, step by step</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Say a web server lives at <span class="mono">192.168.1.10</span> on your LAN and you want the
+		internet to reach it on port 443. Two pieces have to line up:</p>
+		<ul class="learn-list learn-list-lg">
+			<li><strong>The rewrite (DNAT).</strong> In a <span class="mono">prerouting</span> nat chain, match the traffic and
+			rewrite its destination: <span class="mono">tcp dport 443 dnat to 192.168.1.10</span>. Now routing sends it inside.</li>
+			<li><strong>The permission (filter).</strong> DNAT only changes the address — the packet still has to survive your
+			<span class="mono">forward</span> filter chain. Under a default-drop forward policy you need a rule that accepts it:
+			<span class="mono">ct status dnat accept</span> lets through exactly the flows a port-forward rewrote, nothing more.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-route"}}<div><strong>Build it:</strong> the home router preset ships an empty
+		<span class="mono">prerouting</span> chain for exactly this — add your <em>Destination NAT (port forward)</em> action
+		there on the <a href="/firewall">Firewall</a> page, then an accept in the forward chain. <a href="/simulate">Simulate</a>
+		a packet to the port to confirm it lands where you expect before applying.</div></div>
+	</div>
+</section>
+
+<section id="filter" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-info"}}NAT rewrites, filter decides</span></div>
+	<div class="card-body">
+		<p class="learn-lead">The single most common NAT confusion: <strong>a port-forward that doesn't work because the filter
+		chain drops it.</strong> Remember the order — a packet hits the nat prerouting chain (address rewritten), then routing,
+		then the <span class="mono">forward</span> filter chain (allowed or not), then nat postrouting.</p>
+		<p>So a working port-forward is <em>always</em> two rules: the DNAT, and a forward-chain accept. If a forward you're sure
+		about isn't landing, the filter chain is the first place to look — trace it in the <a href="/simulate">simulator</a>,
+		which shows every hook the packet passes and the exact rule that decides it.</p>
+		<div class="learn-tip">{{template "icon-book"}}<div>Want worked, click-by-click versions? The
+		<a href="/learn/recipes">recipe cookbook</a> has "port-forward to an internal host" and more.</div></div>
+	</div>
+</section>
+
+<div class="card card-cta learn-cta">
+	<div class="card-body setup-cta">
+		<div>
+			<strong>Set up a gateway?</strong>
+			<div class="text-muted">The home router preset builds the filter + nat tables, masquerade and a port-forward-ready chain — read it, then adjust.</div>
+		</div>
+		<div class="setup-cta-actions">
+			<a class="btn btn-primary" href="/presets">{{template "icon-spark"}}Home router preset</a>
+			<a class="btn" href="/simulate">{{template "icon-route"}}Simulate a packet</a>
+		</div>
+	</div>
+</div>
+{{template "shell-close" .}}{{end}}

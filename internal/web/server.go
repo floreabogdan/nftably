@@ -187,6 +187,10 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /timeline", s.requireAuth(s.handleTimeline))
 	s.mux.Handle("GET /logs", s.requireAuth(s.handleLogs))
 	s.mux.Handle("GET /learn", s.requireAuth(s.handleLearn))
+	s.mux.Handle("GET /learn/nat", s.requireAuth(s.handleLearnNAT))
+	s.mux.Handle("GET /learn/recipes", s.requireAuth(s.handleLearnRecipes))
+	s.mux.Handle("GET /learn/troubleshooting", s.requireAuth(s.handleLearnTroubleshoot))
+	s.mux.Handle("GET /learn/iptables", s.requireAuth(s.handleLearnIptables))
 
 	// The firewall object model: tables → chains → rules, with the typed,
 	// explained rule editor. All model-only — nothing here writes to netfilter;

@@ -2,13 +2,13 @@ package web
 
 import "net/http"
 
-// learn.go serves the Concepts page: a plain-language guide to how nftables
-// actually works — the packet's journey through the hooks, base vs regular
-// chains, priority, connection tracking, address families and sets — so someone
-// who has never written a firewall rule can understand what the editor is
-// building and why the Posture page asks for what it does. It's static prose;
-// the value is in tying each concept to where you act on it in nftably
-// (Simulate, Posture, Firewall, Presets).
+// learn.go serves the Learn section: a set of plain-language lessons that teach
+// nftables and how to apply it in nftably. Concepts covers the fundamentals (the
+// packet's journey, chains, connection tracking, sets); the sibling lessons go
+// wider (NAT & port-forwarding) and more task-oriented (a recipe cookbook,
+// troubleshooting, and a guide for people arriving from iptables). All static
+// prose; the value is tying each idea to where you act on it (Simulate, Firewall,
+// Presets, the importer).
 
 type learnVM struct {
 	nav
@@ -17,10 +17,32 @@ type learnVM struct {
 	HaveModel bool
 }
 
-func (s *Server) handleLearn(w http.ResponseWriter, r *http.Request) {
-	vm := learnVM{nav: s.navFor(r, "learn")}
+// renderLearn builds the shared lesson view (nav highlight + model-aware CTA) and
+// renders one lesson template.
+func (s *Server) renderLearn(w http.ResponseWriter, r *http.Request, active, tmpl string) {
+	vm := learnVM{nav: s.navFor(r, active)}
 	if tables, err := s.store.ListTables(); err == nil {
 		vm.HaveModel = len(tables) > 0
 	}
-	render(w, s.log, "learn.html", vm)
+	render(w, s.log, tmpl, vm)
+}
+
+func (s *Server) handleLearn(w http.ResponseWriter, r *http.Request) {
+	s.renderLearn(w, r, "learn", "learn.html")
+}
+
+func (s *Server) handleLearnNAT(w http.ResponseWriter, r *http.Request) {
+	s.renderLearn(w, r, "learn-nat", "learn_nat.html")
+}
+
+func (s *Server) handleLearnRecipes(w http.ResponseWriter, r *http.Request) {
+	s.renderLearn(w, r, "learn-recipes", "learn_recipes.html")
+}
+
+func (s *Server) handleLearnTroubleshoot(w http.ResponseWriter, r *http.Request) {
+	s.renderLearn(w, r, "learn-troubleshoot", "learn_troubleshoot.html")
+}
+
+func (s *Server) handleLearnIptables(w http.ResponseWriter, r *http.Request) {
+	s.renderLearn(w, r, "learn-iptables", "learn_iptables.html")
 }

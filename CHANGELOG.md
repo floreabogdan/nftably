@@ -81,6 +81,15 @@ typed, explained control instead of a fixed form.
 
 ### Added
 
+- **Four new Learn lessons** alongside Concepts, each a sibling page under the Learn
+  group with a cross-lesson nav strip: **NAT &amp; port-forwarding** (dnat/snat/
+  masquerade, prerouting vs postrouting, and why a port-forward is always two
+  rules), a task-oriented **recipe cookbook** (open a service, scope SSH, port-
+  forward, rate-limit, auto-ban, block a country — each with a simulate link),
+  **Troubleshooting** ("why isn't my rule matching?" — order, the established
+  short-circuit, family mismatch, regular-vs-base chains, and debugging with the
+  simulator/counters/log), and **Coming from iptables** (mental-model shift,
+  terminology map, a side-by-side example, and the import tool).
 - **Home router / gateway preset.** Shares one internet connection: a default-deny
   input (LAN-side management, DHCP and DNS; the internet reaches nothing), a forward
   chain that lets the LAN out and replies back but blocks the internet from starting

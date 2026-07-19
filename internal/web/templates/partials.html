@@ -33,6 +33,16 @@
 {{define "icon-menu"}}<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>{{end}}
 {{define "icon-user"}}<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{end}}
 
+{{/* learn-nav: the cross-lesson strip shown on every Learn page. Highlights the
+current lesson from nav.Active. */}}
+{{define "learn-nav"}}<nav class="learn-nav" aria-label="Lessons">
+	<a href="/learn"{{if eq .Active "learn"}} class="current" aria-current="page"{{end}}>Concepts</a>
+	<a href="/learn/nat"{{if eq .Active "learn-nat"}} class="current" aria-current="page"{{end}}>NAT &amp; forwarding</a>
+	<a href="/learn/recipes"{{if eq .Active "learn-recipes"}} class="current" aria-current="page"{{end}}>Recipes</a>
+	<a href="/learn/troubleshooting"{{if eq .Active "learn-troubleshoot"}} class="current" aria-current="page"{{end}}>Troubleshooting</a>
+	<a href="/learn/iptables"{{if eq .Active "learn-iptables"}} class="current" aria-current="page"{{end}}>From iptables</a>
+</nav>{{end}}
+
 {{define "sidebar"}}
 <aside class="sidebar" id="sidebar">
 	<div class="sidebar-brand">nftably<span class="brand-stage">nftables manager</span></div>
@@ -56,6 +66,10 @@
 
 		<div class="nav-label">Learn</div>
 		<a href="/learn" class="{{if eq .Active "learn"}}active{{end}}">{{template "icon-compass"}}Concepts</a>
+		<a href="/learn/nat" class="{{if eq .Active "learn-nat"}}active{{end}}">{{template "icon-route"}}NAT &amp; forwarding</a>
+		<a href="/learn/recipes" class="{{if eq .Active "learn-recipes"}}active{{end}}">{{template "icon-book"}}Recipes</a>
+		<a href="/learn/troubleshooting" class="{{if eq .Active "learn-troubleshoot"}}active{{end}}">{{template "icon-search"}}Troubleshooting</a>
+		<a href="/learn/iptables" class="{{if eq .Active "learn-iptables"}}active{{end}}">{{template "icon-import"}}From iptables</a>
 
 		<div class="nav-label">System</div>
 		<a href="/settings" class="{{if eq .Active "settings"}}active{{end}}">{{template "icon-settings"}}Settings</a>

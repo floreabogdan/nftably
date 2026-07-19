@@ -1,0 +1,129 @@
+{{define "learn_recipes.html"}}{{template "shell-open" .}}
+<div class="page-top">
+	<span class="page-eyebrow">Learn</span>
+	<div class="breadcrumb"><a href="/">Dashboard</a><span class="sep">/</span><span class="current">Recipes</span></div>
+</div>
+<div class="page-header">
+	<div>
+		<h1>{{template "icon-book"}} Recipe cookbook</h1>
+		<div class="page-sub">Common jobs, done step by step in nftably — each ends model-only, so nothing is live until
+		you go to <a href="/changes">Changes</a>. Try the packet simulator on any of them before you apply.</div>
+	</div>
+</div>
+
+{{template "learn-nav" .}}
+
+<nav class="learn-toc card" aria-label="On this page">
+	<div class="card-body">
+		<span class="learn-toc-label">Recipes</span>
+		<a href="#web">Open a service to everyone</a>
+		<a href="#ssh">Allow SSH from just your network</a>
+		<a href="#forward">Port-forward to an inside host</a>
+		<a href="#ratelimit">Rate-limit a public service</a>
+		<a href="#autoban">Auto-ban SSH brute-force</a>
+		<a href="#country">Block a country or a bad-IP feed</a>
+	</div>
+</nav>
+
+<section id="web" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Open a service to everyone</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Publish a web server (or any service) to the whole internet.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>On the <a href="/firewall">Firewall</a> page, open your <span class="mono">input</span> chain and <strong>Add rule</strong>.</li>
+			<li>Condition: <em>Destination port (TCP)</em> <span class="mono">= 80, 443</span>. Action: <em>Accept</em>.</li>
+			<li>Save, then <a href="/changes">Changes</a> to apply.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-route"}}<div>Confirm it first: <a href="/simulate?run=1&amp;hook=input&amp;proto=tcp&amp;dport=443&amp;ctstate=new">simulate a packet to tcp/443</a>
+		— it should read <strong>ACCEPT</strong>.</div></div>
+	</div>
+</section>
+
+<section id="ssh" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-ban"}}Allow SSH from just your network</span></div>
+	<div class="card-body">
+		<p class="learn-lead">SSH open to the world is the internet's most-scanned port. Scope it to a management set instead.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>Under <a href="/lists">Named sets</a>, make a set named <span class="mono">mgmt</span> and add your admin network
+			(e.g. <span class="mono">203.0.113.0/24</span>). It renders as <span class="mono">@mgmt4</span> / <span class="mono">@mgmt6</span>.</li>
+			<li>On the <a href="/firewall">Firewall</a> page add an input rule: <em>Source address (IPv4)</em> <span class="mono">= @mgmt4</span>,
+			<em>Destination port (TCP)</em> <span class="mono">= 22</span>, action <em>Accept</em>.</li>
+			<li>Don't add an open <span class="mono">tcp dport 22 accept</span> anywhere else, and let the chain's drop policy handle the rest.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-info"}}<div>Every preset already does this — apply one and just fill in <span class="mono">@mgmt</span>.
+		The <a href="/harden">Security Posture</a> page flags SSH that's open to the world.</div></div>
+	</div>
+</section>
+
+<section id="forward" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-route"}}Port-forward to an inside host</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Reach a server behind the router — the classic two-part port-forward.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>In a <span class="mono">prerouting</span> nat chain, add a rule: <em>Destination port (TCP)</em> <span class="mono">= 443</span>,
+			action <em>Destination NAT (port forward)</em> to <span class="mono">192.168.1.10</span>.</li>
+			<li>In the <span class="mono">forward</span> chain, accept the rewritten flow: condition <em>Connection status</em>
+			<span class="mono">= dnat</span>, action <em>Accept</em>.</li>
+			<li>Save, <a href="/changes">Changes</a>, apply. The <a href="/presets">home router preset</a> ships the empty prerouting chain ready for this.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-book"}}<div>New to this? <a href="/learn/nat">NAT &amp; port-forwarding</a> explains why it takes two rules.</div></div>
+	</div>
+</section>
+
+<section id="ratelimit" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-activity"}}Rate-limit a public service</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Soften a flood: let new connections through only up to a rate, and drop the excess.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>Add an input rule that <em>accepts</em> the service but carries a <em>Rate limit</em> action — e.g. new connections
+			to your port, <em>Rate</em> <span class="mono">25</span> <em>per</em> <span class="mono">second</span>, <em>Burst</em> <span class="mono">50</span>.</li>
+			<li>Below it, a plain drop for the same port catches whatever exceeds the rate.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-shield"}}<div>For SSH specifically, don't hand-roll it — the auto-ban recipe below is stronger.</div></div>
+	</div>
+</section>
+
+<section id="autoban" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-shield"}}Auto-ban SSH brute-force</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Fail2ban in the kernel — a source that hammers SSH is dropped into a timeout set and blocked for an hour.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>Go to <a href="/harden">Security Posture</a> → <em>Brute-force auto-ban for SSH</em> → <strong>Protect SSH from brute-force</strong>.</li>
+			<li>It inserts the detect-and-ban rules and an early drop of the ban set, above any SSH allow, for IPv4 and IPv6.</li>
+			<li>Tune the rate or ban time afterwards on the <a href="/firewall">Firewall</a> page (the <em>Rate-ban the source</em> action).</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-info"}}<div>No daemon, no log parsing — it's a dynamic <span class="mono">timeout</span> set the kernel fills and clears itself.</div></div>
+	</div>
+</section>
+
+<section id="country" class="card learn-section">
+	<div class="card-header"><span class="card-title">{{template "icon-ban"}}Block a country or a bad-IP feed</span></div>
+	<div class="card-body">
+		<p class="learn-lead">Drop traffic from a whole country's address space, or from a curated blocklist, kept refreshed.</p>
+		<ul class="learn-list learn-list-lg">
+			<li>Fastest: on the <a href="/connections">Connections</a> view, click a remote address's country to build and drop that country's set in one click.</li>
+			<li>Or under <a href="/lists">Named sets</a>, make a set sourced from <em>a country (GeoIP)</em> or a <em>remote feed (URL)</em>,
+			tick <em>keep it refreshed</em>, then add an early input rule: <em>Source address</em> <span class="mono">= @yourset4</span>, action <em>Drop</em>.</li>
+		</ul>
+		<div class="learn-tip">{{template "icon-search"}}<div>Rule not biting? <a href="/learn/troubleshooting">Troubleshooting</a> covers set references and rule order.</div></div>
+	</div>
+</section>
+
+<div class="card card-cta learn-cta">
+	<div class="card-body setup-cta">
+		<div>
+			<strong>{{if .HaveModel}}Check it holds up.{{else}}Start with a scaffold.{{end}}</strong>
+			<div class="text-muted">{{if .HaveModel}}Grade your setup against best practice, or trace a packet through it.{{else}}A preset gives you a hardened base these recipes build on.{{end}}</div>
+		</div>
+		<div class="setup-cta-actions">
+			{{if .HaveModel}}
+			<a class="btn btn-primary" href="/harden">{{template "icon-shield"}}Security Posture</a>
+			<a class="btn" href="/simulate">{{template "icon-route"}}Simulate</a>
+			{{else}}
+			<a class="btn btn-primary" href="/presets">{{template "icon-spark"}}Use a preset</a>
+			<a class="btn" href="/simulate">{{template "icon-route"}}Simulate</a>
+			{{end}}
+		</div>
+	</div>
+</div>
+{{template "shell-close" .}}{{end}}
