@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -114,6 +115,11 @@ func (c *Client) run(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, c.bin, args...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	// Pin the locale to C so nft's diagnostics are the canonical English strings.
+	// Table()/TableCounters() classify the "table doesn't exist yet" state by
+	// matching nft's ENOENT text; under a translated locale that match would
+	// break and a normal empty state would surface as a hard error.
+	cmd.Env = cEnv()
 	if err := cmd.Run(); err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
@@ -122,4 +128,20 @@ func (c *Client) run(ctx context.Context, args ...string) (string, error) {
 		return "", fmt.Errorf("nft %s: %s", strings.Join(args, " "), msg)
 	}
 	return stdout.String(), nil
+}
+
+// cEnv returns the process environment with any locale overrides replaced by
+// LC_ALL=C, so a child nft(8) emits canonical English diagnostics. Existing
+// locale vars are dropped rather than shadowed, since getenv() would otherwise
+// return the pre-existing entry.
+func cEnv() []string {
+	src := os.Environ()
+	out := make([]string, 0, len(src)+1)
+	for _, e := range src {
+		if strings.HasPrefix(e, "LC_ALL=") || strings.HasPrefix(e, "LANG=") || strings.HasPrefix(e, "LC_MESSAGES=") {
+			continue
+		}
+		out = append(out, e)
+	}
+	return append(out, "LC_ALL=C")
 }
