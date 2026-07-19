@@ -5,7 +5,7 @@
 	<p class="page-sub">Best-practice starting points. Applying one <strong>replaces your current
 	firewall tables</strong> with a recommended layout and creates the named sets it needs (your
 	existing sets are kept). Nothing goes live until you edit the sets and hit
-	<a href="/changes">Review &amp; apply</a> — with the armed auto-revert, so it's safe to try.</p>
+	<a href="/changes">Review</a> — with the armed auto-revert, so it's safe to try.</p>
 </div>
 
 <div class="preset-grid">
@@ -31,7 +31,7 @@
 			</div>
 			{{end}}
 
-			<form method="post" action="/presets/apply" data-confirm="Apply the {{.Name}} preset? This replaces your current firewall tables (your named sets are kept). Nothing is applied to the kernel until you Review &amp; apply.">
+			<form method="post" action="/presets/apply" data-confirm="Apply the {{.Name}} preset? This replaces your current firewall tables (your named sets are kept). Nothing is applied to the kernel until you Review.">
 				<input type="hidden" name="preset" value="{{.Key}}">
 				<div class="form-actions"><button class="btn btn-primary" type="submit">{{template "icon-spark"}} Use this preset</button></div>
 			</form>

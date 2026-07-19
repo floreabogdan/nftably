@@ -118,7 +118,7 @@
 		<div class="learn-tip learn-tip-key">{{template "icon-alert"}}<div><strong>The golden rule of a secure host:</strong>
 			set your <span class="mono">input</span> base chain's policy to <span class="badge badge-success">drop</span>, then explicitly
 			<span class="mono">accept</span> only what you need. That's "default-deny" — the firewall permits nothing you didn't ask for.
-			The <a href="/harden">Security check</a> grades exactly this.</div></div>
+			The <a href="/harden">Posture</a> grades exactly this.</div></div>
 	</div>
 </section>
 
@@ -169,7 +169,7 @@
 		</div>
 		<div class="learn-tip learn-tip-key">{{template "icon-info"}}<div>The survivable base of almost every host firewall is just two lines near the top:
 			<span class="mono">ct state established,related accept</span> and <span class="mono">ct state invalid drop</span>.
-			The <a href="/harden">Security check</a> verifies you have both, and can add them in one click.</div></div>
+			The <a href="/harden">Posture</a> verifies you have both, and can add them in one click.</div></div>
 	</div>
 </section>
 
@@ -201,7 +201,7 @@
 		can't happen by accident:</p>
 		<ul class="learn-list learn-list-lg">
 			<li><strong>Model first, apply later.</strong> Everything you build on the Firewall page is a <em>model</em> — nothing
-			touches the kernel until you go to <a href="/changes">Review &amp; apply</a>.</li>
+			touches the kernel until you go to <a href="/changes">Review</a>.</li>
 			<li><strong>See the diff.</strong> Before applying, you get the exact <span class="mono">nft</span> commands and a diff against
 			what's live. No surprises.</li>
 			<li><strong>Armed auto-revert.</strong> When you apply, nftably arms a timer and loads the new ruleset. If you don't
@@ -219,11 +219,11 @@
 		</div>
 		<div class="setup-cta-actions">
 			{{if .HaveModel}}
-			<a class="btn btn-primary" href="/harden">{{template "icon-shield"}}Run the Security check</a>
-			<a class="btn" href="/simulate">{{template "icon-route"}}Simulate a packet</a>
+			<a class="btn btn-primary" href="/harden">{{template "icon-shield"}}Check your posture</a>
+			<a class="btn" href="/simulate">{{template "icon-route"}}Simulate</a>
 			{{else}}
 			<a class="btn btn-primary" href="/presets">{{template "icon-spark"}}Start from a preset</a>
-			<a class="btn" href="/simulate">{{template "icon-route"}}Simulate a packet</a>
+			<a class="btn" href="/simulate">{{template "icon-route"}}Simulate</a>
 			{{end}}
 		</div>
 	</div>

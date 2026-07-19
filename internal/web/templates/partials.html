@@ -46,11 +46,11 @@
 		<div class="nav-label">Manage</div>
 		<a href="/firewall" class="{{if eq .Active "firewall"}}active{{end}}">{{template "icon-shield"}}Firewall</a>
 		<a href="/lists" class="{{if eq .Active "lists"}}active{{end}}">{{template "icon-ban"}}Named sets</a>
-		<a href="/changes" class="{{if eq .Active "changes"}}active{{end}}">{{template "icon-changes"}}Review &amp; apply</a>
+		<a href="/simulate" class="{{if eq .Active "simulate"}}active{{end}}">{{template "icon-route"}}Simulate</a>
+		<a href="/changes" class="{{if eq .Active "changes"}}active{{end}}">{{template "icon-changes"}}Review</a>
 
 		<div class="nav-label">Secure</div>
-		<a href="/harden" class="{{if eq .Active "harden"}}active{{end}}">{{template "icon-shield"}}Security</a>
-		<a href="/simulate" class="{{if eq .Active "simulate"}}active{{end}}">{{template "icon-route"}}Simulate a packet</a>
+		<a href="/harden" class="{{if eq .Active "harden"}}active{{end}}">{{template "icon-shield"}}Posture</a>
 		<a href="/presets" class="{{if eq .Active "presets"}}active{{end}}">{{template "icon-spark"}}Presets</a>
 
 		<div class="nav-label">Learn</div>
