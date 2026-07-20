@@ -4,10 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"regexp"
 	"sort"
-	"strings"
 
+	nftconf "github.com/floreabogdan/nftably/internal/render"
 	"github.com/floreabogdan/nftably/internal/store"
 )
 
@@ -16,41 +15,13 @@ import (
 // hand-written nftables.conf. nftably fingerprints its owned tables at confirm
 // time, and the alert poller compares the live fingerprint against it.
 
-// Volatile parts of `nft list table` output that change without the ruleset
-// itself changing: per-rule counters, kernel handle numbers, and the runtime
-// contents of dynamic sets. The auto-ban feature declares an empty
-// `set … { flags dynamic, timeout }`; the kernel then fills it with offender
-// addresses carrying a per-second-decrementing `expires`. That live state is
-// never part of what nftably applied, so it must not count as drift.
-var (
-	reCounter = regexp.MustCompile(`counter packets \d+ bytes \d+`)
-	reHandle  = regexp.MustCompile(`# handle \d+`)
-	// An `elements = { … }` block that carries `expires` belongs to a dynamic
-	// (timeout) set — kernel-owned runtime, blanked so it compares equal to the
-	// empty set nftably applied. Static sets (lists, GeoIP) have no `expires`
-	// and are left intact, so genuine element edits still surface as drift.
-	reDynElems = regexp.MustCompile(`(?s)elements = \{[^}]*expires[^}]*\}`)
-)
-
-// normalizeTableText strips the volatile parts of one `nft list table` dump so
-// two dumps of the same ruleset compare equal.
+// normalizeTableText reduces one `nft list table` dump to the stable, comparable
+// form shared with the Changes diff — see render.CanonicalizeNftText, which drops
+// volatile counters, kernel handles and dynamic-set runtime, and collapses and
+// sorts set elements. Two dumps of the same ruleset then compare equal, so the
+// drift poller never cries wolf on a counter that merely ticked up.
 func normalizeTableText(s string) string {
-	s = reCounter.ReplaceAllString(s, "counter")
-	s = reHandle.ReplaceAllString(s, "")
-	// Drop the whole block (not blank it): the applied set has no elements line
-	// at all, so leaving an empty `elements = { }` behind would itself read as a
-	// difference. The now-empty line is discarded by the blank-line pass below.
-	s = reDynElems.ReplaceAllString(s, "")
-	var b strings.Builder
-	for _, line := range strings.Split(s, "\n") {
-		line = strings.TrimRight(line, " \t")
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		b.WriteString(line)
-		b.WriteByte('\n')
-	}
-	return b.String()
+	return nftconf.CanonicalizeNftText(s)
 }
 
 // liveOwnedFingerprint reads every table nftably's ledger says it applied and

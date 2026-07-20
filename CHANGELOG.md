@@ -6,6 +6,24 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-20
+
+### Fixed
+
+- **The Changes diff now goes quiet after a clean apply.** nftably compared the raw
+  `nft list` text against its own render, so the kernel's cosmetic reformatting — live
+  counter totals, one-per-line set-element wrapping, reordered anonymous sets like
+  `icmp type { … }`, and the quoted `counter name "…"` — showed as phantom differences
+  that never resolved. Both sides are now canonicalized before diffing, so only real
+  changes appear.
+- **No more false config-drift alerts.** The drift fingerprint stripped inline counter
+  values but not a named counter's object body (`packets N bytes M`), so a counter that
+  merely counted traffic changed the fingerprint and tripped a spurious "changed outside
+  nftably" alarm. Drift now shares the same canonicalization.
+- **The firewall log viewer works under systemd out of the box.** The unit now grants
+  `CAP_SYSLOG` alongside `CAP_NET_ADMIN`, so reading the kernel ring buffer (`dmesg`) no
+  longer needs root or `kernel.dmesg_restrict=0`.
+
 ## [0.1.2] - 2026-07-20
 
 ### Changed

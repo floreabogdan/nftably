@@ -9,12 +9,14 @@ Type=simple
 User=nftably
 Group=nftably
 
-# Reading the ruleset (and, from M3 on, applying it) goes through netfilter,
-# which needs CAP_NET_ADMIN. nftably runs as its own unprivileged account and is
-# granted only that one capability — not full root — so a compromise of the web
-# UI cannot, say, load a kernel module or change the clock.
-AmbientCapabilities=CAP_NET_ADMIN
-CapabilityBoundingSet=CAP_NET_ADMIN
+# Reading and applying the ruleset goes through netfilter (CAP_NET_ADMIN); the
+# firewall log viewer reads the kernel ring buffer via dmesg, which needs
+# CAP_SYSLOG when kernel.dmesg_restrict=1 (the default on most distros). nftably
+# runs as its own unprivileged account with only these two capabilities — not
+# full root — so a compromise of the web UI cannot, say, load a kernel module or
+# change the clock.
+AmbientCapabilities=CAP_NET_ADMIN CAP_SYSLOG
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYSLOG
 
 ExecStart=/usr/bin/nftably server --db /var/lib/nftably/nftably.db
 Restart=on-failure

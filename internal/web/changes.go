@@ -194,7 +194,11 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 				}
 			}
 		}
-		vm.Hunks = nftconf.Diff(live.String(), vm.Candidate, 3)
+		// Diff canonical forms of both sides: the kernel reformats a ruleset when
+		// it lists it back (wrapping/reordering set elements, filling in counter
+		// totals), none of which is a real change — so compare what nftably applied,
+		// not how nft happens to print it, and the page goes quiet when in sync.
+		vm.Hunks = nftconf.Diff(nftconf.CanonicalizeNftText(live.String()), nftconf.CanonicalizeNftText(vm.Candidate), 3)
 		vm.Added, vm.Removed = nftconf.Stat(vm.Hunks)
 
 		existing := map[store.TableRef]bool{}
