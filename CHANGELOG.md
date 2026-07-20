@@ -6,6 +6,16 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **More `nft list` readback quirks no longer show as phantom Changes/drift.** The
+  rate-limit auto-ban feature surfaced version-dependent reformatting the 0.1.3
+  canonicalizer didn't yet fold away: the kernel-default `size` on dynamic sets (both
+  as a set-body line and stamped inline into `meter … size N`), the `flags
+  dynamic,timeout` comma-spacing, and the detector printed as `meter m { … }` or
+  `add @m { … }` depending on the nft version. All are normalized now, on both the
+  Changes diff and the drift fingerprint. Verified with a live-kernel round-trip.
+
 ## [0.1.3] - 2026-07-20
 
 ### Fixed

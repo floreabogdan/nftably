@@ -64,3 +64,38 @@ func TestCanonicalizeSurfacesRealChanges(t *testing.T) {
 		t.Error("changing a port should canonicalize differently")
 	}
 }
+
+// TestCanonicalizeAutoBanReadback covers the rate-limit auto-ban feature, whose
+// dynamic sets and detector the kernel reformats on readback: it stamps a default
+// `size` on the sets, drops the space in `flags dynamic, timeout`, and prints the
+// detector in one of several version-dependent spellings — `meter m { … }` (what
+// nftably renders), `meter m size N { … }` (older nft), or `add @m { … }` (newer
+// nft). All must canonicalize to the same thing. Spellings from real routers.
+func TestCanonicalizeAutoBanReadback(t *testing.T) {
+	// table(sizeLine, flags, detector): one inet filter table with a dynamic set
+	// and a rate-limit detector, parameterized by the version-dependent bits.
+	table := func(sizeLine, flags, detector string) string {
+		return "table inet filter {\n" +
+			"\tset ssh_abusers_m4 {\n" +
+			"\t\ttype ipv4_addr\n" +
+			sizeLine +
+			"\t\tflags " + flags + "\n" +
+			"\t}\n" +
+			"\tchain input {\n" +
+			"\t\ttype filter hook input priority filter; policy drop;\n" +
+			"\t\ttcp dport 22 ct state new " + detector + " add @ssh_abusers { ip saddr timeout 1h } drop comment \"nftably: SSH auto-ban: detect floods (IPv4)\"\n" +
+			"\t}\n" +
+			"}\n"
+	}
+
+	rendered := table("", "dynamic, timeout", "meter ssh_abusers_m4 { ip saddr limit rate over 10/minute burst 5 packets }")
+	liveOlder := table("\t\tsize 65535\n", "dynamic,timeout", "meter ssh_abusers_m4 size 65535 { ip saddr limit rate over 10/minute burst 5 packets } # handle 9")
+	liveNewer := table("\t\tsize 65535\n", "dynamic,timeout", "add @ssh_abusers_m4 { ip saddr limit rate over 10/minute burst 5 packets } # handle 9")
+
+	want := CanonicalizeNftText(rendered)
+	for name, live := range map[string]string{"older-nft (meter … size N)": liveOlder, "newer-nft (add @m)": liveNewer} {
+		if got := CanonicalizeNftText(live); got != want {
+			t.Errorf("%s readback should canonicalize equal to the render\n--- canonical(live) ---\n%s\n--- canonical(rendered) ---\n%s", name, got, want)
+		}
+	}
+}

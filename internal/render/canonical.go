@@ -24,6 +24,13 @@ var (
 	reCtrName   = regexp.MustCompile(`counter name "([A-Za-z0-9_]+)"`)
 	reElements  = regexp.MustCompile(`(?s)elements = \{[^}]*\}`)
 	reInlineSet = regexp.MustCompile(`\{[^{}\n]*\}`)
+	// The kernel stamps a default `size` on dynamic sets that nftably does not
+	// emit, and lists a rate-limit detector's `add @m { … }` back as the `meter`
+	// alias — both cosmetic. (Flags comma-spacing, `dynamic, timeout` vs
+	// `dynamic,timeout`, is normalized per line below.)
+	reSetSize    = regexp.MustCompile(`(?m)^[ \t]*size \d+[ \t]*$`)
+	reInlineSize = regexp.MustCompile(` size \d+ \{`)
+	reMeter      = regexp.MustCompile(`meter ([A-Za-z0-9_]+) \{`)
 )
 
 // CanonicalizeNftText normalizes one `nft list table` dump (or nftably's render
@@ -50,11 +57,22 @@ func CanonicalizeNftText(s string) string {
 	// The kernel quotes the name in a `counter name "x"` statement; nftably emits
 	// it bare. Unquote so both agree (the name is a validated bare identifier).
 	s = reCtrName.ReplaceAllString(s, "counter name $1")
-	// Per line: sort inline anonymous-set members (e.g. `icmp type { … }`), and
+	// Kernel-default `size` on dynamic sets — both as a set-body line and stamped
+	// inline into a `meter <name> size N { … }` statement — and the several
+	// spellings of the rate-limit detector (`meter <name> { … }` on some nft
+	// versions, `add @<name> { … }` on others) folded to one form.
+	s = reSetSize.ReplaceAllString(s, "")
+	s = reInlineSize.ReplaceAllString(s, " {")
+	s = reMeter.ReplaceAllString(s, "add @$1 {")
+	// Per line: sort inline anonymous-set members (e.g. `icmp type { … }`),
+	// normalize flags comma-spacing (`dynamic, timeout` → `dynamic,timeout`), and
 	// drop trailing whitespace and blank lines.
 	var b strings.Builder
 	for _, line := range strings.Split(s, "\n") {
 		line = reInlineSet.ReplaceAllStringFunc(line, sortBraceSet)
+		if strings.HasPrefix(strings.TrimSpace(line), "flags ") {
+			line = strings.ReplaceAll(line, ", ", ",")
+		}
 		line = strings.TrimRight(line, " \t")
 		if strings.TrimSpace(line) == "" {
 			continue
