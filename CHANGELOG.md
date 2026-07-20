@@ -6,6 +6,8 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-20
+
 ### Fixed
 
 - **More `nft list` readback quirks no longer show as phantom Changes/drift.** The
