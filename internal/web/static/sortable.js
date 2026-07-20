@@ -21,6 +21,10 @@
 (function () {
 	"use strict";
 
+	// Mark the document so the CSS can reveal the drag grips and bulk-select
+	// checkboxes — they do nothing without JS, so no-JS users never see them.
+	document.documentElement.classList.add("fw-js");
+
 	Array.prototype.forEach.call(document.querySelectorAll("[data-sortable]"), wire);
 
 	function wire(container) {

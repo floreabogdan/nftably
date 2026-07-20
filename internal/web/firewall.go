@@ -661,8 +661,8 @@ func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
 	// shares it, so a move can't turn a valid rule invalid. A different-table (and
 	// thus different-family) selection is ignored — it would need re-authoring.
 	target := chain
-	if selID, _ := strconv.ParseInt(r.FormValue("chain_id"), 10, 64); selID != 0 && selID != chain.ID {
-		if tc, err := s.store.GetChain(selID); err == nil && tc.TableID == chain.TableID {
+	if selID, _ := strconv.ParseInt(r.FormValue("chain_id"), 10, 64); selID != chain.ID {
+		if tc, ok := s.sameTableChain(selID, chain.TableID); ok {
 			target = tc
 		}
 	}
@@ -800,6 +800,21 @@ func reorderIDs(w http.ResponseWriter, r *http.Request) ([]int64, bool) {
 	return splitIDs(r.FormValue("ids")), true
 }
 
+// sameTableChain returns the chain named by selID when it exists and belongs to
+// tableID, reporting ok=false otherwise. The rule move / duplicate / bulk-move
+// paths share it to keep a relocation inside one table, so the rendered family —
+// and thus a rule's validity — can never change underneath it.
+func (s *Server) sameTableChain(selID, tableID int64) (store.Chain, bool) {
+	if selID == 0 {
+		return store.Chain{}, false
+	}
+	c, err := s.store.GetChain(selID)
+	if err != nil || c.TableID != tableID {
+		return store.Chain{}, false
+	}
+	return c, true
+}
+
 // splitIDs parses a comma-separated list of decimal ids, skipping blanks and
 // non-numbers.
 func splitIDs(s string) []int64 {
@@ -862,8 +877,7 @@ func (s *Server) handleRuleBulk(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				continue
 			}
-			tc, err := s.store.GetChain(targetChain)
-			if err != nil || tc.TableID != src.TableID {
+			if _, ok := s.sameTableChain(targetChain, src.TableID); !ok {
 				continue
 			}
 			if s.store.ReassignChainRule(id, targetChain) == nil {
@@ -891,10 +905,9 @@ func (s *Server) handleRuleDuplicate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	targetChain := src.ChainID
-	if selID, _ := strconv.ParseInt(r.FormValue("chain_id"), 10, 64); selID != 0 && selID != src.ChainID {
-		srcChain, err := s.store.GetChain(src.ChainID)
-		if err == nil {
-			if tc, err := s.store.GetChain(selID); err == nil && tc.TableID == srcChain.TableID {
+	if selID, _ := strconv.ParseInt(r.FormValue("chain_id"), 10, 64); selID != src.ChainID {
+		if srcChain, err := s.store.GetChain(src.ChainID); err == nil {
+			if tc, ok := s.sameTableChain(selID, srcChain.TableID); ok {
 				targetChain = tc.ID
 			}
 		}

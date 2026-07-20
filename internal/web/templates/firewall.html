@@ -125,16 +125,16 @@
 						{{range $t.Chains}}{{if ne .ID $ch.ID}}<option value="{{.ID}}">{{.Name}}</option>{{end}}{{end}}
 					</select>
 					{{end}}
-					<button type="button" class="btn btn-sm a-danger" data-bulk-action="delete" data-bulk-confirm="Delete the selected rules?">Delete</button>
+					<button type="button" class="btn btn-sm btn-danger" data-bulk-action="delete" data-bulk-confirm="Delete the selected rules?">Delete</button>
 					<button type="button" class="btn btn-sm btn-ghost" data-bulk-clear>Clear</button>
 				</div>
 				<div class="table-scroll">
 				<table class="rule-table">
 					<tbody data-search-target data-sortable data-sortable-endpoint="/firewall/chains/{{$ch.ID}}/rules/reorder">
-					{{range $ch.Rules}}
+					{{range $ri, $rule := $ch.Rules}}
 					<tr class="{{if not .Enabled}}row-disabled{{end}}" data-sortable-id="{{.ID}}">
-						<td class="rule-check-cell"><input type="checkbox" class="bulk-check" data-bulk-id="{{.ID}}" aria-label="Select this rule"></td>
-						<td class="rule-grip-cell"><span class="sort-grip" data-sort-grip title="Drag to reorder" aria-hidden="true"></span></td>
+						<td class="rule-check-cell"><input type="checkbox" class="bulk-check" data-bulk-id="{{.ID}}" aria-label="Select rule {{inc $ri}}{{if .Comment}} ({{.Comment}}){{end}}"></td>
+						<td class="sort-grip-cell"><span class="sort-grip" data-sort-grip title="Drag to reorder" aria-hidden="true"></span></td>
 						<td class="rule-preview">
 							{{if .Preview}}<code class="mono">{{.Preview}}</code>{{else}}<span class="badge badge-warning">won't render{{if .RenderErr}}: {{.RenderErr}}{{end}}</span>{{end}}
 							{{if .Comment}}<div class="hint">{{.Comment}}</div>{{end}}
@@ -204,7 +204,13 @@
 	</div>
 </div>
 {{else}}
-<div class="card"><div class="card-body"><p class="empty">No tables yet — add one below to start.</p></div></div>
+<div class="card"><div class="card-body setup-cta">
+	<div>
+		<strong>No tables yet.</strong>
+		<div class="text-muted">A table holds your chains and rules. Create your first one to start filtering traffic.</div>
+	</div>
+	<button type="button" class="btn btn-primary" data-modal-open="modal-new-table">{{template "icon-plus"}} Create your first table</button>
+</div></div>
 {{end}}
 </div>
 

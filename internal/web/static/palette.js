@@ -14,6 +14,12 @@
 	var list = document.getElementById("cmdk-list");
 	if (!backdrop || !input || !list) return;
 
+	// The topbar hint hardcodes the Mac glyph; correct it to Ctrl elsewhere —
+	// nftably runs on Linux hosts, so most operators are not on a Mac.
+	var isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "");
+	var hint = document.querySelector(".cmdk-hint");
+	if (hint && !isMac) hint.textContent = "Ctrl K";
+
 	var index = buildIndex();
 	var shown = [];   // currently displayed entries
 	var active = 0;   // highlighted index within shown
@@ -61,6 +67,7 @@
 		list.textContent = "";
 		shown.forEach(function (e, i) {
 			var li = document.createElement("li");
+			li.id = "cmdk-opt-" + i;
 			li.className = "cmdk-item" + (i === active ? " active" : "");
 			li.setAttribute("role", "option");
 			li.setAttribute("aria-selected", i === active ? "true" : "false");
@@ -82,6 +89,7 @@
 			empty.textContent = "No matches";
 			list.appendChild(empty);
 		}
+		activeDescendant();
 	}
 
 	// Repaint the active-row highlight without rebuilding the list.
@@ -92,6 +100,14 @@
 			li.setAttribute("aria-selected", on ? "true" : "false");
 			if (on) li.scrollIntoView({ block: "nearest" });
 		});
+		activeDescendant();
+	}
+
+	// Point the input at the highlighted option so screen readers announce it as
+	// the user arrows through the list.
+	function activeDescendant() {
+		if (shown.length) input.setAttribute("aria-activedescendant", "cmdk-opt-" + active);
+		else input.removeAttribute("aria-activedescendant");
 	}
 
 	function go(i) {
@@ -102,6 +118,7 @@
 	function open() {
 		backdrop.hidden = false;
 		document.body.classList.add("cmdk-on");
+		input.setAttribute("aria-expanded", "true");
 		input.value = "";
 		active = 0;
 		render();
@@ -110,6 +127,8 @@
 	function close() {
 		backdrop.hidden = true;
 		document.body.classList.remove("cmdk-on");
+		input.setAttribute("aria-expanded", "false");
+		input.removeAttribute("aria-activedescendant");
 	}
 	function isOpen() { return !backdrop.hidden; }
 

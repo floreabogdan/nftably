@@ -1392,37 +1392,48 @@ details[open] .collapse-hint::before { content: "hide"; }
 /* Drag-to-reorder grip (progressive enhancement; up/down buttons are the
    fallback). Shared by rules, chains and tables. The grip is a dot grid drawn
    with a radial-gradient. */
-.rule-grip-cell { width: 1%; padding-right: 0 !important; }
+.sort-grip-cell { width: 1%; padding-right: 0 !important; }
 .sort-grip {
 	display: inline-block; width: 10px; height: 16px; cursor: grab;
 	background-image: radial-gradient(var(--text-muted) 40%, transparent 42%);
 	background-size: 4px 4px; background-position: center; background-repeat: space;
-	opacity: 0.45; transition: opacity 0.12s ease; vertical-align: middle;
+	opacity: 0.4; transition: opacity 0.12s ease; vertical-align: middle;
 }
-.sort-grip:hover { opacity: 0.9; }
+/* Subtle at rest, clearer on the row it belongs to, clearest on direct hover —
+   so a draggable row announces itself without the grips being noisy everywhere. */
+.rule-table tr:hover .sort-grip, .chain-tab:hover .sort-grip, .card:hover > .card-header .sort-grip { opacity: 0.7; }
+.sort-grip:hover { opacity: 1; }
 .sort-grip:active { cursor: grabbing; }
 /* On a table card the grip sits just before the title icon; on a chain tab it's
    a compact handle before the label. */
-.card-title .sort-grip { margin-right: 6px; }
-.sort-grip-tab { width: 8px; height: 12px; margin-right: 5px; }
+.card-title .sort-grip { margin-right: var(--space-1); }
+.sort-grip-tab { width: 8px; height: 12px; margin-right: var(--space-1); }
 /* Dragging state: a subtle lift for the moving item. */
 .rule-table tr.sort-dragging td,
 .card.sort-dragging,
-.chain-tab.sort-dragging { background: var(--surface-2, rgba(127,127,127,0.10)); box-shadow: inset 2px 0 0 var(--accent, #4c8bf5); }
+.chain-tab.sort-dragging { background: var(--surface-alt); box-shadow: inset 2px 0 0 var(--primary); }
 .card.sort-dragging { opacity: 0.85; }
 body.reordering { user-select: none; cursor: grabbing; }
 
-/* Compact per-row "copy to…" chain picker sitting among the rule actions. */
+/* The drag grips and bulk-select checkboxes are useless without their scripts,
+   so they stay hidden until the firewall JS marks the document — no-JS users get
+   a clean row with the up/down and duplicate controls, not dead checkboxes. */
+html:not(.fw-js) .sort-grip-cell,
+html:not(.fw-js) .rule-check-cell,
+html:not(.fw-js) .bulk-all { display: none; }
+
+/* Compact per-row "copy to…" chain picker, sized to sit inline with the 32px
+   icon-action row rather than stretching it. */
 .dup-form { display: inline-block; margin: 0; }
 .dup-select {
-	font-size: var(--fs-xs); padding: 2px 4px; height: auto; width: auto;
-	max-width: 8.5em; color: var(--text-muted); border-color: var(--border);
+	font-size: var(--fs-xs); height: 30px; padding: 0 var(--space-1); width: auto;
+	max-width: 8.5em; color: var(--text-muted); border-color: var(--border); vertical-align: middle;
 }
 
 /* Command palette (Ctrl/Cmd-K). */
 .cmdk-open { position: relative; }
 .cmdk-hint {
-	font-size: var(--fs-2xs); padding: 1px 4px; margin-left: 4px; border-radius: 4px;
+	font-size: var(--fs-2xs); padding: 1px var(--space-1); margin-left: var(--space-1); border-radius: var(--radius-nav);
 	border: 1px solid var(--border); color: var(--text-muted); line-height: 1.4;
 }
 .cmdk-backdrop {
@@ -1432,43 +1443,43 @@ body.reordering { user-select: none; cursor: grabbing; }
 .cmdk-backdrop[hidden] { display: none; }
 .cmdk {
 	width: min(560px, 92vw); background: var(--surface); color: var(--text);
-	border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+	border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden;
 	box-shadow: 0 16px 48px rgba(0,0,0,0.35); display: flex; flex-direction: column;
 }
 .cmdk-input {
 	border: none; border-bottom: 1px solid var(--border); border-radius: 0;
-	font-size: var(--fs-md); padding: 14px 16px; background: transparent; color: var(--text);
+	font-size: var(--fs-md); padding: var(--space-3) var(--space-4); background: transparent; color: var(--text);
 }
 .cmdk-input:focus { outline: none; box-shadow: none; }
-.cmdk-list { list-style: none; margin: 0; padding: 6px; max-height: 50vh; overflow-y: auto; }
+.cmdk-list { list-style: none; margin: 0; padding: var(--space-1); max-height: 50vh; overflow-y: auto; }
 .cmdk-item {
-	display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
-	padding: 9px 12px; border-radius: 8px; cursor: pointer;
+	display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3);
+	padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); cursor: pointer;
 }
-.cmdk-item.active { background: var(--surface-2, rgba(127,127,127,0.12)); }
+.cmdk-item.active { background: var(--surface-alt); }
 .cmdk-item-label { font-size: var(--fs-sm); }
 .cmdk-item-group { font-size: var(--fs-2xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
-.cmdk-empty { padding: 16px 12px; color: var(--text-muted); font-size: var(--fs-sm); text-align: center; }
+.cmdk-empty { padding: var(--space-4) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); text-align: center; }
 .cmdk-foot {
-	display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--border);
+	display: flex; gap: var(--space-4); padding: var(--space-2) var(--space-3); border-top: 1px solid var(--border);
 	font-size: var(--fs-2xs); color: var(--text-muted);
 }
-.cmdk-foot .kbd, .cmdk-input + * .kbd, .kbd {
-	display: inline-block; min-width: 1.2em; text-align: center; padding: 0 4px; margin-right: 2px;
-	border: 1px solid var(--border); border-radius: 4px; font-family: inherit;
+.cmdk-foot .kbd, .kbd {
+	display: inline-block; min-width: 1.2em; text-align: center; padding: 0 var(--space-1); margin-right: 2px;
+	border: 1px solid var(--border); border-radius: var(--radius-nav); font-family: inherit;
 }
 body.cmdk-on { overflow: hidden; }
 
 /* Bulk rule selection. */
 .rule-check-cell { width: 1%; padding-right: 0 !important; }
 .bulk-check { cursor: pointer; }
-.bulk-all { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); cursor: pointer; margin-right: 10px; }
+.bulk-all { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--fs-xs); cursor: pointer; margin-right: var(--space-3); }
 .bulk-bar {
-	display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-	padding: 8px 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px;
-	background: var(--surface-2, rgba(127,127,127,0.08));
+	display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2);
+	padding: var(--space-2) var(--space-3); margin: var(--space-2) 0; border: 1px solid var(--border);
+	border-radius: var(--radius-control); background: var(--surface-alt);
 }
-.bulk-count { font-size: var(--fs-sm); margin-right: 4px; }
+.bulk-count { font-size: var(--fs-sm); margin-right: var(--space-1); }
 .bulk-move-select { margin: 0; }
 
 /* rule editor rows */

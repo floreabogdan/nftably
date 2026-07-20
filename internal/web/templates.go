@@ -18,6 +18,9 @@ var staticFS embed.FS
 var funcs = template.FuncMap{
 	// addRules sums two rule counts — the v4+v6 iptables total on the dashboard.
 	"addRules": func(a, b int) int { return a + b },
+	// inc turns a 0-based range index into a 1-based position for human-facing
+	// labels (e.g. "Select rule 3").
+	"inc": func(i int) int { return i + 1 },
 	// list builds a slice from its arguments, for ranging over a fixed set of
 	// option values inline in a template (log levels, rate units…).
 	"list": func(items ...string) []string { return items },

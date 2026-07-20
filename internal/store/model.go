@@ -8,12 +8,11 @@ import (
 	"strings"
 )
 
-// This file is the general nftables object model — the do-over. nftably owns a
-// set of tables (any family); each table has chains (base chains hook into
-// netfilter, regular chains are jump/goto targets); each chain has an ordered
-// list of rules; each rule is a list of match conditions and action statements,
-// every one keyed by an entry in the knob catalogue (internal/nftcat). The old
-// flat Rule/Firewall model (rules.go) is dormant and unused by the render path.
+// This file is the general nftables object model. nftably owns a set of tables
+// (any family); each table has chains (base chains hook into netfilter, regular
+// chains are jump/goto targets); each chain has an ordered list of rules; each
+// rule is a list of match conditions and action statements, every one keyed by
+// an entry in the knob catalogue (internal/nftcat).
 
 // identRe is the character set for table and chain names. It is embedded
 // unquoted in rendered nft config, so the set is closed to what nft accepts as

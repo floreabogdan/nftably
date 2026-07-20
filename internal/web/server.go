@@ -1,13 +1,13 @@
 // Package web is nftably's embedded UI: login, a dashboard that reports the
-// detected firewall backend, a read-only viewer of the live nftables ruleset, an
-// iptables import preview, the rule model with its render/diff preview, plus
-// settings and profile management. No frontend build step — server-rendered
-// html/template pages plus a little vanilla JS.
+// detected firewall backend, a viewer of the live nftables ruleset, an iptables
+// import preview, the rule model with its render/diff preview, plus settings and
+// profile management. No frontend build step — server-rendered html/template
+// pages plus a little vanilla JS.
 //
-// This is the M2 surface: it reads the firewall and models what it should be,
-// but never writes it. The apply pipeline (atomic `nft -f` with an armed
-// auto-revert, plus lint guardrails) arrives in M3 and will hang off this same
-// Server.
+// It both reads the firewall and writes it: the apply pipeline renders the model,
+// validates it with `nft --check`, applies it atomically with `nft -f`, and arms
+// an auto-revert (with lockout lint guardrails) so an unconfirmed change rolls
+// back on its own. Everything hangs off the one Server.
 package web
 
 import (

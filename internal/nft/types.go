@@ -1,10 +1,10 @@
-// Package nft reads the live netfilter ruleset by shelling out to nft(8). It
-// runs nft in JSON mode (`nft -j list ruleset`) for an authoritative,
+// Package nft is nftably's interface to nft(8). It reads the live netfilter
+// ruleset in JSON mode (`nft -j list ruleset`) for an authoritative,
 // version-stable view of the tables, chains and rules, and in annotated-text
 // mode (`nft -a list ruleset`) to recover each rule's canonical rendering by
-// handle. This package is read-only: nothing here changes the running firewall.
-// The apply path (atomic `nft -f`, with an armed auto-revert) arrives in a
-// later milestone and will live alongside this reader.
+// handle. It also writes: CheckFile validates a candidate ruleset with
+// `nft --check`, and ApplyFile loads it atomically with `nft -f` — the apply
+// path the web layer's armed auto-revert is built on.
 package nft
 
 import "encoding/json"
