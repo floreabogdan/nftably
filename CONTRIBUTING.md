@@ -56,7 +56,9 @@ docker run --rm -it --network=host --cap-add=NET_ADMIN -v $PWD:/src -w /src \
 - **Validate at the model boundary, and let `nft` be the final judge.** Anything interpolated into
   the ruleset is validated in the store; every candidate is dry-run through `nft --check` before it
   can reach the kernel.
-- **New knobs go in the catalogue,** with a label, help and example — never a bare control.
+- **New knobs go in the catalogue,** with a label, help and example — never a bare control. The
+  one sanctioned exception is the raw-rule escape hatch (a verbatim, validated nft line) for
+  constructs the catalogue can't yet express; prefer adding a real knob over reaching for it.
 - **Never log or render secrets**, and never put a real network's addresses or ASN in committed
   code, tests, docs or screenshots — use the documentation ranges (RFC 5737 `192.0.2.0/24`,
   `198.51.100.0/24`, `203.0.113.0/24`; RFC 3849 `2001:db8::/32`; AS64496–AS64511).

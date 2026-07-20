@@ -28,6 +28,10 @@ nft line it becomes:
 | **Review the diff, apply with auto-revert** | **A live overview** |
 | ![Review](docs/screenshots/review.jpg) | ![Dashboard](docs/screenshots/dashboard.jpg) |
 
+Jump to any page or action from anywhere with the command palette (**Ctrl-K** / **⌘K**):
+
+![The command palette](docs/screenshots/palette.jpg)
+
 <sub>All addresses shown are documentation examples (RFC 5737 / RFC 3849).</sub>
 
 ---
@@ -54,6 +58,12 @@ make** and **easy to get right**:
   fields appear. Interfaces come from the box's real list, sibling chains and the
   flowtables in the table are offered as you type, and you point a rule at a named
   set instead of retyping addresses.
+- **Built for fast editing.** **Drag** rules, chains and tables to reorder them;
+  **multi-select** rules to enable, disable, move or delete them in one go;
+  **duplicate** a rule — or move it — into any chain of the table; and jump to any
+  page or action from anywhere with the **Ctrl-K / ⌘K** command palette. Every drag
+  has an up/down button beside it, so the whole thing is keyboard-operable and works
+  with no JavaScript.
 - **One model for v4 and v6.** netfilter's `inet` family carries both in a single
   table, so a rule written once covers both protocols.
 - **Lockout safety.** Every apply is an atomic `nft -f` transaction — validated by

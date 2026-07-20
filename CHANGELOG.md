@@ -6,6 +6,20 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — editing workflow
+
+- **Drag-and-drop reordering** of rules within a chain, chains within a table (the
+  tab strip), and tables on the page — one generic, axis-aware helper. The up/down
+  buttons remain as the keyboard-accessible, no-JS fallback.
+- **Bulk rule actions.** Select rules with per-row checkboxes (or a chain's "Select"
+  toggle) and enable, disable, move to another chain, or delete the whole selection
+  at once.
+- **Move or copy a rule across chains.** The rule editor's Chain selector relocates a
+  rule to another chain of the same table, and each row's "copy to…" picker
+  duplicates a rule straight into another chain.
+- **Command palette.** Ctrl-K / ⌘K opens a fuzzy launcher to jump to any page or
+  quick action from anywhere, keyboard-driven and needing no backend.
+
 ### Added — power features & integrations
 
 - **Verdict maps (vmap).** A rule can now be a single O(1) map — `tcp dport vmap
@@ -52,6 +66,21 @@ All notable changes to nftably are recorded here. The format follows
   ban set with offender addresses whose `expires` counts down every second; the
   fingerprint now ignores dynamic (timeout) set contents while still catching edits
   to static sets.
+- **Duplicating a rule no longer drops its raw text and tags** — duplicating a raw
+  rule used to produce an empty, non-rendering rule.
+- **Port inputs are bounded to 1–65535** at entry (port-forward and per-service
+  auto-ban) instead of relying on `nft --check` to reject an out-of-range value.
+
+### Changed — polish
+
+- New controls (drag grips, bulk bar, command palette, the "copy to…" picker) now
+  use the shared design tokens, so they follow light/dark and the accent themes;
+  the command-palette hint reads **Ctrl-K** off macOS.
+- Accessibility: the palette announces the highlighted result to screen readers
+  (`aria-activedescendant`); the mouse-only drag grips and bulk checkboxes are hidden
+  when JavaScript is off, so keyboard users never land on dead controls.
+- The empty Firewall page now offers a "Create your first table" button instead of
+  pointing at a control that isn't there.
 
 ### Changed — interface cleanup
 
