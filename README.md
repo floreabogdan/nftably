@@ -1,10 +1,21 @@
+<div align="center">
+
 # nftably
 
-A web UI for **nftables**. nftably manages the firewall as its real object model —
-**tables → chains → rules** in any family — and makes every option a typed control
-that explains what it does, so you can build anything nftables can express without
-memorising its syntax. Changes are applied as one atomic transaction with an armed
-auto-revert, so a bad rule can never lock you out of the box you're editing.
+**A web UI for [nftables](https://netfilter.org/projects/nftables/) that manages the firewall as its real object model — tables → chains → rules, in any family.**
+
+Every option is a typed control that explains what it does, so you can build anything
+nftables can express without memorising its syntax. Changes are applied as one atomic
+transaction with an armed auto-revert, so a bad rule can never lock you out of the box
+you're editing.
+
+[![CI](https://github.com/floreabogdan/nftably/actions/workflows/ci.yml/badge.svg)](https://github.com/floreabogdan/nftably/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/floreabogdan/nftably?sort=semver)](https://github.com/floreabogdan/nftably/releases)
+[![Go](https://img.shields.io/github/go-mod/go-version/floreabogdan/nftably)](go.mod)
+[![License: 0BSD](https://img.shields.io/badge/license-0BSD-blue.svg)](LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/floreabogdan)
+
+</div>
 
 It's a single Go binary backed by SQLite. No agent, no cloud, no external
 dependencies at runtime beyond `nft` itself. Install the package, run
@@ -297,4 +308,9 @@ firewall-reading and -writing paths simply report "nft not installed" off Linux.
 
 ## License
 
-0BSD — see [LICENSE](LICENSE).
+[BSD Zero Clause](LICENSE) — public-domain-equivalent. Do whatever you like with it; you owe no
+attribution and get no warranty.
+
+The bundled webfonts are [IBM Plex](https://github.com/IBM/plex), copyright IBM Corp., used under the
+SIL Open Font License 1.1 — see [`internal/web/static/fonts/LICENSE.txt`](internal/web/static/fonts/LICENSE.txt).
+That license covers the fonts only, not nftably.
