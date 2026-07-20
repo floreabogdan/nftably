@@ -16,7 +16,7 @@
 #
 # nftably has no TLS. With host networking it listens on the port below on every
 # interface, so either bind it to loopback (below) and reach it over an SSH
-# tunnel — `ssh -L 8080:127.0.0.1:8080 rt1`, then open http://127.0.0.1:8080 —
+# tunnel — `ssh -L 8099:127.0.0.1:8099 rt1`, then open http://127.0.0.1:8099 —
 # or set the IP allow-list under Settings → Access control the moment you log in.
 
 services:
@@ -25,9 +25,9 @@ services:
     # Or pull a published image instead of building:
     # image: ghcr.io/floreabogdan/nftably:latest
     restart: unless-stopped
-    # Loopback-only by default; tunnel in over SSH. Change to 0.0.0.0:8080 only
+    # Loopback-only by default; tunnel in over SSH. Change to 0.0.0.0:8099 only
     # once the access list (or TLS) is in place.
-    command: ["server", "--listen", "127.0.0.1:8080"]
+    command: ["server", "--listen", "127.0.0.1:8099"]
     network_mode: host
     cap_add:
       - NET_ADMIN

@@ -109,7 +109,7 @@ Fix it with:
 	// and without TLS, the login crosses the network in the clear.
 	if srv.WideOpen() {
 		if *tlsCert == "" {
-			log.Warn("nftably is reachable from any IP and has no TLS — set the access list under Settings → Access control, configure --tls-cert/--tls-key, or bind loopback with --listen 127.0.0.1:8080",
+			log.Warn("nftably is reachable from any IP and has no TLS — set the access list under Settings → Access control, configure --tls-cert/--tls-key, or bind loopback with --listen 127.0.0.1:8099",
 				"addr", effListen)
 		} else {
 			log.Warn("nftably is reachable from any IP — narrow the access list under Settings → Access control",

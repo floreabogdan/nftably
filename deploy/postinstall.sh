@@ -31,9 +31,9 @@ Next steps:
   2. sudo nftably doctor        # check nft access and the database
   3. sudo systemctl enable --now nftably
 
-By default nftably listens on 0.0.0.0:8080 with no TLS. Set the access list
+By default nftably listens on 0.0.0.0:8099 with no TLS. Set the access list
 under Settings -> Access control as soon as you log in, or bind it to loopback
-(edit the unit's --listen to 127.0.0.1:8080) and reach it over an SSH tunnel.
+(edit the unit's --listen to 127.0.0.1:8099) and reach it over an SSH tunnel.
 EOF
 
 exit 0

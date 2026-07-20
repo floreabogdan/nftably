@@ -28,12 +28,12 @@ a reasonable window before publishing details.
 
 Some properties are documented and by design, not vulnerabilities:
 
-- **nftably listens on every interface out of the box** (`0.0.0.0:8080`), and its IP allow-list
+- **nftably listens on every interface out of the box** (`0.0.0.0:8099`), and its IP allow-list
   starts as allow-all. This is deliberate: a firewall UI that will not answer until a config file
   is edited does not get set up. nftably warns once in its startup log while it is in that state,
   and flags it on the Access settings page. Narrow it under Settings → Access control — an
   unlisted address then has its connection closed with no response — or bind it closed with
-  `--listen 127.0.0.1:8080` and reach it over an SSH tunnel.
+  `--listen 127.0.0.1:8099` and reach it over an SSH tunnel.
 - **TLS is off by default.** Unless you pass `--tls-cert`/`--tls-key` (TLS 1.2 minimum),
   nftably serves plain HTTP, so on a public address the login and session cookie travel in the
   clear; the allow-list governs who may connect, not what is readable on the wire. Give it a

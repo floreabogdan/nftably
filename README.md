@@ -221,7 +221,7 @@ sudo nftably doctor                      # check nft access + database
 sudo systemctl enable --now nftably
 ```
 
-Then browse to `http://<host>:8080`.
+Then browse to `http://<host>:8099`.
 
 ### From source
 
@@ -254,8 +254,8 @@ you about this until you narrow it. Ways to close it down:
 - **Access list** — Settings → Access control. One IP/CIDR per line. Loopback is
   always allowed, so an SSH tunnel can never lock you out.
 - **Native TLS** — `--tls-cert cert.pem --tls-key key.pem` (TLS 1.2 minimum).
-- **Loopback + SSH tunnel** — start with `--listen 127.0.0.1:8080` and reach it over
-  `ssh -L 8080:127.0.0.1:8080 host`.
+- **Loopback + SSH tunnel** — start with `--listen 127.0.0.1:8099` and reach it over
+  `ssh -L 8099:127.0.0.1:8099 host`.
 
 The blocked-client path closes the TCP connection outright, so a scanner can't even
 tell there's a service on the port. Every response carries hardening headers (a strict

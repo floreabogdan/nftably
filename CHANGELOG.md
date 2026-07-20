@@ -6,6 +6,15 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-20
+
+### Changed
+
+- **The default listen port is now `8099`** (was `8080`), so nftably coexists with the
+  sister project birdy — which owns `8080` — without a port clash out of the box.
+  Existing installs are unaffected: the port is whatever `nftably init` stored, so only
+  a fresh install that does not pass `--listen` picks up the new default.
+
 ## [0.1.1] - 2026-07-20
 
 ### Changed

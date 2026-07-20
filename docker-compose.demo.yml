@@ -33,9 +33,9 @@ services:
     cap_add:
       - NET_ADMIN
     # Published to loopback only — reachable from this machine's browser, not the
-    # network. The container listens on 8080; you reach it on 8099.
+    # network. The container listens on 8099; you reach it on 8099.
     ports:
-      - "127.0.0.1:8099:8080"
+      - "127.0.0.1:8099:8099"
     # Auto-provision the admin account on first boot, then run the server. The
     # init is idempotent (it no-ops once a user exists), so restarts are fine.
     entrypoint: ["/bin/sh", "-c"]
@@ -43,6 +43,6 @@ services:
       - |
         set -e
         DB=/var/lib/nftably/nftably.db
-        nftably init --db "$$DB" --listen 0.0.0.0:8080 --label demo \
+        nftably init --db "$$DB" --listen 0.0.0.0:8099 --label demo \
           --username admin --password nftably-demo 2>/dev/null || true
-        exec nftably server --db "$$DB" --listen 0.0.0.0:8080
+        exec nftably server --db "$$DB" --listen 0.0.0.0:8099
