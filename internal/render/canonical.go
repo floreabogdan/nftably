@@ -31,6 +31,9 @@ var (
 	reSetSize    = regexp.MustCompile(`(?m)^[ \t]*size \d+[ \t]*$`)
 	reInlineSize = regexp.MustCompile(` size \d+ \{`)
 	reMeter      = regexp.MustCompile(`meter ([A-Za-z0-9_]+) \{`)
+	// Some nft versions list an NFQUEUE bypass statement as `queue flags bypass
+	// to N` rather than the `queue num N bypass` nftably renders.
+	reQueue = regexp.MustCompile(`queue flags bypass to (\d+)`)
 )
 
 // CanonicalizeNftText normalizes one `nft list table` dump (or nftably's render
@@ -64,6 +67,7 @@ func CanonicalizeNftText(s string) string {
 	s = reSetSize.ReplaceAllString(s, "")
 	s = reInlineSize.ReplaceAllString(s, " {")
 	s = reMeter.ReplaceAllString(s, "add @$1 {")
+	s = reQueue.ReplaceAllString(s, "queue num $1 bypass")
 	// Per line: sort inline anonymous-set members (e.g. `icmp type { … }`),
 	// normalize flags comma-spacing (`dynamic, timeout` → `dynamic,timeout`), and
 	// drop trailing whitespace and blank lines.

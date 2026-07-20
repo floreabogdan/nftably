@@ -99,3 +99,14 @@ func TestCanonicalizeAutoBanReadback(t *testing.T) {
 		}
 	}
 }
+
+// TestCanonicalizeQueueReadback: nftably renders an NFQUEUE fail-open detector as
+// `queue num N bypass`, but some nft versions list it back as `queue flags bypass
+// to N`. Same rule, so they must canonicalize equal.
+func TestCanonicalizeQueueReadback(t *testing.T) {
+	rendered := "\t\tqueue num 0 bypass comment \"nftably: inspect transit with an IDS/IPS (fail-open)\"\n"
+	live := "\t\tqueue flags bypass to 0 comment \"nftably: inspect transit with an IDS/IPS (fail-open)\" # handle 7\n"
+	if got, want := CanonicalizeNftText(live), CanonicalizeNftText(rendered); got != want {
+		t.Errorf("queue-bypass readback should canonicalize equal to the render\nlive:     %q\nrendered: %q", got, want)
+	}
+}
