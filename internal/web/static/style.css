@@ -449,7 +449,7 @@ h1, h2, h3 { font-weight: 700; color: var(--text); margin: 0; line-height: var(-
 	opacity: 0.65;
 	margin-top: 2px;
 }
-.sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .nav-label {
 	padding: var(--space-4) var(--space-3) var(--space-1);
 	font-size: var(--fs-2xs);
@@ -612,7 +612,7 @@ svg:not(.sparkline) { width: 18px; height: 18px; flex-shrink: 0; vertical-align:
 .breadcrumb .current { color: var(--text); font-weight: 500; }
 
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-5); gap: var(--space-4); flex-wrap: wrap; }
-.page-header h1 { font-size: var(--fs-xl); }
+.page-header h1 { font-size: var(--fs-xl); display: flex; align-items: center; gap: 0.4rem; }
 .page-sub { color: var(--text-muted); font-size: var(--fs-sm); margin-top: 4px; }
 .page-header-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; flex-shrink: 0; }
 
@@ -1409,11 +1409,22 @@ details[open] .collapse-hint::before { content: "hide"; }
 .card-title .sort-grip { margin-right: var(--space-1); }
 .sort-grip-tab { width: 8px; height: 12px; margin-right: var(--space-1); }
 /* Dragging state: a subtle lift for the moving item. */
-.rule-table tr.sort-dragging td,
-.card.sort-dragging,
-.chain-tab.sort-dragging { background: var(--surface-alt); box-shadow: inset 2px 0 0 var(--primary); }
-.card.sort-dragging { opacity: 0.85; }
-body.reordering { user-select: none; cursor: grabbing; }
+.rule-table tr.sort-dragging td { background: var(--surface-alt); box-shadow: inset 3px 0 0 var(--primary); opacity: 0.65; }
+.card.sort-dragging { outline: 2px dashed var(--primary); outline-offset: -3px; opacity: 0.6; }
+.chain-tab.sort-dragging { outline: 2px dashed var(--primary); outline-offset: -2px; background: var(--surface-alt); opacity: 0.75; }
+/* The chip that follows the pointer during a drag, naming what's being moved. */
+.sort-ghost {
+	position: fixed; top: 0; left: 0; z-index: 2000; transform: translate(14px, 14px);
+	max-width: 460px; padding: 6px 10px;
+	background: var(--surface); color: var(--text);
+	border: 1px solid var(--border); border-left: 3px solid var(--primary);
+	border-radius: var(--radius-badge); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+	font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.3;
+	white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+	pointer-events: none; opacity: 0.97;
+}
+body.reordering, body.reordering * { user-select: none; -webkit-user-select: none; }
+body.reordering { cursor: grabbing; }
 
 /* The drag grips and bulk-select checkboxes are useless without their scripts,
    so they stay hidden until the firewall JS marks the document — no-JS users get
@@ -1421,6 +1432,9 @@ body.reordering { user-select: none; cursor: grabbing; }
 html:not(.fw-js) .sort-grip-cell,
 html:not(.fw-js) .rule-check-cell,
 html:not(.fw-js) .bulk-all { display: none; }
+/* With drag-to-reorder enabled, the per-item up/down move buttons are redundant
+   (they exist as a no-JS / keyboard fallback), so hide them to declutter. */
+html.fw-js form[action$="/move"] { display: none; }
 
 /* Compact per-row "copy to…" chain picker, sized to sit inline with the 32px
    icon-action row rather than stretching it. */
@@ -1431,10 +1445,10 @@ html:not(.fw-js) .bulk-all { display: none; }
 }
 
 /* Command palette (Ctrl/Cmd-K). */
-.cmdk-open { position: relative; }
+.cmdk-open { position: relative; width: auto; height: 34px; padding: 0 var(--space-2); border-radius: var(--radius-nav); white-space: nowrap; }
 .cmdk-hint {
 	font-size: var(--fs-2xs); padding: 1px var(--space-1); margin-left: var(--space-1); border-radius: var(--radius-nav);
-	border: 1px solid var(--border); color: var(--text-muted); line-height: 1.4;
+	border: 1px solid var(--border); color: var(--text-muted); line-height: 1.4; white-space: nowrap;
 }
 .cmdk-backdrop {
 	position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.4);
@@ -1545,16 +1559,16 @@ body.cmdk-on { overflow: hidden; }
 .chain-tab:hover { color: var(--text); background: var(--surface-alt); }
 .chain-tab.active { color: var(--primary-deep); background: var(--surface); border-color: var(--border); border-bottom: 2px solid var(--surface); }
 .chain-tab .tab-hook { font-weight: 400; font-size: var(--fs-2xs); color: var(--text-muted); }
-.chain-tab .tab-count { font-size: var(--fs-2xs); background: var(--surface-alt); border-radius: 10px; padding: 1px 7px; color: var(--text-muted); }
+.chain-tab .tab-count { font-size: var(--fs-2xs); background: var(--surface-alt); border-radius: 10px; padding: 2px 7px; color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; line-height: 1; min-width: 20px; box-sizing: border-box; }
 .chain-panel { display: none; }
 .chain-panel.active { display: block; }
 
 /* firewall "how it connects" flow explainer */
 .card-info { border-left: 3px solid var(--info); }
 .howto { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
-.howto-step { display: flex; gap: 10px; align-items: flex-start; flex: 1 1 200px; min-width: 180px; }
+.howto-step { display: flex; gap: 10px; align-items: center; flex: 1 1 200px; min-width: 180px; }
 .howto-n { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; background: var(--info); color: #fff;
-	display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-2xs); font-weight: 700; }
+	display: inline-flex; align-items: center; justify-content: center; line-height: 1; font-size: var(--fs-2xs); font-weight: 700; }
 .howto-step strong { font-size: var(--fs-sm); }
 .howto-step .text-muted { font-size: var(--fs-xs); line-height: var(--line-tight); }
 .howto-arrow { align-self: center; color: var(--text-muted); font-size: var(--fs-md); flex: 0 0 auto; }

@@ -6,6 +6,37 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-20
+
+### Changed
+
+- **Port-forward and flowtable are now modals.** Both moved off the Firewall page body
+  into dialogs opened from buttons beside *New table*, and the flowtable dialog gained a
+  table picker — so the "Add flowtable" panel no longer repeats on every table card.
+  Named sets' *New list* form likewise became a modal opened from the page header.
+- **Auto-ban quick-fill.** The *Auto-ban any service* form gained one-click **SSH** and
+  **HTTP** buttons that prefill it, and the separate *Brute-force auto-ban for SSH* card
+  was removed as redundant — the SSH button reproduces it exactly.
+- **Reordering polish.** A drag now shows a cursor-following chip naming what is being
+  moved, with clearer drop styling; text can no longer be selected mid-drag; and where
+  drag is available the per-item up/down buttons are hidden (they remain as the no-JS
+  fallback).
+
+### Fixed
+
+- The left navigation now scrolls when it is taller than the viewport, so the lower items
+  (down to Settings) are always reachable.
+- Page-title icons are vertically centered with their heading; the Firewall how-to step
+  numbers align with the arrows, and chain rule-count badges are centered.
+- The topbar Ctrl-K hint no longer wraps onto two lines.
+
+### Docs
+
+- README: added beta **Warning** and **Caution** callouts, and regenerated every
+  screenshot as a lossless PNG.
+
+## [0.1.0] - 2026-07-20
+
 ### Added — editing workflow
 
 - **Drag-and-drop reordering** of rules within a chain, chains within a table (the

@@ -92,7 +92,7 @@
 	<div class="card-body">
 		<p class="learn-lead">Fail2ban in the kernel — a source that hammers a service faster than a threshold is dropped into a timeout set and blocked, no daemon and no log parsing.</p>
 		<ul class="learn-list learn-list-lg">
-			<li>Go to <a href="/harden">Security Posture</a> → <em>Brute-force auto-ban</em>. SSH is one click; for anything else pick <em>another service</em> and give it a name, protocol and port (e.g. <span class="mono">smtp</span> / tcp / <span class="mono">25, 587</span>, or a game server on udp).</li>
+			<li>Go to <a href="/harden">Security Posture</a> → <em>Auto-ban any service</em>. Click <em>SSH</em> or <em>HTTP</em> to prefill the form, or name your own service and give it a protocol and port (e.g. <span class="mono">smtp</span> / tcp / <span class="mono">25, 587</span>, or a game server on udp).</li>
 			<li>It inserts, for IPv4 and IPv6: a detect-and-ban rule (over the rate you set → add the source to a timeout set) and an early drop of that set, above your allow rules.</li>
 			<li>Tune the rate, burst or ban time on the <a href="/firewall">Firewall</a> page — it's the <em>Rate-ban the source</em> action on the detect rule.</li>
 		</ul>

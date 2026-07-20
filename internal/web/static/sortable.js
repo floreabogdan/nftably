@@ -52,19 +52,60 @@
 		return horizontal ? t.clientX : t.clientY;
 	}
 
+	// Drop any active text selection so a drag never leaves text highlighted.
+	function clearSelection() {
+		var sel = window.getSelection && window.getSelection();
+		if (sel && sel.removeAllRanges) sel.removeAllRanges();
+	}
+
+	// A short label identifying the dragged item for the floating chip: a table's
+	// title, a rule's rendered line, or a chain tab's name (grip/hook/count stripped).
+	function labelFor(item) {
+		var el = item.querySelector(".card-title") || item.querySelector(".mono");
+		var text;
+		if (el) {
+			text = el.textContent;
+		} else {
+			var clone = item.cloneNode(true);
+			Array.prototype.forEach.call(clone.querySelectorAll(".sort-grip, .tab-hook, .tab-count"), function (n) {
+				if (n.parentNode) n.parentNode.removeChild(n);
+			});
+			text = clone.textContent;
+		}
+		text = (text || "").replace(/\s+/g, " ").trim();
+		return text.length > 64 ? text.slice(0, 63) + "…" : text || "Moving…";
+	}
+
 	function begin(startEvent, item, container, endpoint, horizontal) {
 		startEvent.preventDefault(); // no text selection / native image drag
 		item.classList.add("sort-dragging");
 		document.body.classList.add("reordering");
+		clearSelection();
 
+		// A chip that follows the pointer, so it's always clear WHAT is being
+		// dragged; the dimmed in-flow item shows WHERE it will land.
+		var ghost = document.createElement("div");
+		ghost.className = "sort-ghost";
+		ghost.textContent = labelFor(item);
+		document.body.appendChild(ghost);
+		moveGhost(startEvent);
+
+		function moveGhost(e) {
+			var t = e.touches && e.touches.length ? e.touches[0] : e;
+			ghost.style.left = t.clientX + "px";
+			ghost.style.top = t.clientY + "px";
+		}
 		function onMove(e) {
+			moveGhost(e);
+			clearSelection();
 			var p = point(e, horizontal);
 			var over = itemAt(container, p, horizontal);
-			if (!over || over === item) return;
-			var rect = over.getBoundingClientRect();
-			var mid = horizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
-			var after = p > mid;
-			container.insertBefore(item, after ? over.nextSibling : over);
+			if (over && over !== item) {
+				var rect = over.getBoundingClientRect();
+				var mid = horizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
+				var after = p > mid;
+				container.insertBefore(item, after ? over.nextSibling : over);
+			}
 			if (e.cancelable) e.preventDefault();
 		}
 		function onUp() {
@@ -74,6 +115,7 @@
 			document.removeEventListener("touchend", onUp);
 			item.classList.remove("sort-dragging");
 			document.body.classList.remove("reordering");
+			if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
 			persist(container, endpoint);
 		}
 		document.addEventListener("mousemove", onMove);

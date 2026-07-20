@@ -137,3 +137,27 @@
 		}
 	});
 })();
+
+// Auto-ban quick-fill: the SSH / HTTP buttons beside "Auto-ban any service"
+// prefill the form with sensible starting values; the operator tweaks and submits.
+(function () {
+	var presets = {
+		ssh: { service: "ssh", proto: "tcp", port: "22", rate: "10", per: "minute", burst: "5", timeout: "1h" },
+		http: { service: "http", proto: "tcp", port: "80, 443", rate: "100", per: "minute", burst: "20", timeout: "10m" },
+	};
+	document.addEventListener("click", function (event) {
+		var btn = event.target.closest("[data-ban-fill]");
+		if (!btn) return;
+		var p = presets[btn.getAttribute("data-ban-fill")];
+		if (!p) return;
+		var card = btn.closest(".card");
+		var form = card && card.querySelector("form[action='/harden/ban']");
+		if (!form) return;
+		Object.keys(p).forEach(function (name) {
+			var field = form.elements[name];
+			if (field) field.value = p[name];
+		});
+		var first = form.querySelector("#ban-service");
+		if (first) first.focus();
+	});
+})();

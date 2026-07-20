@@ -12,6 +12,8 @@
 	</div>
 	<div class="page-header-actions">
 		<a class="btn btn-ghost" href="/presets">{{template "icon-spark"}} Use a preset</a>
+		<button type="button" class="btn btn-ghost" data-modal-open="modal-port-forward">{{template "icon-route"}} Port forward</button>
+		{{if .Tables}}<button type="button" class="btn btn-ghost" data-modal-open="modal-flowtable">{{template "icon-route"}} Flowtable</button>{{end}}
 		<button type="button" class="btn btn-success" data-modal-open="modal-new-table">{{template "icon-plus"}} New table</button>
 	</div>
 </div>
@@ -30,42 +32,6 @@
 
 {{if .Saved}}<div class="flash">Saved to the model. Go to <a href="/changes">Changes</a> to make it live.</div>{{end}}
 {{if .Err}}<div class="flash flash-error">{{.Err}}</div>{{end}}
-
-<details class="card">
-	<summary class="card-header"><span class="card-title">{{template "icon-route"}} Port forward (wizard)</span></summary>
-	<div class="card-body">
-		<p class="field-hint text-muted">Expose an external port to an internal host. nftably builds the <span class="mono">dnat</span> rule in a
-		nat prerouting chain (creating an <span class="mono">inet nat</span> table if there isn't one) and, if you run a drop-policy forward chain,
-		an accept so the redirected traffic passes it. Review and apply on <a href="/changes">Changes</a>.</p>
-		<form method="post" action="/firewall/port-forward">
-			<div class="field-row">
-				<div class="field">
-					<label for="pf-proto">Protocol</label>
-					<select name="proto" id="pf-proto"><option value="tcp">tcp</option><option value="udp">udp</option></select>
-				</div>
-				<div class="field">
-					<label for="pf-ext">External port</label>
-					<input type="text" name="ext_port" id="pf-ext" placeholder="443" required>
-				</div>
-			</div>
-			<div class="field-row">
-				<div class="field">
-					<label for="pf-host">Internal host</label>
-					<input type="text" name="dest_host" id="pf-host" class="mono" placeholder="192.168.1.10" required>
-				</div>
-				<div class="field">
-					<label for="pf-dport">Internal port <span class="text-muted">(blank = same)</span></label>
-					<input type="text" name="dest_port" id="pf-dport" placeholder="8443">
-				</div>
-			</div>
-			<div class="field">
-				<label for="pf-iface">Only on interface <span class="text-muted">(optional)</span></label>
-				<input type="text" name="iface" id="pf-iface" class="mono" placeholder="wan / eth0" autocomplete="off">
-			</div>
-			<button type="submit" class="btn btn-sm btn-primary">{{template "icon-route"}} Build port forward</button>
-		</form>
-	</div>
-</details>
 
 {{if .LintWarns}}
 <div class="card card-warning">
@@ -184,23 +150,6 @@
 			{{end}}
 		</div>
 		{{end}}
-		<details class="flowtable-add mt-md">
-			<summary>{{template "icon-route"}} Add flowtable (offload)</summary>
-			<div class="mt-sm">
-				<p class="field-hint text-muted">A flowtable offloads established connections to the fast path — a big throughput win for a router.
-				Bind it to the interfaces traffic forwards between, then reference it from a forward-chain rule with the <span class="mono">flow add</span> action.</p>
-				<form method="post" action="/firewall/flowtables/new">
-					<input type="hidden" name="table_id" value="{{$t.ID}}">
-					<div class="field-row">
-						<div class="field"><label>Name</label><input type="text" name="name" placeholder="ft" required></div>
-						<div class="field"><label>Devices (comma-separated)</label><input type="text" name="devices" class="mono" placeholder="eth0, eth1" required></div>
-						<div class="field"><label>Priority</label><input type="text" name="priority" class="mono" placeholder="filter"><span class="field-hint text-muted">Ingress-hook priority — a keyword (<span class="mono">filter</span>) or a number. Leave blank for the default.</span></div>
-					</div>
-					<label class="check-label"><input type="checkbox" name="hw_offload"> Hardware offload (<span class="mono">flags offload</span>) — only if your NIC/driver supports it</label>
-					<div class="form-actions"><button type="submit" class="btn btn-sm btn-primary">Add flowtable</button></div>
-				</form>
-			</div>
-		</details>
 	</div>
 </div>
 {{else}}
@@ -212,6 +161,83 @@
 	<button type="button" class="btn btn-primary" data-modal-open="modal-new-table">{{template "icon-plus"}} Create your first table</button>
 </div></div>
 {{end}}
+</div>
+
+<div class="modal-backdrop" id="modal-port-forward" data-modal>
+	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-port-forward-title">
+		<div class="modal-head">
+			<h2 id="modal-port-forward-title">{{template "icon-route"}} Port forward</h2>
+			<button type="button" class="icon-btn" data-modal-close title="Close">&times;</button>
+		</div>
+		<div class="modal-body">
+			<p class="hint">Expose an external port to an internal host. nftably builds the <span class="mono">dnat</span> rule in a
+			nat prerouting chain (creating an <span class="mono">inet nat</span> table if there isn't one) and, if you run a drop-policy forward chain,
+			an accept so the redirected traffic passes it. Review and apply on <a href="/changes">Changes</a>.</p>
+			<form method="post" action="/firewall/port-forward">
+				<div class="field-row">
+					<div class="field">
+						<label for="pf-proto">Protocol</label>
+						<select name="proto" id="pf-proto"><option value="tcp">tcp</option><option value="udp">udp</option></select>
+					</div>
+					<div class="field">
+						<label for="pf-ext">External port</label>
+						<input type="text" name="ext_port" id="pf-ext" placeholder="443" required>
+					</div>
+				</div>
+				<div class="field-row">
+					<div class="field">
+						<label for="pf-host">Internal host</label>
+						<input type="text" name="dest_host" id="pf-host" class="mono" placeholder="192.168.1.10" required>
+					</div>
+					<div class="field">
+						<label for="pf-dport">Internal port <span class="text-muted">(blank = same)</span></label>
+						<input type="text" name="dest_port" id="pf-dport" placeholder="8443">
+					</div>
+				</div>
+				<div class="field">
+					<label for="pf-iface">Only on interface <span class="text-muted">(optional)</span></label>
+					<input type="text" name="iface" id="pf-iface" class="mono" placeholder="wan / eth0" autocomplete="off">
+				</div>
+				<div class="form-actions">
+					<button type="submit" class="btn btn-primary">{{template "icon-route"}} Build port forward</button>
+					<button class="btn" type="button" data-modal-close>Cancel</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<div class="modal-backdrop" id="modal-flowtable" data-modal>
+	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-flowtable-title">
+		<div class="modal-head">
+			<h2 id="modal-flowtable-title">{{template "icon-route"}} Add flowtable</h2>
+			<button type="button" class="icon-btn" data-modal-close title="Close">&times;</button>
+		</div>
+		<div class="modal-body">
+			<p class="hint">A flowtable offloads established connections to the fast path — a big throughput win for a router.
+			Bind it to the interfaces traffic forwards between, then reference it from a forward-chain rule with the <span class="mono">flow add</span> action.</p>
+			<form method="post" action="/firewall/flowtables/new">
+				<div class="field">
+					<label for="ft-table">Table</label>
+					<select name="table_id" id="ft-table">{{range .Tables}}<option value="{{.ID}}">{{.Family}} {{.Name}}</option>{{end}}</select>
+				</div>
+				<div class="field-row">
+					<div class="field"><label for="ft-name">Name</label><input type="text" name="name" id="ft-name" placeholder="ft" required></div>
+					<div class="field"><label for="ft-devices">Devices (comma-separated)</label><input type="text" name="devices" id="ft-devices" class="mono" placeholder="eth0, eth1" required></div>
+				</div>
+				<div class="field">
+					<label for="ft-priority">Priority</label>
+					<input type="text" name="priority" id="ft-priority" class="mono" placeholder="filter">
+					<span class="field-hint text-muted">Ingress-hook priority — a keyword (<span class="mono">filter</span>) or a number. Leave blank for the default.</span>
+				</div>
+				<label class="check-label"><input type="checkbox" name="hw_offload"> Hardware offload (<span class="mono">flags offload</span>) — only if your NIC/driver supports it</label>
+				<div class="form-actions">
+					<button type="submit" class="btn btn-primary">Add flowtable</button>
+					<button class="btn" type="button" data-modal-close>Cancel</button>
+				</div>
+			</form>
+		</div>
+	</div>
 </div>
 
 <div class="modal-backdrop" id="modal-new-table" data-modal>

@@ -21,27 +21,37 @@ It's a single Go binary backed by SQLite. No agent, no cloud, no external
 dependencies at runtime beyond `nft` itself. Install the package, run
 `nftably init`, and go.
 
-> **Status: beta.** nftably reads and writes netfilter through `nft`. Every apply
-> is dry-run through `nft --check`, loaded as one atomic transaction and armed with
-> an auto-revert — but it is young software. Run it behind the access list or an
-> SSH tunnel, and review the diff before you apply.
+> [!WARNING]
+> **nftably is beta software. Expect bugs.** It is a personal project released in the hope it is
+> useful to someone else. Nothing here has been through the kind of testing a piece of firewall
+> infrastructure deserves.
+
+> [!CAUTION]
+> **nftably owns the tables it manages, and replaces their _entire_ contents on every apply.** For
+> each table it manages it renders the whole table from its own database and swaps it in atomically —
+> any hand-written rule in that table it does not know about is gone after the next apply. Tables it
+> does not own are never named and never touched, so import an existing table into nftably before you
+> let it manage that table, or leave it alone. And because the host you are editing is usually reached
+> _through_ the firewall you are changing, every apply is dry-run through `nft --check`, review the
+> diff before you confirm, and keep the armed auto-revert on — it is what stops a bad rule from
+> locking you out. Run it behind the access list or an SSH tunnel.
 
 ## Screenshots
 
 The firewall is tables → chains (shown as tabs) → rules, each rendered as the real
 nft line it becomes:
 
-![The firewall page](docs/screenshots/firewall.jpg)
+![The firewall page](docs/screenshots/firewall.png)
 
 | The typed, explained rule editor | Best-practice presets |
 | :---: | :---: |
-| ![Rule editor](docs/screenshots/rule-editor.jpg) | ![Presets](docs/screenshots/presets.jpg) |
+| ![Rule editor](docs/screenshots/rule-editor.png) | ![Presets](docs/screenshots/presets.png) |
 | **Review the diff, apply with auto-revert** | **A live overview** |
-| ![Review](docs/screenshots/review.jpg) | ![Dashboard](docs/screenshots/dashboard.jpg) |
+| ![Review](docs/screenshots/review.png) | ![Dashboard](docs/screenshots/dashboard.png) |
 
 Jump to any page or action from anywhere with the command palette (**Ctrl-K** / **⌘K**):
 
-![The command palette](docs/screenshots/palette.jpg)
+![The command palette](docs/screenshots/palette.png)
 
 <sub>All addresses shown are documentation examples (RFC 5737 / RFC 3849).</sub>
 
@@ -72,9 +82,8 @@ make** and **easy to get right**:
 - **Built for fast editing.** **Drag** rules, chains and tables to reorder them;
   **multi-select** rules to enable, disable, move or delete them in one go;
   **duplicate** a rule — or move it — into any chain of the table; and jump to any
-  page or action from anywhere with the **Ctrl-K / ⌘K** command palette. Every drag
-  has an up/down button beside it, so the whole thing is keyboard-operable and works
-  with no JavaScript.
+  page or action from anywhere with the **Ctrl-K / ⌘K** command palette. With no
+  JavaScript, up/down buttons stand in for dragging, so reordering still works.
 - **One model for v4 and v6.** netfilter's `inet` family carries both in a single
   table, so a rule written once covers both protocols.
 - **Lockout safety.** Every apply is an atomic `nft -f` transaction — validated by
