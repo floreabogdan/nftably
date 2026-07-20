@@ -51,6 +51,14 @@ func newTestServer(t *testing.T) (*Server, *http.Cookie) {
 		Nft:        nft.New("nft-does-not-exist-on-this-box"),
 		ListenAddr: "0.0.0.0:8080",
 	})
+	// Runs before st.Close (cleanups are LIFO): stop any armed auto-revert timer
+	// so it can't fire against a closed store and recreate WAL files while the
+	// temp dir is being removed — the flake that reddened the -race CI build.
+	t.Cleanup(func() {
+		srv.applyMu.Lock()
+		srv.stopPendingTimer()
+		srv.applyMu.Unlock()
+	})
 	return srv, &http.Cookie{Name: sessionCookieName, Value: token}
 }
 
