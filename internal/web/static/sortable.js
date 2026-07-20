@@ -101,4 +101,14 @@
 			window.location.reload();
 		});
 	}
+
+	// "Copy to…" per-rule picker: choosing a target chain submits its duplicate
+	// form. Progressive enhancement — with no JS the select just doesn't submit,
+	// and the plain duplicate button still copies within the chain.
+	document.addEventListener("change", function (e) {
+		var sel = e.target;
+		if (sel && sel.hasAttribute && sel.hasAttribute("data-dup-select") && sel.value && sel.form) {
+			sel.form.submit();
+		}
+	});
 })();

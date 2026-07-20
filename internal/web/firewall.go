@@ -797,28 +797,110 @@ func reorderIDs(w http.ResponseWriter, r *http.Request) ([]int64, bool) {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return nil, false
 	}
+	return splitIDs(r.FormValue("ids")), true
+}
+
+// splitIDs parses a comma-separated list of decimal ids, skipping blanks and
+// non-numbers.
+func splitIDs(s string) []int64 {
 	var ids []int64
-	for _, tok := range strings.Split(r.FormValue("ids"), ",") {
+	for _, tok := range strings.Split(s, ",") {
 		if tok = strings.TrimSpace(tok); tok != "" {
 			if id, err := strconv.ParseInt(tok, 10, 64); err == nil {
 				ids = append(ids, id)
 			}
 		}
 	}
-	return ids, true
+	return ids
 }
 
-// handleRuleDuplicate clones a rule to the end of its chain, so authoring a
-// batch of similar rules doesn't mean re-entering every match by hand. The copy
-// keeps the enabled state and carries a "(copy)" comment so it's easy to spot.
+// handleRuleBulk applies one action to a set of selected rules at once
+// (enable/disable/delete, or move into another chain of the same table). The
+// per-chain checkbox bar on the Firewall page posts here; it answers 204 and the
+// page reloads. Each id is validated independently, so an id that has since been
+// deleted is skipped rather than failing the batch.
+func (s *Server) handleRuleBulk(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	action := r.FormValue("action")
+	ids := splitIDs(r.FormValue("ids"))
+	if len(ids) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	var targetChain int64
+	if action == "move" {
+		if targetChain, _ = strconv.ParseInt(r.FormValue("chain_id"), 10, 64); targetChain == 0 {
+			http.Error(w, "move needs a target chain", http.StatusBadRequest)
+			return
+		}
+	}
+	done := 0
+	for _, id := range ids {
+		switch action {
+		case "enable":
+			if s.store.SetChainRuleEnabled(id, true) == nil {
+				done++
+			}
+		case "disable":
+			if s.store.SetChainRuleEnabled(id, false) == nil {
+				done++
+			}
+		case "delete":
+			if s.store.DeleteChainRule(id) == nil {
+				done++
+			}
+		case "move":
+			// Only move within the same table, so the rendered family stays valid.
+			rule, err := s.store.GetChainRule(id)
+			if err != nil {
+				continue
+			}
+			src, err := s.store.GetChain(rule.ChainID)
+			if err != nil {
+				continue
+			}
+			tc, err := s.store.GetChain(targetChain)
+			if err != nil || tc.TableID != src.TableID {
+				continue
+			}
+			if s.store.ReassignChainRule(id, targetChain) == nil {
+				done++
+			}
+		default:
+			http.Error(w, "unknown bulk action", http.StatusBadRequest)
+			return
+		}
+	}
+	s.audit(r, fmt.Sprintf("bulk %s on %d rule(s)", action, done))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleRuleDuplicate clones a rule to the end of a chain, so authoring a batch
+// of similar rules doesn't mean re-entering every match by hand. The copy keeps
+// the enabled state and carries a "(copy)" comment so it's easy to spot. With no
+// chain_id it lands in the rule's own chain; with a chain_id for another chain in
+// the same table (the row's "copy to…" picker) it lands there instead — keeping
+// the rendered family compatible, like the editor's move selector.
 func (s *Server) handleRuleDuplicate(w http.ResponseWriter, r *http.Request) {
 	src, err := s.store.GetChainRule(pathID(r))
 	if err != nil {
 		s.notFoundOr(w, err)
 		return
 	}
+	targetChain := src.ChainID
+	if selID, _ := strconv.ParseInt(r.FormValue("chain_id"), 10, 64); selID != 0 && selID != src.ChainID {
+		srcChain, err := s.store.GetChain(src.ChainID)
+		if err == nil {
+			if tc, err := s.store.GetChain(selID); err == nil && tc.TableID == srcChain.TableID {
+				targetChain = tc.ID
+			}
+		}
+	}
 	dup := store.ChainRule{
-		ChainID:    src.ChainID,
+		ChainID:    targetChain,
 		Comment:    strings.TrimSpace(src.Comment + " (copy)"),
 		Enabled:    src.Enabled,
 		Raw:        src.Raw,

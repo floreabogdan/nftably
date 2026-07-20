@@ -177,3 +177,77 @@ func TestRuleDuplicateCarriesRawAndTags(t *testing.T) {
 		t.Errorf("duplicate lost the tags: %q", dup.Tags)
 	}
 }
+
+// TestRuleBulk exercises the bulk endpoint: disable a set of rules, then move a
+// set into another chain of the same table.
+func TestRuleBulk(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	_, chainA, chainB := seedTwoChains(t, srv)
+	var ids []int64
+	for i := 0; i < 3; i++ {
+		id, err := srv.store.CreateChainRule(store.ChainRule{ChainID: chainA, Enabled: true,
+			Statements: []store.RuleStatement{{Key: "drop", Params: "{}"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	all := itoa(ids[0]) + "," + itoa(ids[1]) + "," + itoa(ids[2])
+
+	// Disable all three.
+	if rec := postForm(srv, "/firewall/rules/bulk", url.Values{"action": {"disable"}, "ids": {all}}, cookie); rec.Code != http.StatusNoContent {
+		t.Fatalf("bulk disable: status %d", rec.Code)
+	}
+	for _, id := range ids {
+		r, _ := srv.store.GetChainRule(id)
+		if r.Enabled {
+			t.Errorf("rule %d should be disabled", id)
+		}
+	}
+
+	// Move the first two into chain B.
+	two := itoa(ids[0]) + "," + itoa(ids[1])
+	if rec := postForm(srv, "/firewall/rules/bulk", url.Values{"action": {"move"}, "ids": {two}, "chain_id": {itoa(chainB)}}, cookie); rec.Code != http.StatusNoContent {
+		t.Fatalf("bulk move: status %d", rec.Code)
+	}
+	if b, _ := srv.store.ListChainRules(chainB); len(b) != 2 {
+		t.Errorf("chain B should have 2 moved rules, has %d", len(b))
+	}
+	if a, _ := srv.store.ListChainRules(chainA); len(a) != 1 {
+		t.Errorf("chain A should have 1 rule left, has %d", len(a))
+	}
+
+	// Delete the remaining rule in A.
+	if rec := postForm(srv, "/firewall/rules/bulk", url.Values{"action": {"delete"}, "ids": {itoa(ids[2])}}, cookie); rec.Code != http.StatusNoContent {
+		t.Fatalf("bulk delete: status %d", rec.Code)
+	}
+	if a, _ := srv.store.ListChainRules(chainA); len(a) != 0 {
+		t.Errorf("chain A should be empty, has %d", len(a))
+	}
+}
+
+// TestRuleDuplicateToAnotherChain checks the row's "copy to…" picker: a duplicate
+// with a chain_id for another chain in the same table lands the copy there, not
+// in the source chain.
+func TestRuleDuplicateToAnotherChain(t *testing.T) {
+	srv, cookie := newTestServer(t)
+	_, chainA, chainB := seedTwoChains(t, srv)
+	rid, err := srv.store.CreateChainRule(store.ChainRule{ChainID: chainA, Enabled: true, Comment: "ssh",
+		Matches:    []store.RuleMatch{{Key: "tcp.dport", Op: "==", Value: "22"}},
+		Statements: []store.RuleStatement{{Key: "accept", Params: "{}"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := url.Values{"chain_id": {itoa(chainB)}}
+	if rec := postForm(srv, "/firewall/rules/"+itoa(rid)+"/duplicate", form, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("duplicate to chain: status %d", rec.Code)
+	}
+	// Source chain still has just the original; target chain got the copy.
+	if a, _ := srv.store.ListChainRules(chainA); len(a) != 1 {
+		t.Errorf("source chain should still have 1 rule, has %d", len(a))
+	}
+	b, _ := srv.store.ListChainRules(chainB)
+	if len(b) != 1 || b[0].Comment != "ssh (copy)" {
+		t.Fatalf("target chain should hold the copy; got %d rules", len(b))
+	}
+}

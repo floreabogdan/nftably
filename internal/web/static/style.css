@@ -1412,6 +1412,65 @@ details[open] .collapse-hint::before { content: "hide"; }
 .card.sort-dragging { opacity: 0.85; }
 body.reordering { user-select: none; cursor: grabbing; }
 
+/* Compact per-row "copy to…" chain picker sitting among the rule actions. */
+.dup-form { display: inline-block; margin: 0; }
+.dup-select {
+	font-size: var(--fs-xs); padding: 2px 4px; height: auto; width: auto;
+	max-width: 8.5em; color: var(--text-muted); border-color: var(--border);
+}
+
+/* Command palette (Ctrl/Cmd-K). */
+.cmdk-open { position: relative; }
+.cmdk-hint {
+	font-size: var(--fs-2xs); padding: 1px 4px; margin-left: 4px; border-radius: 4px;
+	border: 1px solid var(--border); color: var(--text-muted); line-height: 1.4;
+}
+.cmdk-backdrop {
+	position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.4);
+	display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh;
+}
+.cmdk-backdrop[hidden] { display: none; }
+.cmdk {
+	width: min(560px, 92vw); background: var(--surface); color: var(--text);
+	border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+	box-shadow: 0 16px 48px rgba(0,0,0,0.35); display: flex; flex-direction: column;
+}
+.cmdk-input {
+	border: none; border-bottom: 1px solid var(--border); border-radius: 0;
+	font-size: var(--fs-md); padding: 14px 16px; background: transparent; color: var(--text);
+}
+.cmdk-input:focus { outline: none; box-shadow: none; }
+.cmdk-list { list-style: none; margin: 0; padding: 6px; max-height: 50vh; overflow-y: auto; }
+.cmdk-item {
+	display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+	padding: 9px 12px; border-radius: 8px; cursor: pointer;
+}
+.cmdk-item.active { background: var(--surface-2, rgba(127,127,127,0.12)); }
+.cmdk-item-label { font-size: var(--fs-sm); }
+.cmdk-item-group { font-size: var(--fs-2xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.cmdk-empty { padding: 16px 12px; color: var(--text-muted); font-size: var(--fs-sm); text-align: center; }
+.cmdk-foot {
+	display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--border);
+	font-size: var(--fs-2xs); color: var(--text-muted);
+}
+.cmdk-foot .kbd, .cmdk-input + * .kbd, .kbd {
+	display: inline-block; min-width: 1.2em; text-align: center; padding: 0 4px; margin-right: 2px;
+	border: 1px solid var(--border); border-radius: 4px; font-family: inherit;
+}
+body.cmdk-on { overflow: hidden; }
+
+/* Bulk rule selection. */
+.rule-check-cell { width: 1%; padding-right: 0 !important; }
+.bulk-check { cursor: pointer; }
+.bulk-all { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); cursor: pointer; margin-right: 10px; }
+.bulk-bar {
+	display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+	padding: 8px 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px;
+	background: var(--surface-2, rgba(127,127,127,0.08));
+}
+.bulk-count { font-size: var(--fs-sm); margin-right: 4px; }
+.bulk-move-select { margin: 0; }
+
 /* rule editor rows */
 .knob-row { padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-control); margin-bottom: 8px; background: var(--surface); }
 .knob-row.extra { display: none; }

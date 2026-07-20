@@ -105,7 +105,7 @@
 			{{range $ci, $ch := $t.Chains}}
 			<div class="chain-panel{{if eq $ci 0}} active{{end}}" id="t{{$t.ID}}c{{$ch.ID}}" role="tabpanel" aria-labelledby="tab-t{{$t.ID}}c{{$ch.ID}}" tabindex="0">
 				<div class="chain-head">
-					<div><span class="hint">{{$ch.HookLine}}</span></div>
+					<div>{{if $ch.Rules}}<label class="bulk-all" title="Select or clear all rules"><input type="checkbox" data-bulk-all aria-label="Select all rules in {{$ch.Name}}"> <span class="text-muted">Select</span></label>{{end}}<span class="hint">{{$ch.HookLine}}</span></div>
 					<div class="row-actions">
 						<a class="btn btn-sm btn-primary" href="/firewall/chains/{{$ch.ID}}/rules/new">{{template "icon-plus"}} Add rule</a>
 						<a class="icon-action a-primary" title="Edit chain" aria-label="Edit chain {{$ch.Name}}" href="/firewall/chains/{{$ch.ID}}/edit">{{template "icon-edit"}}</a>
@@ -115,11 +115,25 @@
 					</div>
 				</div>
 				{{if $ch.Rules}}
+				<div class="bulk-bar" data-bulk-bar hidden>
+					<span class="bulk-count"><strong data-bulk-count>0</strong> selected</span>
+					<button type="button" class="btn btn-sm" data-bulk-action="enable">Enable</button>
+					<button type="button" class="btn btn-sm" data-bulk-action="disable">Disable</button>
+					{{if gt (len $t.Chains) 1}}
+					<select class="bulk-move-select dup-select" data-bulk-move aria-label="Move selected rules into another chain">
+						<option value="">move to…</option>
+						{{range $t.Chains}}{{if ne .ID $ch.ID}}<option value="{{.ID}}">{{.Name}}</option>{{end}}{{end}}
+					</select>
+					{{end}}
+					<button type="button" class="btn btn-sm a-danger" data-bulk-action="delete" data-bulk-confirm="Delete the selected rules?">Delete</button>
+					<button type="button" class="btn btn-sm btn-ghost" data-bulk-clear>Clear</button>
+				</div>
 				<div class="table-scroll">
 				<table class="rule-table">
 					<tbody data-search-target data-sortable data-sortable-endpoint="/firewall/chains/{{$ch.ID}}/rules/reorder">
 					{{range $ch.Rules}}
 					<tr class="{{if not .Enabled}}row-disabled{{end}}" data-sortable-id="{{.ID}}">
+						<td class="rule-check-cell"><input type="checkbox" class="bulk-check" data-bulk-id="{{.ID}}" aria-label="Select this rule"></td>
 						<td class="rule-grip-cell"><span class="sort-grip" data-sort-grip title="Drag to reorder" aria-hidden="true"></span></td>
 						<td class="rule-preview">
 							{{if .Preview}}<code class="mono">{{.Preview}}</code>{{else}}<span class="badge badge-warning">won't render{{if .RenderErr}}: {{.RenderErr}}{{end}}</span>{{end}}
@@ -133,7 +147,15 @@
 								<form method="post" action="/firewall/rules/{{.ID}}/move"><input type="hidden" name="dir" value="down"><button class="icon-action" title="Move down" aria-label="Move rule down">{{template "icon-down"}}</button></form>
 								<form method="post" action="/firewall/rules/{{.ID}}/toggle"><button class="icon-action" title="{{if .Enabled}}Disable{{else}}Enable{{end}}" aria-label="{{if .Enabled}}Disable{{else}}Enable{{end}} rule">{{template "icon-power"}}</button></form>
 								<a class="icon-action a-primary" title="Edit rule" aria-label="Edit rule" href="/firewall/rules/{{.ID}}/edit">{{template "icon-edit"}}</a>
-								<form method="post" action="/firewall/rules/{{.ID}}/duplicate"><button class="icon-action" title="Duplicate rule" aria-label="Duplicate rule">{{template "icon-copy"}}</button></form>
+								<form method="post" action="/firewall/rules/{{.ID}}/duplicate"><button class="icon-action" title="Duplicate rule (in this chain)" aria-label="Duplicate rule in this chain">{{template "icon-copy"}}</button></form>
+								{{if gt (len $t.Chains) 1}}
+								<form method="post" action="/firewall/rules/{{.ID}}/duplicate" class="dup-form">
+									<select name="chain_id" class="dup-select" data-dup-select aria-label="Duplicate rule into another chain" title="Duplicate into another chain">
+										<option value="">copy to…</option>
+										{{range $t.Chains}}{{if ne .ID $ch.ID}}<option value="{{.ID}}">{{.Name}}</option>{{end}}{{end}}
+									</select>
+								</form>
+								{{end}}
 								<form method="post" action="/firewall/rules/{{.ID}}/delete" data-confirm="Delete this rule?"><button class="icon-action a-danger" title="Delete rule" aria-label="Delete rule">{{template "icon-trash"}}</button></form>
 							</div>
 						</td>
@@ -223,4 +245,5 @@
 </div>
 
 <script src="/static/sortable.js" defer></script>
+<script src="/static/bulk.js" defer></script>
 {{template "shell-close" .}}{{end}}
