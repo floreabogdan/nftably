@@ -33,9 +33,9 @@ type settingsVM struct {
 	Flash        string
 	FlashErr     string
 	// Backup tab: scheduled-backup state and the on-disk snapshots.
-	BackupAuto   bool
-	BackupDirOK  bool
-	AutoBackups  []autoBackupFile
+	BackupAuto  bool
+	BackupDirOK bool
+	AutoBackups []autoBackupFile
 }
 
 // settingsTabs are the settings tab keys in display order; the first is the

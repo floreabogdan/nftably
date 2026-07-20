@@ -133,11 +133,11 @@ func TestValidateRawRuleRejectsBreakouts(t *testing.T) {
 		}
 	}
 	bad := []string{
-		"",                              // empty
-		"accept\ndrop",                  // line break
-		"accept ; drop",                 // rule separator
-		"drop # sneaky",                 // comment marker
-		"accept } chain evil {",         // unbalanced brace (breakout attempt)
+		"",                      // empty
+		"accept\ndrop",          // line break
+		"accept ; drop",         // rule separator
+		"drop # sneaky",         // comment marker
+		"accept } chain evil {", // unbalanced brace (breakout attempt)
 	}
 	for _, s := range bad {
 		if _, err := ValidateRawRule(s); err == nil {

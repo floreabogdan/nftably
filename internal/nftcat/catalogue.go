@@ -243,18 +243,18 @@ var statements = []Statement{
 			// family; icmp/icmpv6 forms are family-specific (the pre-apply check
 			// catches a mismatch).
 			rejects := map[string]string{
-				"":             "reject",
-				"default":      "reject",
-				"tcp reset":    "reject with tcp reset",
-				"icmpx admin":  "reject with icmpx type admin-prohibited",
-				"icmpx port":   "reject with icmpx type port-unreachable",
-				"icmpx host":   "reject with icmpx type host-unreachable",
-				"icmp admin":   "reject with icmp type admin-prohibited",
-				"icmp port":    "reject with icmp type port-unreachable",
-				"icmp host":    "reject with icmp type host-unreachable",
-				"icmp net":     "reject with icmp type net-unreachable",
-				"icmpv6 admin": "reject with icmpv6 type admin-prohibited",
-				"icmpv6 port":  "reject with icmpv6 type port-unreachable",
+				"":               "reject",
+				"default":        "reject",
+				"tcp reset":      "reject with tcp reset",
+				"icmpx admin":    "reject with icmpx type admin-prohibited",
+				"icmpx port":     "reject with icmpx type port-unreachable",
+				"icmpx host":     "reject with icmpx type host-unreachable",
+				"icmp admin":     "reject with icmp type admin-prohibited",
+				"icmp port":      "reject with icmp type port-unreachable",
+				"icmp host":      "reject with icmp type host-unreachable",
+				"icmp net":       "reject with icmp type net-unreachable",
+				"icmpv6 admin":   "reject with icmpv6 type admin-prohibited",
+				"icmpv6 port":    "reject with icmpv6 type port-unreachable",
 				"icmpv6 noroute": "reject with icmpv6 type no-route",
 			}
 			if out, ok := rejects[p["with"]]; ok {
@@ -371,7 +371,7 @@ var statements = []Statement{
 			return "counter name " + name, nil
 		}},
 	{Key: "flow", Label: "Offload to flowtable (flow add)", Group: "Observe", Example: "flow add @ft",
-		Help: "Hand established connections to a flowtable's fast path — later packets of the flow skip the rest of the ruleset for a big throughput win on a router. Put it in a forward chain (e.g. after 'ct state established related'); the flowtable must exist on the table.",
+		Help:   "Hand established connections to a flowtable's fast path — later packets of the flow skip the rest of the ruleset for a big throughput win on a router. Put it in a forward chain (e.g. after 'ct state established related'); the flowtable must exist on the table.",
 		Params: []Param{{Key: "ft", Label: "Flowtable", Kind: KindText, Placeholder: "ft", Help: "The flowtable to offload into (its name, without the @)."}},
 		render: func(p map[string]string, _ Ctx) (string, error) {
 			ft := strings.TrimSpace(strings.TrimPrefix(p["ft"], "@"))

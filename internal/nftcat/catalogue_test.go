@@ -143,26 +143,26 @@ func TestRejectsInjection(t *testing.T) {
 		{"ct.mark.set", map[string]string{"value": "}"}},            // brace mark
 		{"log", map[string]string{"level": "info\n drop"}},          // bogus level
 		{"limit", map[string]string{"rate": "10", "per": "minute\n drop"}},
-		{"dnat", map[string]string{"addr": "1.1.1.1\n drop"}},                                           // non-address target
-		{"redirect", map[string]string{"port": "80\n drop"}},                                            // non-port
-		{"synproxy", map[string]string{"mss": "abc"}},                                                   // non-numeric mss
-		{"synproxy", map[string]string{"wscale": "1 drop"}},                                             // non-numeric wscale
-		{"quota", map[string]string{"amount": "x", "unit": "mbytes"}},                                   // non-numeric amount
-		{"quota", map[string]string{"amount": "1", "unit": "gbytes"}},                                   // unit nft rejects
-		{"queue", map[string]string{"num": "0 drop"}},                                                   // non-numeric queue
-		{"tcp.mss.clamp", map[string]string{"size": "huge"}},                                            // non-number, non-'rt mtu'
-		{"ban.rate", map[string]string{"set": "a; drop", "family": "ip", "rate": "10"}},                 // non-identifier set
+		{"dnat", map[string]string{"addr": "1.1.1.1\n drop"}},                                            // non-address target
+		{"redirect", map[string]string{"port": "80\n drop"}},                                             // non-port
+		{"synproxy", map[string]string{"mss": "abc"}},                                                    // non-numeric mss
+		{"synproxy", map[string]string{"wscale": "1 drop"}},                                              // non-numeric wscale
+		{"quota", map[string]string{"amount": "x", "unit": "mbytes"}},                                    // non-numeric amount
+		{"quota", map[string]string{"amount": "1", "unit": "gbytes"}},                                    // unit nft rejects
+		{"queue", map[string]string{"num": "0 drop"}},                                                    // non-numeric queue
+		{"tcp.mss.clamp", map[string]string{"size": "huge"}},                                             // non-number, non-'rt mtu'
+		{"ban.rate", map[string]string{"set": "a; drop", "family": "ip", "rate": "10"}},                  // non-identifier set
 		{"vmap", map[string]string{"vmapkey": "tcp dport", "vmapentries": "22 : accept } table evil {"}}, // brace escape in verdict
 		{"vmap", map[string]string{"vmapkey": "tcp dport", "vmapentries": "22 : reboot"}},                // bogus verdict
 		{"vmap", map[string]string{"vmapkey": "tcp dport", "vmapentries": "22}: accept"}},                // brace in value
 		{"vmap", map[string]string{"vmapkey": "bad field", "vmapentries": "22 : accept"}},                // unsupported key
 		{"vmap", map[string]string{"vmapkey": "tcp dport", "vmapentries": "22 : jump a; drop"}},          // separator in jump target
-		{"ban.rate", map[string]string{"set": "ok", "family": "arp", "rate": "10"}},                     // family nft can't ban by
-		{"ban.rate", map[string]string{"set": "ok", "family": "ip", "rate": "x"}},                       // non-numeric rate
-		{"ban.rate", map[string]string{"set": "ok", "family": "ip", "rate": "10", "timeout": "1 drop"}}, // bad duration
-		{"dscp.set", map[string]string{"family": "arp", "value": "ef"}},                                 // family nft can't dscp
-		{"dscp.set", map[string]string{"family": "ip", "value": "ef; drop"}},                            // separator in value
-		{"tproxy", map[string]string{"family": "ip", "port": "80 drop"}},                                // non-port
+		{"ban.rate", map[string]string{"set": "ok", "family": "arp", "rate": "10"}},                      // family nft can't ban by
+		{"ban.rate", map[string]string{"set": "ok", "family": "ip", "rate": "x"}},                        // non-numeric rate
+		{"ban.rate", map[string]string{"set": "ok", "family": "ip", "rate": "10", "timeout": "1 drop"}},  // bad duration
+		{"dscp.set", map[string]string{"family": "arp", "value": "ef"}},                                  // family nft can't dscp
+		{"dscp.set", map[string]string{"family": "ip", "value": "ef; drop"}},                             // separator in value
+		{"tproxy", map[string]string{"family": "ip", "port": "80 drop"}},                                 // non-port
 	}
 	for _, c := range stmtCases {
 		if _, err := RenderStatement(c.key, c.params, Ctx{Family: "inet"}); err == nil {
