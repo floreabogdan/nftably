@@ -6,6 +6,15 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **A kernel-populated rate-meter set no longer reads as drift.** The auto-ban rate
+  detector's meter set (`flags dynamic`) fills at runtime with the sources it is
+  currently limiting, each carrying `limit rate over …` — kernel state, like a timeout
+  set's `expires`, that nftably never applied. The canonicalizer now drops those
+  runtime members too, so a host actively banning attackers stays In sync instead of
+  drifting on every new offender.
+
 ## [0.1.4] - 2026-07-20
 
 ### Fixed

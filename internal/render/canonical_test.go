@@ -110,3 +110,26 @@ func TestCanonicalizeQueueReadback(t *testing.T) {
 		t.Errorf("queue-bypass readback should canonicalize equal to the render\nlive:     %q\nrendered: %q", got, want)
 	}
 }
+
+// TestCanonicalizeMeterRuntimeElements: nftably applies a rate-meter set empty;
+// the kernel fills it with the sources it is currently rate-limiting, each
+// carrying `limit rate over …`. Like the timeout ban set's `expires` members,
+// that is kernel runtime and must not read as drift. From a real router.
+func TestCanonicalizeMeterRuntimeElements(t *testing.T) {
+	applied := "table inet filter {\n" +
+		"\tset ssh_abusers_m4 {\n" +
+		"\t\ttype ipv4_addr\n" +
+		"\t\tflags dynamic\n" +
+		"\t}\n" +
+		"}\n"
+	live := "table inet filter {\n" +
+		"\tset ssh_abusers_m4 {\n" +
+		"\t\ttype ipv4_addr\n" +
+		"\t\tflags dynamic\n" +
+		"\t\telements = { 120.48.178.72 limit rate over 10/minute burst 5 packets, 14.103.127.23 limit rate over 10/minute burst 5 packets, 91.196.152.118 limit rate over 10/minute burst 5 packets }\n" +
+		"\t}\n" +
+		"}\n"
+	if got, want := CanonicalizeNftText(live), CanonicalizeNftText(applied); got != want {
+		t.Errorf("a kernel-populated rate-meter set should not read as drift\n--- canonical(live) ---\n%s\n--- canonical(applied) ---\n%s", got, want)
+	}
+}

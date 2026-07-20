@@ -40,14 +40,15 @@ var (
 // of the same table) so two representations of the same applied ruleset compare
 // equal.
 func CanonicalizeNftText(s string) string {
-	// A multi-line `elements = { … }` block: a dynamic (timeout) set's members are
-	// kernel runtime — they carry `expires` and count down every second — so the
-	// whole block is dropped to match the empty set nftably applied. A static
-	// set's members are collapsed onto one line and sorted, so the kernel's
-	// wrapping and ordering never read as a change (element order is not
-	// significant in a set).
+	// A multi-line `elements = { … }` block: a dynamic set's members are kernel
+	// runtime, not applied config, so the whole block is dropped to match the empty
+	// set nftably applied — a timeout (ban) set's members carry `expires` (counting
+	// down each second), a rate-meter set's carry `limit rate` (the sources it is
+	// currently limiting). A static set's members are collapsed onto one line and
+	// sorted, so the kernel's wrapping and ordering never read as a change (element
+	// order is not significant in a set).
 	s = reElements.ReplaceAllStringFunc(s, func(m string) string {
-		if strings.Contains(m, "expires") {
+		if strings.Contains(m, "expires") || strings.Contains(m, "limit rate") {
 			return ""
 		}
 		return "elements = " + sortBraceSet(m)
