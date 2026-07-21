@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	nftconf "github.com/floreabogdan/nftably/internal/render"
@@ -48,10 +47,17 @@ type changesVM struct {
 	// TableExists reports whether `table inet nftably` exists in the kernel yet.
 	// Before the first apply it does not, and the whole candidate is new.
 	TableExists bool
-	Hunks       []nftconf.Hunk
-	Added       int
-	Removed     int
-	RuleCount   int // enabled rules in the candidate
+	// FirstApply is true when nftably has never applied anything, so there is no
+	// prior render to diff against — the whole candidate is new.
+	FirstApply bool
+	// Drifted is true when the live kernel no longer matches what nftably last
+	// applied (someone changed it with nft or a hand-written config). Detected by
+	// comparing kernel-readback fingerprints, so it is robust to nft's formatting.
+	Drifted   bool
+	Hunks     []nftconf.Hunk
+	Added     int
+	Removed   int
+	RuleCount int // enabled rules in the candidate
 
 	// The M3 apply state.
 	CanApply  bool                // nft reachable and no pending apply
@@ -178,43 +184,39 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 		}
 	}
 
-	// Build the "live" side from the current kernel text of every owned table,
-	// in model order, so it lines up with the candidate for a meaningful diff.
+	// "What applying will change": diff the current render against the render of
+	// what nftably last loaded into the kernel (LatestAppliedConfig). Both sides go
+	// through the same renderer, so the diff is exactly the model delta since the
+	// last apply — there is no nft-list reformatting to reconcile, so the page is
+	// quiet whenever the model is unchanged, no matter how nft prints the ruleset.
+	applied, appliedOK, aerr := s.store.LatestAppliedConfig()
+	if aerr != nil {
+		s.serverError(w, "latest applied config", aerr)
+		return changesVM{}, false
+	}
+	vm.FirstApply = !appliedOK
+	vm.Hunks = nftconf.Diff(applied, vm.Candidate, 3)
+	vm.Added, vm.Removed = nftconf.Stat(vm.Hunks)
+
+	// The live kernel is still read — for the table-exists status and the adoption
+	// warning (a table nftably is about to replace that it did not create).
 	snaps, err := s.snapshotTables(r.Context(), modelTableRefs(m))
 	if err != nil {
 		vm.LiveErr = err.Error()
 	} else {
-		var live strings.Builder
-		for _, sn := range snaps {
-			if sn.Exists {
-				vm.TableExists = true
-				live.WriteString(sn.Text)
-				if !strings.HasSuffix(sn.Text, "\n") {
-					live.WriteString("\n")
-				}
-			}
-		}
-		// Diff canonical forms of both sides: the kernel reformats a ruleset when
-		// it lists it back (wrapping/reordering set elements, filling in counter
-		// totals), none of which is a real change — so compare what nftably applied,
-		// not how nft happens to print it, and the page goes quiet when in sync.
-		vm.Hunks = nftconf.Diff(nftconf.CanonicalizeNftText(live.String()), nftconf.CanonicalizeNftText(vm.Candidate), 3)
-		vm.Added, vm.Removed = nftconf.Stat(vm.Hunks)
-
 		existing := map[store.TableRef]bool{}
 		for _, sn := range snaps {
 			if sn.Exists {
+				vm.TableExists = true
 				existing[store.TableRef{Family: sn.Family, Name: sn.Name}] = true
 			}
 		}
 		vm.Summary = summarizeModel(m, existing)
 
-		// Adoption warning: a table nftably is about to replace that already
-		// exists in the kernel but is absent from the applied ledger was created
-		// by someone else — a hand-written /etc/nftables.conf, another tool. The
-		// apply replaces it atomically, wiping its current contents, and a confirm
-		// makes that permanent. Flag it before the operator commits (the ordinary
-		// diff shows the change, but not that the table was not nftably's).
+		// Adoption warning: a table that already exists in the kernel but is absent
+		// from the applied ledger was created by someone else — a hand-written
+		// /etc/nftables.conf, another tool. The apply replaces it atomically, wiping
+		// its current contents; flag it before the operator commits.
 		if ledger, lerr := s.store.GetAppliedTables(); lerr == nil {
 			owned := make(map[store.TableRef]bool, len(ledger))
 			for _, ref := range ledger {
@@ -223,7 +225,7 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 			for _, sn := range snaps {
 				if sn.Exists && !owned[store.TableRef{Family: sn.Family, Name: sn.Name}] {
 					vm.LintWarns = append(vm.LintWarns, fmt.Sprintf(
-						"The table %s %s already exists in the kernel and was not created by nftably — applying replaces its current contents. If a hand-written config or another tool manages it, review the diff carefully before you apply and confirm.", sn.Family, sn.Name))
+						"The table %s %s already exists in the kernel and was not created by nftably — applying replaces its current contents. If a hand-written config or another tool manages it, review it before you apply and confirm.", sn.Family, sn.Name))
 				}
 			}
 		}
@@ -231,6 +233,16 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 	if vm.Summary == nil {
 		// Live tables unreadable — still show the outline of what would apply.
 		vm.Summary = summarizeModel(m, nil)
+	}
+
+	// Drift: has the live kernel been changed outside nftably since the last apply?
+	// This compares kernel-readback fingerprints (both produced by nft, runtime
+	// state stripped), so nft's formatting never matters — it fires only on a
+	// genuine out-of-band change, and is shown as a warning to re-apply.
+	if base, berr := s.store.GetAppliedFingerprint(); berr == nil && base != "" {
+		if liveFp, hasOwned, ferr := s.liveOwnedFingerprint(r.Context()); ferr == nil && hasOwned {
+			vm.Drifted = liveFp != base
+		}
 	}
 
 	if p, pending, err := s.store.GetPendingApply(); err != nil {

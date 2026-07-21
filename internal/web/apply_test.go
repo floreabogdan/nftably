@@ -202,6 +202,37 @@ func TestConfirmLedgerIgnoresPendingModelEdit(t *testing.T) {
 	}
 }
 
+// TestChangesQuietAfterApply is the crux of the drift-free Changes page: once the
+// model is applied and confirmed, re-opening Changes with no further edits must
+// read "in sync" with no diff — because the page diffs the current render against
+// the render of what was last applied, not against nft's reformatted list output.
+func TestChangesQuietAfterApply(t *testing.T) {
+	srv, _, cookie := newApplyTestServer(t)
+	_ = seededInputChain(t, srv)
+
+	if rec := postForm(srv, "/apply", url.Values{"timeout": {"60"}}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("apply: %d", rec.Code)
+	}
+	if rec := postForm(srv, "/apply/confirm", url.Values{}, cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("confirm: %d", rec.Code)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/changes", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /changes: %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "in sync") {
+		t.Error("Changes should read 'in sync' after a clean apply with no further edits")
+	}
+	if strings.Contains(body, `class="diff-line`) {
+		t.Error("Changes rendered a diff after a clean apply — the model matches what was applied")
+	}
+}
+
 func TestApplyRollbackRestoresPrevious(t *testing.T) {
 	srv, fake, cookie := newApplyTestServer(t)
 	prev := "table inet filter {\n\tchain input {\n\t\ttype filter hook input priority filter; policy drop;\n\t}\n}\n"

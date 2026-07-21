@@ -6,7 +6,7 @@
 <div class="page-header">
 	<div>
 		<h1>{{template "icon-changes"}} Changes</h1>
-		<div class="page-sub">What your <a href="/firewall">firewall model</a> renders to, how it differs from the tables live in the kernel right now, and the apply pipeline with its armed auto-revert.</div>
+		<div class="page-sub">What your <a href="/firewall">firewall model</a> renders to, what applying it would change since the last apply, whether the kernel has drifted, and the apply pipeline with its armed auto-revert.</div>
 	</div>
 </div>
 
@@ -75,17 +75,21 @@
 </div>
 {{end}}
 
+{{if .Drifted}}
+<div class="card card-warning">
+	<div class="card-body">{{template "icon-alert"}} <strong>The live firewall was changed outside nftably.</strong> It no longer matches what was last applied — someone edited it with <span class="mono">nft</span> or loaded a different config. Applying below re-asserts your model and takes back control.</div>
+</div>
+{{end}}
+
 <div class="card">
 	<div class="card-header">
-		<span class="card-title">{{template "icon-changes"}}Diff against the kernel</span>
-		{{if or .Added .Removed}}<span class="diff-stat"><span class="add">+{{.Added}}</span> <span class="del">-{{.Removed}}</span></span>{{end}}
+		<span class="card-title">{{template "icon-changes"}}Changes to apply</span>
+		{{if and (not .FirstApply) (or .Added .Removed)}}<span class="diff-stat"><span class="add">+{{.Added}}</span> <span class="del">-{{.Removed}}</span></span>{{end}}
 	</div>
-	{{if .LiveErr}}
-	<div class="card-body text-muted">Unavailable until the live table can be read.</div>
-	{{else if not .TableExists}}
+	{{if .FirstApply}}
 	<div class="card-body">
 		<span class="badge badge-info">first apply</span>
-		<span class="text-muted">None of nftably's tables are in the kernel yet — everything below is new.</span>
+		<span class="text-muted">nftably hasn't applied anything yet — this is the whole config, all new. The outline above shows what it builds.</span>
 	</div>
 	{{else if .Hunks}}
 	<div class="diff" data-search-target>
@@ -95,7 +99,7 @@
 		{{end}}
 	</div>
 	{{else}}
-	<div class="card-body"><span class="badge badge-success"><span class="dot"></span>in sync</span> <span class="text-muted">The live table matches the model exactly.</span></div>
+	<div class="card-body"><span class="badge badge-success"><span class="dot"></span>in sync</span> <span class="text-muted">Your model matches what nftably last applied — nothing to apply.</span></div>
 	{{end}}
 </div>
 

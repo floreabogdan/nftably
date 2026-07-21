@@ -6,6 +6,19 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The Changes page shows what applying would change vs what was last applied —
+  not a diff against the kernel's reformatted output.** Previously "Diff against the
+  kernel" compared nftably's render against `nft list` text, which nft reformats on
+  readback (counter totals, set wrapping and ordering, `meter`/`queue`/`counter name`
+  spelling, dynamic-set runtime) — an endless source of phantom diffs that needed a
+  growing pile of canonicalization. It now diffs the current render against the render
+  of the last-applied config — the same renderer on both sides — so the page is quiet
+  whenever the model is unchanged, regardless of nft version or accumulated runtime
+  state. A separate, fingerprint-based **drift** warning flags genuine out-of-band
+  kernel changes. This removes the whole class of readback-formatting drift at the root.
+
 ### Fixed
 
 - **A kernel-populated rate-meter set no longer reads as drift.** The auto-ban rate
