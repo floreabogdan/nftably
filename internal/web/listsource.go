@@ -97,9 +97,18 @@ func (s *Server) refreshList(ctx context.Context, l store.IPList) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// Capture the pre-change state so the refresh can push only its delta to the
+	// live kernel set (and know whether the model was in sync) — a refreshed feed
+	// then takes effect at once instead of waiting for a manual apply.
+	prior := s.modelRender()
+	before, _ := s.store.ListEntries(l.ID)
 	n, err := s.store.ReplaceListEntries(l.ID, cidrs)
 	if err != nil {
 		return 0, err
+	}
+	if after, aerr := s.store.ListEntries(l.ID); aerr == nil {
+		add, del := listEntryDelta(before, after)
+		s.pushSetElements(ctx, prior, l.Name, add, del)
 	}
 	return n, nil
 }

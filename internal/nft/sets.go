@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -26,6 +27,39 @@ func (c *Client) DynamicSetMembers(ctx context.Context) (map[string][]string, er
 // real address/prefix; family/table/set come from DynamicSetMembers.
 func (c *Client) DeleteSetElement(ctx context.Context, family, table, set, element string) error {
 	_, err := c.run(ctx, "delete", "element", family, table, set, "{", element, "}")
+	return err
+}
+
+// AddSetElements adds elements to a live set in one atomic nft transaction — used
+// to push an automated block or feed update straight into the kernel so it takes
+// effect without a full apply. The caller validates the elements and picks the set
+// for their family. An error (e.g. the set/table is not applied yet) is the
+// caller's to swallow.
+func (c *Client) AddSetElements(ctx context.Context, family, table, set string, elements []string) error {
+	return c.setElementOp(ctx, "add", family, table, set, elements)
+}
+
+// DeleteSetElements removes elements from a live set in one atomic transaction.
+func (c *Client) DeleteSetElements(ctx context.Context, family, table, set string, elements []string) error {
+	return c.setElementOp(ctx, "delete", family, table, set, elements)
+}
+
+func (c *Client) setElementOp(ctx context.Context, op, family, table, set string, elements []string) error {
+	if len(elements) == 0 {
+		return nil
+	}
+	script := fmt.Sprintf("%s element %s %s %s { %s }\n", op, family, table, set, strings.Join(elements, ", "))
+	f, err := os.CreateTemp("", "nftably-setsync-*.nft")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, werr := f.WriteString(script); werr != nil {
+		f.Close()
+		return werr
+	}
+	f.Close()
+	_, err = c.run(ctx, "-f", f.Name())
 	return err
 }
 

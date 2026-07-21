@@ -22,6 +22,14 @@ All notable changes to nftably are recorded here. The format follows
   or GeoIP list can be thousands of elements; the diff now caps its rendered lines (with
   a “download the full config to review” pointer) so a big list can't produce a page so
   large it stalls the browser.
+- **Automated set updates take effect immediately, with nothing to re-apply.** The block
+  API (`/api/block`, `/api/unblock`) and the auto-refresh feeds (GeoIP / URL / DNS) were
+  model-only — a blocked IP or a refreshed feed sat as a *pending change* until an
+  operator applied. They now push just the delta into the live kernel set (one atomic
+  `nft` op per set) and re-point the applied baseline, so the change is effective at once
+  and the Changes page stays *in sync* — no pending pile-up, no false drift. This happens
+  only when the model is otherwise in sync and no apply is armed; otherwise the change
+  follows the normal pending/apply flow.
 
 ### Fixed
 

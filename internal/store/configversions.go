@@ -114,6 +114,22 @@ func (s *Store) LatestAppliedConfig() (config string, ok bool, err error) {
 	}
 }
 
+// UpdateLatestAppliedConfig rewrites the rendered config text of the newest
+// confirmed/pending version — the one LatestAppliedConfig returns. An incremental
+// set sync (a block or feed pushed straight to the kernel) uses this to keep the
+// applied baseline equal to what the kernel now runs, so the Changes page stays in
+// sync without a full apply. The version's model snapshot is left untouched (it
+// still restores the model as applied).
+func (s *Store) UpdateLatestAppliedConfig(config string) error {
+	_, err := s.db.Exec(`UPDATE config_versions SET config = ?
+		WHERE id = (SELECT id FROM config_versions
+			WHERE status IN ('confirmed', 'pending') ORDER BY id DESC LIMIT 1)`, config)
+	if err != nil {
+		return fmt.Errorf("store: update latest applied config: %w", err)
+	}
+	return nil
+}
+
 // TableRef identifies one owned table.
 type TableRef struct {
 	Family string `json:"family"`

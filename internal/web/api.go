@@ -74,6 +74,7 @@ func (s *Server) handleAPIBlock(w http.ResponseWriter, r *http.Request) {
 		apiJSON(w, http.StatusInternalServerError, map[string]any{"error": "could not open the block list"})
 		return
 	}
+	prior := s.modelRender()
 	if err := s.store.AddListEntry(bl.ID, norm, note); err != nil {
 		if errors.Is(err, store.ErrOverlap) {
 			apiJSON(w, http.StatusOK, map[string]any{"blocked": norm, "already": true})
@@ -83,7 +84,13 @@ func (s *Server) handleAPIBlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.store.InsertAudit("api", store.EventModelChange, "API blocked "+norm)
-	apiJSON(w, http.StatusOK, map[string]any{"blocked": norm, "note": "takes effect on the next apply"})
+	// Push the block straight into the live kernel set so it takes effect at once,
+	// with nothing to re-apply — when the model is otherwise in sync (see pushSetElements).
+	effect := "takes effect on the next apply"
+	if s.pushSetElements(r.Context(), prior, blockListName, []string{norm}, nil) {
+		effect = "applied to the kernel"
+	}
+	apiJSON(w, http.StatusOK, map[string]any{"blocked": norm, "note": effect})
 }
 
 // handleAPIUnblock removes an address from the blacklist named set.
@@ -106,11 +113,13 @@ func (s *Server) handleAPIUnblock(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, e := range entries {
 		if e.CIDR == norm {
+			prior := s.modelRender()
 			if err := s.store.DeleteListEntry(e.ID); err != nil {
 				apiJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 				return
 			}
 			_ = s.store.InsertAudit("api", store.EventModelChange, "API unblocked "+norm)
+			s.pushSetElements(r.Context(), prior, blockListName, nil, []string{norm})
 			apiJSON(w, http.StatusOK, map[string]any{"unblocked": norm})
 			return
 		}
