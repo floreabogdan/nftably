@@ -306,6 +306,9 @@ type hardenVM struct {
 	// Bans are the sources the kernel's auto-ban timeout sets are currently
 	// blocking — live runtime state, each liftable early.
 	Bans []banEntry
+	// GeoOn is true when a GeoIP DB is configured, so the bans table shows a
+	// Country column (matching the Connections view).
+	GeoOn bool
 }
 
 func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
@@ -354,9 +357,15 @@ func (s *Server) handleHarden(w http.ResponseWriter, r *http.Request) {
 		// a silently-empty section is diagnosable rather than a mystery.
 		s.log.Warn("exposed-services scan failed", "error", ferr)
 	}
-	// Live auto-ban members, so the operator can see who's blocked and lift a ban.
+	// Live auto-ban members, so the operator can see who's blocked and lift a ban,
+	// tagged with country (when GeoIP is configured) and each ban's timing.
+	geoPath := ""
+	if st, _, serr := s.store.GetSettings(); serr == nil {
+		geoPath = st.GeoIPDB
+	}
+	vm.GeoOn = geoPath != ""
 	banCtx, banCancel := reqCtx(r)
-	vm.Bans = s.currentBans(banCtx)
+	vm.Bans = s.currentBans(banCtx, geoPath)
 	banCancel()
 	render(w, s.log, "harden.html", vm)
 }

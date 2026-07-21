@@ -1259,6 +1259,42 @@ textarea {
 .timeline-time .rel { font-size: var(--fs-2xs); opacity: 0.75; margin-top: 1px; }
 
 .table-scroll { overflow-x: auto; }
+
+/* A row is hidden when the search filter or pagination marks it — kept as two
+   independent classes so the two never fight over inline display. */
+.filtered-out, .page-hidden { display: none !important; }
+
+/* ---------- table pagination footer ---------- */
+.pager {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	padding: var(--space-3) var(--space-4) var(--space-1);
+	font-size: var(--fs-xs);
+}
+.pager[hidden] { display: none; }
+.pager-info { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.pager-btns { display: inline-flex; gap: 4px; margin-left: auto; }
+.pager-btn {
+	min-width: 30px;
+	padding: 3px 7px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-badge);
+	background: var(--surface);
+	color: var(--text);
+	font-size: var(--fs-xs);
+	font-family: var(--font-sans);
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+	line-height: 1.4;
+}
+.pager-btn:hover:not(:disabled):not(.is-current) { background: var(--surface-alt); }
+.pager-btn.is-current { background: var(--btn-primary-bg); border-color: var(--btn-primary-bg); color: #fff; font-weight: 600; cursor: default; }
+.pager-btn:disabled { opacity: 0.4; cursor: default; }
+.pager-gap { color: var(--text-muted); padding: 0 2px; align-self: center; }
+
 .row-link { cursor: pointer; }
 .mono, td.num, .stat-value, .timeline-time { font-variant-numeric: tabular-nums; }
 .login-sub { text-align: center; color: var(--text-muted); font-size: var(--fs-xs); margin: -14px 0 18px; }

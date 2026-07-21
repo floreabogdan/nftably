@@ -30,6 +30,32 @@ func TestParseDynamicSets(t *testing.T) {
 	}
 }
 
+func TestParseDynamicSetsDetailed(t *testing.T) {
+	// The detailed parse keeps each element's timeout/expiry, and decodes a prefix
+	// value, so the bans view can show duration and when a ban lifts.
+	js := `{"nftables":[
+		{"set":{"family":"inet","table":"filter","name":"ssh_abusers","flags":["dynamic","timeout"],
+			"elem":[
+				{"elem":{"val":"1.2.3.4","timeout":3600,"expires":3500}},
+				{"elem":{"val":{"prefix":{"addr":"5.6.7.0","len":24}},"timeout":600,"expires":90}}
+			]}}
+	]}`
+	got, err := parseDynamicSetsDetailed([]byte(js))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms := got["inet/filter/ssh_abusers"]
+	if len(ms) != 2 {
+		t.Fatalf("members = %v, want 2", ms)
+	}
+	if ms[0] != (SetMember{Value: "1.2.3.4", Timeout: 3600, Expires: 3500}) {
+		t.Errorf("ms[0] = %+v", ms[0])
+	}
+	if ms[1] != (SetMember{Value: "5.6.7.0/24", Timeout: 600, Expires: 90}) {
+		t.Errorf("ms[1] = %+v (prefix value should be preserved)", ms[1])
+	}
+}
+
 func TestParseDynamicSetsBareElements(t *testing.T) {
 	// A dynamic set whose elements nft printed as bare strings (no timeout).
 	js := `{"nftables":[{"set":{"family":"ip","table":"t","name":"s","flags":["dynamic"],"elem":["9.9.9.9"]}}]}`

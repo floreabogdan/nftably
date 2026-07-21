@@ -6,6 +6,26 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Every data table paginates.** Long tables — the currently-banned list, connections,
+  the firewall log, named-list entries, the apply ledger — now page in blocks of 25 with
+  a compact pager, so a busy host no longer renders a thousand-row wall. The pager
+  auto-hides when everything fits on one page, so short tables look unchanged, and it
+  works together with the page search box (searching narrows the rows the pager counts).
+  The reorderable firewall rules table is deliberately left unpaged.
+- **The currently-banned table shows country, ban time, duration, and expiry.** Each
+  auto-banned source now carries its GeoIP country (when a GeoIP DB is configured, as on
+  the Connections view), when the ban started, how long it runs, and when it lifts —
+  read from the kernel's own timeout metadata — instead of just the address and set.
+
+### Fixed
+
+- **The page search box (top-left "Filter this page") now works on every list.** It was
+  bound before the page content had loaded, so on content pages it saw nothing to filter,
+  hid itself, and never attached — searching did nothing. It now initialises after the
+  page is parsed and filters table rows individually.
+
 ## [0.1.5] - 2026-07-21
 
 ### Changed

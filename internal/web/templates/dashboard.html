@@ -109,7 +109,7 @@
 	<div class="table-scroll">
 	<table>
 		<thead><tr><th>Table</th><th>Chain</th><th>Hook</th><th class="num">Priority</th><th>Policy</th><th class="num">Rules</th></tr></thead>
-		<tbody data-search-target>
+		<tbody data-search-target data-paginate>
 			{{range .Backend.Ruleset.Tables}}{{$t := .}}{{range .Chains}}{{if .IsBase}}
 			<tr>
 				<td class="mono">{{$t.Family}} {{$t.Name}}</td>

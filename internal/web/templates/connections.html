@@ -27,7 +27,7 @@
 	<div class="table-scroll">
 		<table>
 			<thead><tr><th>Address</th>{{if .GeoOn}}<th>Country</th>{{end}}<th>Flows</th><th></th></tr></thead>
-			<tbody>
+			<tbody data-paginate>
 				{{range .Top}}
 				<tr>
 					<td class="mono">{{.Addr}}</td>
@@ -66,7 +66,7 @@
 	<div class="table-scroll">
 		<table data-search-target>
 			<thead><tr><th>Dir</th><th>Proto</th><th>State</th><th>Source</th><th>Destination</th>{{if .GeoOn}}<th>Country</th>{{end}}<th></th></tr></thead>
-			<tbody>
+			<tbody data-paginate>
 				{{range .Rows}}
 				<tr>
 					<td>{{if eq .Dir "in"}}<span class="badge badge-info">in</span>{{else if eq .Dir "out"}}<span class="badge">out</span>{{else}}<span class="badge badge-warning">routed</span>{{end}}</td>

@@ -86,7 +86,7 @@
 	<div class="table-scroll">
 		<table data-search-target>
 			<thead><tr><th>Name</th><th>Entries</th><th>Used by rules</th><th>Note</th><th></th></tr></thead>
-			<tbody>
+			<tbody data-paginate>
 				{{range .Lists}}
 				<tr>
 					<td><a href="/lists/{{.ID}}" class="mono">{{.Name}}</a></td>

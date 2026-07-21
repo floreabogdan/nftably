@@ -295,7 +295,7 @@
 			<div class="table-scroll mt-md">
 				<table>
 					<thead><tr><th>Snapshot</th><th>When</th><th></th></tr></thead>
-					<tbody>
+					<tbody data-paginate>
 						{{range .AutoBackups}}
 						<tr>
 							<td class="mono">{{.Name}}</td>
@@ -328,7 +328,7 @@
 			<div class="table-scroll">
 				<table>
 					<thead><tr><th>Name</th><th>Type</th><th>Sends to</th><th>Events</th><th></th></tr></thead>
-					<tbody>
+					<tbody data-paginate>
 						{{range .Destinations}}
 						<tr class="{{if not .Enabled}}row-disabled{{end}}">
 							<td><a href="/alerts/{{.ID}}/edit">{{.Name}}</a>{{if not .Enabled}} <span class="badge badge-muted">off</span>{{end}}</td>

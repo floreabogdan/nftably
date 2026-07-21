@@ -43,7 +43,7 @@
 	<div class="table-scroll">
 		<table data-search-target>
 			<thead><tr><th>Address / range</th><th>Note</th><th></th></tr></thead>
-			<tbody>
+			<tbody data-paginate>
 				{{range .Entries}}
 				<tr>
 					<td class="mono">{{.CIDR}}</td>
@@ -69,7 +69,7 @@
 	<div class="table-scroll">
 		<table>
 			<thead><tr><th>Table</th><th>Chain</th><th></th></tr></thead>
-			<tbody>
+			<tbody data-paginate>
 				{{range .UsedBy}}
 				<tr>
 					<td class="mono">{{.TableFamily}} {{.TableName}}</td>

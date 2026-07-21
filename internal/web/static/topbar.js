@@ -41,14 +41,31 @@
 		input = null;
 	}
 	if (input) {
+		// The filterable rows of a target: a table's body rows, a tbody's own rows,
+		// or (for a non-table target like the timeline) its direct children.
+		var rowsOf = function (target) {
+			if (target.tagName === "TABLE") {
+				var rows = [];
+				Array.prototype.forEach.call(target.tBodies, function (tb) {
+					Array.prototype.push.apply(rows, tb.rows);
+				});
+				return rows;
+			}
+			if (target.tBodies === undefined && target.rows) return Array.prototype.slice.call(target.rows);
+			return Array.prototype.slice.call(target.children);
+		};
 		var applyFilter = function () {
 			var q = input.value.trim().toLowerCase();
 			document.querySelectorAll("[data-search-target]").forEach(function (target) {
-				Array.prototype.forEach.call(target.children, function (row) {
-					var text = row.textContent.toLowerCase();
-					row.style.display = !q || text.indexOf(q) !== -1 ? "" : "none";
+				rowsOf(target).forEach(function (row) {
+					var match = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
+					// Toggle a class rather than inline display, so pagination's own
+					// .page-hidden class can coexist (a row shows only when neither is set).
+					row.classList.toggle("filtered-out", !match);
 				});
 			});
+			// The visible-row set changed, so recompute pages on any paginated table.
+			if (window.nftablyReflowPagination) window.nftablyReflowPagination();
 		};
 		window.nftablyApplyFilter = applyFilter;
 		input.addEventListener("input", applyFilter);

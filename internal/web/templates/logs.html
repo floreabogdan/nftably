@@ -27,7 +27,7 @@
 	<div class="table-scroll">
 		<table data-search-target>
 			<thead><tr><th>When</th><th>Prefix</th><th>In → Out</th><th>Source</th><th>Destination</th><th>Proto</th></tr></thead>
-			<tbody>
+			<tbody data-paginate>
 				{{range .Entries}}
 				<tr>
 					<td class="text-muted">{{if .Time.IsZero}}<span class="mono">—</span>{{else}}<span data-ts="{{isotime .Time}}">{{fmttime .Time}}</span>{{end}}</td>

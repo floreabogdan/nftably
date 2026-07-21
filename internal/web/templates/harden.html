@@ -201,11 +201,15 @@
 	</div>
 	<div class="table-scroll">
 		<table data-search-target>
-			<thead><tr><th>Source</th><th>Ban set</th><th></th></tr></thead>
-			<tbody>
+			<thead><tr><th>Source</th>{{if .GeoOn}}<th>Country</th>{{end}}<th>Banned</th><th>Duration</th><th>Expires</th><th>Ban set</th><th></th></tr></thead>
+			<tbody data-paginate>
 				{{range .Bans}}
 				<tr>
 					<td class="mono">{{.IP}}</td>
+					{{if $.GeoOn}}<td>{{if .Country}}{{.Country}}{{else}}<span class="text-muted">—</span>{{end}}</td>{{end}}
+					<td class="text-muted">{{if .BannedAt.IsZero}}<span class="mono">—</span>{{else}}<span data-ts="{{isotime .BannedAt}}" title="{{fmttime .BannedAt}}">{{fmttime .BannedAt}}</span>{{end}}</td>
+					<td class="mono">{{if .Duration}}{{.Duration}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+					<td class="mono text-muted"{{if not .ExpiresAt.IsZero}} title="{{fmttime .ExpiresAt}}"{{end}}>{{if .ExpiresIn}}{{.ExpiresIn}}{{else}}—{{end}}</td>
 					<td class="mono text-muted">{{.Set}}</td>
 					<td>
 						<form method="post" action="/harden/unban" data-confirm="Lift the ban on {{.IP}} now? It will be let back in until it trips the limit again.">
