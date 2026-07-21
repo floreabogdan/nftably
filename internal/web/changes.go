@@ -53,11 +53,15 @@ type changesVM struct {
 	// Drifted is true when the live kernel no longer matches what nftably last
 	// applied (someone changed it with nft or a hand-written config). Detected by
 	// comparing kernel-readback fingerprints, so it is robust to nft's formatting.
-	Drifted   bool
-	Hunks     []nftconf.Hunk
-	Added     int
-	Removed   int
-	RuleCount int // enabled rules in the candidate
+	Drifted bool
+	Hunks   []nftconf.Hunk
+	Added   int
+	Removed int
+	// DiffOmitted is how many diff lines were dropped from Hunks to keep a huge
+	// set-element change (a big blocklist/GeoIP list) from producing a diff so
+	// large it stalls the browser. Added/Removed still count the full change.
+	DiffOmitted int
+	RuleCount   int // enabled rules in the candidate
 
 	// The M3 apply state.
 	CanApply  bool                // nft reachable and no pending apply
@@ -95,6 +99,38 @@ type applyChainSummary struct {
 	Hook      string
 	Policy    string
 	RuleCount int
+}
+
+// maxDiffLines caps how many diff lines the Changes page renders. A normal config
+// change is a handful; a first apply or a refreshed blocklist / GeoIP list can be
+// thousands of set-element lines, which would make the page enormous and stall the
+// browser — those are truncated with a pointer to download the full config.
+const maxDiffLines = 300
+
+// truncateDiff caps the total number of lines across all hunks at limit, keeping
+// whole hunks until the budget runs out and then cutting into the last one.
+// Returns the trimmed hunks and how many lines were dropped.
+func truncateDiff(hs []nftconf.Hunk, limit int) ([]nftconf.Hunk, int) {
+	total := 0
+	for _, h := range hs {
+		total += len(h.Lines)
+	}
+	if total <= limit {
+		return hs, 0
+	}
+	out := make([]nftconf.Hunk, 0, len(hs))
+	budget := limit
+	for _, h := range hs {
+		if budget <= 0 {
+			break
+		}
+		if len(h.Lines) > budget {
+			h.Lines = h.Lines[:budget]
+		}
+		budget -= len(h.Lines)
+		out = append(out, h)
+	}
+	return out, total - limit
 }
 
 // summarizeModel turns the loaded model into the outline, counting only enabled
@@ -196,7 +232,8 @@ func (s *Server) buildChangesVM(w http.ResponseWriter, r *http.Request) (changes
 	}
 	vm.FirstApply = !appliedOK
 	vm.Hunks = nftconf.Diff(applied, vm.Candidate, 3)
-	vm.Added, vm.Removed = nftconf.Stat(vm.Hunks)
+	vm.Added, vm.Removed = nftconf.Stat(vm.Hunks) // full counts, before truncation
+	vm.Hunks, vm.DiffOmitted = truncateDiff(vm.Hunks, maxDiffLines)
 
 	// The live kernel is still read — for the table-exists status and the adoption
 	// warning (a table nftably is about to replace that it did not create).

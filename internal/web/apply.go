@@ -94,7 +94,20 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path, cleanup, err := writeTempScript(nftconf.BuildApplyFile(m.Tables, removed))
+	// Preserve active auto-bans across the apply. The delete+recreate would wipe
+	// the kernel-populated timeout sets, freeing every currently-banned source, so
+	// read their live members (with each ban's remaining expiry) and re-add them in
+	// the same atomic transaction, right after the tables are rebuilt. Best-effort:
+	// if nft can't be read, the apply proceeds without preservation rather than fail.
+	keep := map[string]bool{}
+	for _, t := range m.Tables {
+		for _, ds := range t.DynSets {
+			keep[t.Family+"/"+t.Name+"/"+ds.Name] = true
+		}
+	}
+	preserved, _ := s.nft.PreservedBanElements(kctx, keep)
+
+	path, cleanup, err := writeTempScript(nftconf.BuildApplyFile(m.Tables, removed) + preserved)
 	if err != nil {
 		s.serverError(w, "write apply file", err)
 		return

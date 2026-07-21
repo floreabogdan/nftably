@@ -18,9 +18,19 @@ All notable changes to nftably are recorded here. The format follows
   whenever the model is unchanged, regardless of nft version or accumulated runtime
   state. A separate, fingerprint-based **drift** warning flags genuine out-of-band
   kernel changes. This removes the whole class of readback-formatting drift at the root.
+- **Large set-element diffs on the Changes page are truncated.** A refreshed blocklist
+  or GeoIP list can be thousands of elements; the diff now caps its rendered lines (with
+  a “download the full config to review” pointer) so a big list can't produce a page so
+  large it stalls the browser.
 
 ### Fixed
 
+- **Applying no longer clears active auto-bans.** A full apply delete+recreates the
+  owned table, which wiped the kernel's timeout ban sets — freeing every
+  currently-banned source on any config change. The apply now reads the live bans
+  (each with its remaining expiry) and re-adds them in the same atomic transaction, so
+  an apply preserves active bans instead of resetting them. Rate-meter state (ephemeral)
+  is not preserved.
 - **A kernel-populated rate-meter set no longer reads as drift.** The auto-ban rate
   detector's meter set (`flags dynamic`) fills at runtime with the sources it is
   currently limiting, each carrying `limit rate over …` — kernel state, like a timeout

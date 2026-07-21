@@ -3,6 +3,8 @@ package nft
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 )
 
 // DynamicSetMembers returns the current members of every dynamic set in the live
@@ -25,6 +27,92 @@ func (c *Client) DynamicSetMembers(ctx context.Context) (map[string][]string, er
 func (c *Client) DeleteSetElement(ctx context.Context, family, table, set, element string) error {
 	_, err := c.run(ctx, "delete", "element", family, table, set, "{", element, "}")
 	return err
+}
+
+// PreservedBanElements returns `add element` statements that re-create the current
+// members of every live dynamic TIMEOUT set (the auto-ban sets) whose
+// "<family>/<table>/<name>" key is in keep, each carrying its remaining expiry in
+// seconds. An apply that delete+recreates a table appends these in the same nft -f
+// transaction, so active bans survive the apply instead of being freed. Rate-meter
+// sets (dynamic, no timeout) hold ephemeral rate state and are skipped, as are sets
+// no longer in the model. Best-effort: a parse hiccup yields "".
+func (c *Client) PreservedBanElements(ctx context.Context, keep map[string]bool) (string, error) {
+	out, err := c.run(ctx, "-j", "list", "ruleset")
+	if err != nil {
+		return "", err
+	}
+	return buildPreservedElements([]byte(out), keep), nil
+}
+
+func buildPreservedElements(jsonOut []byte, keep map[string]bool) string {
+	var doc struct {
+		Nftables []map[string]json.RawMessage `json:"nftables"`
+	}
+	if json.Unmarshal(jsonOut, &doc) != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, item := range doc.Nftables {
+		raw, ok := item["set"]
+		if !ok {
+			continue
+		}
+		var set struct {
+			Family string            `json:"family"`
+			Table  string            `json:"table"`
+			Name   string            `json:"name"`
+			Flags  []string          `json:"flags"`
+			Elem   []json.RawMessage `json:"elem"`
+		}
+		if json.Unmarshal(raw, &set) != nil {
+			continue
+		}
+		hasTimeout, hasDynamic := false, false
+		for _, f := range set.Flags {
+			switch f {
+			case "timeout":
+				hasTimeout = true
+			case "dynamic":
+				hasDynamic = true
+			}
+		}
+		if !hasTimeout || !hasDynamic || !keep[set.Family+"/"+set.Table+"/"+set.Name] {
+			continue
+		}
+		var elems []string
+		for _, e := range set.Elem {
+			if val, expires := elemValueExpiry(e); val != "" && expires > 0 {
+				elems = append(elems, fmt.Sprintf("%s timeout %ds", val, expires))
+			}
+		}
+		if len(elems) > 0 {
+			fmt.Fprintf(&b, "add element %s %s %s { %s }\n", set.Family, set.Table, set.Name, strings.Join(elems, ", "))
+		}
+	}
+	return b.String()
+}
+
+// elemValueExpiry pulls an element's address and remaining timeout (seconds) from
+// a timeout-set element, which nft -j prints as {"elem":{"val":…,"expires":N}}.
+func elemValueExpiry(raw json.RawMessage) (string, int) {
+	var wrap struct {
+		Elem struct {
+			Val     json.RawMessage `json:"val"`
+			Expires int             `json:"expires"`
+			Timeout int             `json:"timeout"`
+		} `json:"elem"`
+	}
+	if json.Unmarshal(raw, &wrap) == nil && len(wrap.Elem.Val) > 0 {
+		var v string
+		if json.Unmarshal(wrap.Elem.Val, &v) == nil {
+			exp := wrap.Elem.Expires
+			if exp == 0 {
+				exp = wrap.Elem.Timeout
+			}
+			return v, exp
+		}
+	}
+	return "", 0
 }
 
 func parseDynamicSets(jsonOut []byte) (map[string][]string, error) {

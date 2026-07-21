@@ -97,6 +97,7 @@
 		<div class="diff-hunk-head">{{.Header}}</div>
 		{{range .Lines}}<div class="diff-line op-{{printf "%c" .Op}}"><span class="op">{{printf "%c" .Op}}</span>{{.Text}}</div>{{end}}
 		{{end}}
+		{{if .DiffOmitted}}<div class="diff-line diff-truncated"><span class="op">…</span>… and {{.DiffOmitted}} more changed line{{if ne .DiffOmitted 1}}s{{end}} not shown (a large set) — <a href="/changes/download">download the full config</a> to review.</div>{{end}}
 	</div>
 	{{else}}
 	<div class="card-body"><span class="badge badge-success"><span class="dot"></span>in sync</span> <span class="text-muted">Your model matches what nftably last applied — nothing to apply.</span></div>
