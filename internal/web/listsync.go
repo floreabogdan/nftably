@@ -34,6 +34,11 @@ func (s *Server) pushSetElements(ctx context.Context, priorRender, listName stri
 	if len(add) == 0 && len(del) == 0 {
 		return false
 	}
+	// Serialise with the apply pipeline: both mutate the live kernel tables, and a
+	// push landing mid-apply (during a delete+recreate) would be lost or error.
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
+
 	// Only sync when the model was in sync with the kernel before this change, so
 	// the change is the sole delta and the new render is a correct baseline.
 	applied, ok, err := s.store.LatestAppliedConfig()
@@ -48,33 +53,44 @@ func (s *Server) pushSetElements(ctx context.Context, priorRender, listName stri
 		return false
 	}
 
-	touched := false
+	pushed, allOK := false, true
+	record := func(err error) {
+		if err != nil {
+			allOK = false
+		} else {
+			pushed = true
+		}
+	}
 	for _, t := range m.Tables {
 		names := map[string]bool{}
 		for _, set := range t.Sets {
 			names[set.Name] = true
 		}
-		addBySet := groupBySet(names, listName, add)
-		delBySet := groupBySet(names, listName, del)
-		for set, els := range delBySet {
-			if s.nft.DeleteSetElements(ctx, t.Family, t.Name, set, els) == nil {
-				touched = true
-			}
+		for set, els := range groupBySet(names, listName, del) {
+			record(s.nft.DeleteSetElements(ctx, t.Family, t.Name, set, els))
 		}
-		for set, els := range addBySet {
-			if s.nft.AddSetElements(ctx, t.Family, t.Name, set, els) == nil {
-				touched = true
-			}
+		for set, els := range groupBySet(names, listName, add) {
+			record(s.nft.AddSetElements(ctx, t.Family, t.Name, set, els))
 		}
 	}
-	if !touched {
+	if !pushed {
+		return false // nothing matched a live set — leave the change to the pending flow
+	}
+	// The kernel changed, so re-record the drift fingerprint against the new live
+	// state — this is nftably's own change, not out-of-band drift.
+	defer s.recordAppliedFingerprint(ctx)
+
+	if !allOK {
+		// A push partially failed: the live set is somewhere between the old and new
+		// model. Do NOT claim in-sync — leave the applied config baseline so the full
+		// delta still shows as a pending change for a normal apply to reconcile.
+		s.log.Warn("incremental set sync partially failed — leaving the change pending", "list", listName)
 		return false
 	}
-
-	// The kernel now matches the new model — re-point the baseline so the Changes
-	// page reads "in sync" and drift detection stays quiet.
-	if err := s.store.UpdateLatestAppliedConfig(nftconf.Config(m)); err == nil {
-		s.recordAppliedFingerprint(ctx)
+	// Every push landed — re-point the diff baseline so the Changes page reads in sync.
+	if err := s.store.UpdateLatestAppliedConfig(nftconf.Config(m)); err != nil {
+		s.log.Warn("could not re-point applied config after set sync", "error", err)
+		return false
 	}
 	return true
 }

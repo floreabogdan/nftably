@@ -115,8 +115,8 @@ func buildPreservedElements(jsonOut []byte, keep map[string]bool) string {
 		}
 		var elems []string
 		for _, e := range set.Elem {
-			if val, expires := elemValueExpiry(e); val != "" && expires > 0 {
-				elems = append(elems, fmt.Sprintf("%s timeout %ds", val, expires))
+			if frag, ok := banElement(e); ok {
+				elems = append(elems, frag)
 			}
 		}
 		if len(elems) > 0 {
@@ -126,27 +126,51 @@ func buildPreservedElements(jsonOut []byte, keep map[string]bool) string {
 	return b.String()
 }
 
-// elemValueExpiry pulls an element's address and remaining timeout (seconds) from
-// a timeout-set element, which nft -j prints as {"elem":{"val":…,"expires":N}}.
-func elemValueExpiry(raw json.RawMessage) (string, int) {
+// banElement returns the `add element` fragment for one live ban-set element —
+// "<addr> timeout <remaining>s", or a bare "<addr>" for a permanent (timeout-less)
+// entry — and whether it was decodable. It handles a timeout wrapper
+// ({"elem":{"val":…,"expires":N}}) and a bare element, and both a plain address and
+// a prefix (CIDR) value, so a CIDR or permanent ban is preserved rather than
+// silently dropped. expires is read as a float to tolerate any fractional form.
+func banElement(raw json.RawMessage) (string, bool) {
 	var wrap struct {
 		Elem struct {
 			Val     json.RawMessage `json:"val"`
-			Expires int             `json:"expires"`
-			Timeout int             `json:"timeout"`
+			Expires float64         `json:"expires"`
 		} `json:"elem"`
 	}
+	val := raw
 	if json.Unmarshal(raw, &wrap) == nil && len(wrap.Elem.Val) > 0 {
-		var v string
-		if json.Unmarshal(wrap.Elem.Val, &v) == nil {
-			exp := wrap.Elem.Expires
-			if exp == 0 {
-				exp = wrap.Elem.Timeout
-			}
-			return v, exp
-		}
+		val = wrap.Elem.Val
 	}
-	return "", 0
+	addr := decodeElemAddr(val)
+	if addr == "" {
+		return "", false
+	}
+	if exp := int(wrap.Elem.Expires); exp > 0 {
+		return fmt.Sprintf("%s timeout %ds", addr, exp), true
+	}
+	return addr, true // permanent — no remaining timeout to carry
+}
+
+// decodeElemAddr extracts an address or prefix from an nft -j element value: a bare
+// "1.2.3.4" string, or a {"prefix":{"addr":"1.2.3.0","len":24}} object. Returns ""
+// for a range or any form it can't safely re-add.
+func decodeElemAddr(val json.RawMessage) string {
+	var s string
+	if json.Unmarshal(val, &s) == nil {
+		return s
+	}
+	var p struct {
+		Prefix struct {
+			Addr string `json:"addr"`
+			Len  int    `json:"len"`
+		} `json:"prefix"`
+	}
+	if json.Unmarshal(val, &p) == nil && p.Prefix.Addr != "" {
+		return fmt.Sprintf("%s/%d", p.Prefix.Addr, p.Prefix.Len)
+	}
+	return ""
 }
 
 func parseDynamicSets(jsonOut []byte) (map[string][]string, error) {
