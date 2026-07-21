@@ -6,6 +6,8 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-07-21
+
 ### Added
 
 - **Every data table paginates.** Long tables — the currently-banned list, connections,
