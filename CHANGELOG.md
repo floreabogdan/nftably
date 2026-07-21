@@ -6,6 +6,8 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-07-21
+
 ### Changed
 
 - **The Changes page shows what applying would change vs what was last applied —
