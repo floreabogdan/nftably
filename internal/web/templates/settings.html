@@ -356,29 +356,32 @@
 	{{if .Flash}}<div class="card card-success"><div class="card-body">{{.Flash}}</div></div>{{end}}
 	<form method="post" action="/settings/theme">
 		<div class="card">
-			<div class="card-header"><span class="card-title">{{template "icon-spark"}}Accent colour</span></div>
+			<div class="card-header"><span class="card-title">{{template "icon-sun"}}Mode</span></div>
 			<div class="card-body">
-				<p class="field-hint text-muted">The accent used for links, buttons and highlights. Saved to your account, so it
-				follows you on every login. Works with light and dark.</p>
-				<label class="theme-choice"><input type="radio" name="accent" value="ocean"{{if eq .ThemeAccent "ocean"}} checked{{end}}><span class="accent-dot accent-ocean"></span><span><strong>Ocean</strong><small>The default blue.</small></span></label>
-				<label class="theme-choice"><input type="radio" name="accent" value="emerald"{{if eq .ThemeAccent "emerald"}} checked{{end}}><span class="accent-dot accent-emerald"></span><span><strong>Emerald</strong><small>Green.</small></span></label>
-				<label class="theme-choice"><input type="radio" name="accent" value="violet"{{if eq .ThemeAccent "violet"}} checked{{end}}><span class="accent-dot accent-violet"></span><span><strong>Violet</strong><small>Purple.</small></span></label>
-				<label class="theme-choice"><input type="radio" name="accent" value="amber"{{if eq .ThemeAccent "amber"}} checked{{end}}><span class="accent-dot accent-amber"></span><span><strong>Amber</strong><small>Warm gold.</small></span></label>
+				<p class="field-hint text-muted">Light, dark, or follow your device. Applies instantly and is saved to your account,
+				so it follows you on every login. Also the {{template "icon-sun"}} button in the top bar.</p>
+				<div class="theme-choice-grid">
+					<label class="theme-choice"><input type="radio" name="mode" value="" data-mode-choice{{if eq .ThemeMode ""}} checked{{end}}><span><strong>System</strong><small>Follow your OS light/dark setting.</small></span></label>
+					<label class="theme-choice"><input type="radio" name="mode" value="light" data-mode-choice{{if eq .ThemeMode "light"}} checked{{end}}><span><strong>Light</strong><small>Always light.</small></span></label>
+					<label class="theme-choice"><input type="radio" name="mode" value="dark" data-mode-choice{{if eq .ThemeMode "dark"}} checked{{end}}><span><strong>Dark</strong><small>Always dark.</small></span></label>
+				</div>
 			</div>
 		</div>
 		<div class="card">
-			<div class="card-header"><span class="card-title">{{template "icon-sun"}}Layout density</span></div>
+			<div class="card-header"><span class="card-title">{{template "icon-spark"}}Accent colour</span></div>
 			<div class="card-body">
-				<p class="field-hint text-muted">How much breathing room the panels have. Also saved to your account.</p>
-				<label class="theme-choice"><input type="radio" name="density" value="comfortable"{{if eq .ThemeDensity "comfortable"}} checked{{end}}>
-					<span><strong>Comfortable</strong><small>The default — generous spacing and soft, rounded cards.</small></span></label>
-				<label class="theme-choice"><input type="radio" name="density" value="compact"{{if eq .ThemeDensity "compact"}} checked{{end}}>
-					<span><strong>Compact</strong><small>Tighter spacing and flatter panels, to fit more on screen.</small></span></label>
+				<p class="field-hint text-muted">The accent used for links, buttons and highlights. Works with light and dark.</p>
+				<div class="theme-choice-grid">
+					<label class="theme-choice"><input type="radio" name="accent" value="green" data-accent-choice{{if eq .ThemeAccent "green"}} checked{{end}}><span class="accent-dot accent-green"></span><span><strong>Modern</strong><small>The default green.</small></span></label>
+					<label class="theme-choice"><input type="radio" name="accent" value="ocean" data-accent-choice{{if eq .ThemeAccent "ocean"}} checked{{end}}><span class="accent-dot accent-ocean"></span><span><strong>Ocean</strong><small>Blue.</small></span></label>
+					<label class="theme-choice"><input type="radio" name="accent" value="violet" data-accent-choice{{if eq .ThemeAccent "violet"}} checked{{end}}><span class="accent-dot accent-violet"></span><span><strong>Violet</strong><small>Purple.</small></span></label>
+					<label class="theme-choice"><input type="radio" name="accent" value="amber" data-accent-choice{{if eq .ThemeAccent "amber"}} checked{{end}}><span class="accent-dot accent-amber"></span><span><strong>Amber</strong><small>Warm gold.</small></span></label>
+				</div>
 			</div>
 		</div>
 		<div class="form-actions">
 			<button type="submit" class="btn btn-primary">Save theme</button>
-			<span class="field-hint text-muted">Light and dark is the {{template "icon-moon"}} button in the top bar — also saved to your account.</span>
+			<span class="field-hint text-muted">Changes apply as you pick them; this saves without JavaScript too.</span>
 		</div>
 	</form>
 </section>

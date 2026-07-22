@@ -57,7 +57,7 @@ func migrate(db *sql.DB) error {
 		{"settings", "metrics_token", `TEXT NOT NULL DEFAULT ''`},
 		// version < 11: account-stored theme preferences.
 		{"settings", "theme_mode", `TEXT NOT NULL DEFAULT ''`},
-		{"settings", "theme_accent", `TEXT NOT NULL DEFAULT 'ocean'`},
+		{"settings", "theme_accent", `TEXT NOT NULL DEFAULT 'green'`},
 		{"settings", "theme_density", `TEXT NOT NULL DEFAULT 'comfortable'`},
 		// version < 12: per-version model snapshot, so a past version can be
 		// restored back into the object model.

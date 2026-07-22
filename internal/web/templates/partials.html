@@ -2,6 +2,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/static/style.css">
+<script src="/static/theme-bootstrap.js"></script>
+<script src="/static/theme.js" defer></script>
+<script src="/static/command-palette.js" defer></script>
 {{end}}
 
 {{define "icon-dashboard"}}<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>{{end}}
@@ -32,6 +35,8 @@
 {{define "icon-compass"}}<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>{{end}}
 {{define "icon-menu"}}<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>{{end}}
 {{define "icon-user"}}<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{end}}
+{{define "icon-bolt"}}<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>{{end}}
+{{define "icon-bell"}}<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>{{end}}
 
 {{/* learn-nav: the cross-lesson strip shown on every Learn page. Highlights the
 current lesson from nav.Active. */}}
@@ -45,34 +50,37 @@ current lesson from nav.Active. */}}
 
 {{define "sidebar"}}
 <aside class="sidebar" id="sidebar">
-	<div class="sidebar-brand">nftably<span class="brand-stage">nftables manager</span></div>
+	<div class="sidebar-brand-row">
+		<a class="sidebar-brand" href="/" aria-label="nftably dashboard"><span class="brand-mark" aria-hidden="true">n</span><span class="brand-copy">nftably<span class="brand-stage">firewall manager</span></span></a>
+		<button id="sidebar-collapse" class="sidebar-collapse" type="button" title="Collapse navigation" aria-label="Collapse navigation" aria-pressed="false">{{template "icon-menu"}}</button>
+	</div>
 	<nav class="sidebar-nav">
 		<div class="nav-label">Observe</div>
-		<a href="/" class="{{if eq .Active "dashboard"}}active{{end}}">{{template "icon-dashboard"}}Dashboard</a>
-		<a href="/ruleset" class="{{if eq .Active "ruleset"}}active{{end}}">{{template "icon-list"}}Live ruleset</a>
-		<a href="/connections" class="{{if eq .Active "connections"}}active{{end}}">{{template "icon-activity"}}Connections</a>
-		<a href="/logs" class="{{if eq .Active "logs"}}active{{end}}">{{template "icon-book"}}Firewall log</a>
-		<a href="/timeline" class="{{if eq .Active "timeline"}}active{{end}}">{{template "icon-clock"}}Timeline</a>
+		<a href="/" title="Dashboard" class="{{if eq .Active "dashboard"}}active{{end}}">{{template "icon-dashboard"}}<span class="nav-copy">Dashboard</span></a>
+		<a href="/ruleset" title="Live ruleset" class="{{if eq .Active "ruleset"}}active{{end}}">{{template "icon-list"}}<span class="nav-copy">Live ruleset</span></a>
+		<a href="/connections" title="Connections" class="{{if eq .Active "connections"}}active{{end}}">{{template "icon-activity"}}<span class="nav-copy">Connections</span></a>
+		<a href="/logs" title="Firewall log" class="{{if eq .Active "logs"}}active{{end}}">{{template "icon-book"}}<span class="nav-copy">Firewall log</span></a>
+		<a href="/timeline" title="Timeline" class="{{if eq .Active "timeline"}}active{{end}}">{{template "icon-clock"}}<span class="nav-copy">Timeline</span></a>
 
 		<div class="nav-label">Manage</div>
-		<a href="/firewall" class="{{if eq .Active "firewall"}}active{{end}}">{{template "icon-shield"}}Firewall</a>
-		<a href="/lists" class="{{if eq .Active "lists"}}active{{end}}">{{template "icon-ban"}}Named sets</a>
-		<a href="/simulate" class="{{if eq .Active "simulate"}}active{{end}}">{{template "icon-route"}}Simulate</a>
-		<a href="/changes" class="{{if eq .Active "changes"}}active{{end}}">{{template "icon-changes"}}Changes</a>
+		<a href="/firewall" title="Firewall" class="{{if eq .Active "firewall"}}active{{end}}">{{template "icon-shield"}}<span class="nav-copy">Firewall</span></a>
+		<a href="/lists" title="Named sets" class="{{if eq .Active "lists"}}active{{end}}">{{template "icon-ban"}}<span class="nav-copy">Named sets</span></a>
+		<a href="/simulate" title="Simulate" class="{{if eq .Active "simulate"}}active{{end}}">{{template "icon-route"}}<span class="nav-copy">Simulate</span></a>
+		<a href="/changes" title="Changes" class="{{if eq .Active "changes"}}active{{end}}">{{template "icon-changes"}}<span class="nav-copy">Changes</span></a>
 
 		<div class="nav-label">Secure</div>
-		<a href="/harden" class="{{if eq .Active "harden"}}active{{end}}">{{template "icon-shield"}}Posture</a>
-		<a href="/presets" class="{{if eq .Active "presets"}}active{{end}}">{{template "icon-spark"}}Presets</a>
+		<a href="/harden" title="Posture" class="{{if eq .Active "harden"}}active{{end}}">{{template "icon-shield"}}<span class="nav-copy">Posture</span></a>
+		<a href="/presets" title="Presets" class="{{if eq .Active "presets"}}active{{end}}">{{template "icon-spark"}}<span class="nav-copy">Presets</span></a>
 
 		<div class="nav-label">Learn</div>
-		<a href="/learn" class="{{if eq .Active "learn"}}active{{end}}">{{template "icon-compass"}}Concepts</a>
-		<a href="/learn/nat" class="{{if eq .Active "learn-nat"}}active{{end}}">{{template "icon-route"}}NAT &amp; forwarding</a>
-		<a href="/learn/recipes" class="{{if eq .Active "learn-recipes"}}active{{end}}">{{template "icon-book"}}Recipes</a>
-		<a href="/learn/troubleshooting" class="{{if eq .Active "learn-troubleshoot"}}active{{end}}">{{template "icon-search"}}Troubleshooting</a>
-		<a href="/learn/iptables" class="{{if eq .Active "learn-iptables"}}active{{end}}">{{template "icon-import"}}From iptables</a>
+		<a href="/learn" title="Concepts" class="{{if eq .Active "learn"}}active{{end}}">{{template "icon-compass"}}<span class="nav-copy">Concepts</span></a>
+		<a href="/learn/nat" title="NAT &amp; forwarding" class="{{if eq .Active "learn-nat"}}active{{end}}">{{template "icon-route"}}<span class="nav-copy">NAT &amp; forwarding</span></a>
+		<a href="/learn/recipes" title="Recipes" class="{{if eq .Active "learn-recipes"}}active{{end}}">{{template "icon-book"}}<span class="nav-copy">Recipes</span></a>
+		<a href="/learn/troubleshooting" title="Troubleshooting" class="{{if eq .Active "learn-troubleshoot"}}active{{end}}">{{template "icon-search"}}<span class="nav-copy">Troubleshooting</span></a>
+		<a href="/learn/iptables" title="From iptables" class="{{if eq .Active "learn-iptables"}}active{{end}}">{{template "icon-import"}}<span class="nav-copy">From iptables</span></a>
 
 		<div class="nav-label">System</div>
-		<a href="/settings" class="{{if eq .Active "settings"}}active{{end}}">{{template "icon-settings"}}Settings</a>
+		<a href="/settings" title="Settings" class="{{if eq .Active "settings"}}active{{end}}">{{template "icon-settings"}}<span class="nav-copy">Settings</span></a>
 	</nav>
 	<div class="sidebar-foot">
 		<div class="conn-line" role="status" aria-live="polite"><span id="nft-conn" class="conn-dot"></span><span id="nft-conn-label">checking nft&hellip;</span></div>
@@ -91,12 +99,12 @@ current lesson from nav.Active. */}}
 			<input type="text" id="topbar-search-input" placeholder="Filter this page&hellip;" autocomplete="off" aria-label="Filter this page">
 			<span class="kbd-hint">/</span>
 		</div>
+		<button id="command-palette-toggle" class="icon-btn command-toggle" type="button" title="Command palette (Ctrl/Cmd + K)" aria-label="Open command palette">{{template "icon-bolt"}}</button>
 	</div>
 	<div class="topbar-right">
-		<button id="cmdk-open" class="icon-btn cmdk-open" type="button" title="Command palette (Ctrl/Cmd + K)" aria-label="Open command palette">{{template "icon-compass"}}<span class="kbd-hint cmdk-hint">⌘K</span></button>
-		<form method="post" action="/settings/theme/mode" class="topbar-theme-form">
-			<button class="icon-btn" type="submit" title="Switch light/dark" aria-label="Switch to {{if eq .ThemeMode "dark"}}light{{else}}dark{{end}} mode">{{if eq .ThemeMode "dark"}}{{template "icon-sun"}}{{else}}{{template "icon-moon"}}{{end}}</button>
-		</form>
+		<button id="compact-toggle" class="icon-btn" type="button" title="Use compact layout" aria-label="Use compact layout" aria-pressed="false">{{template "icon-list"}}</button>
+		<button id="theme-toggle" class="icon-btn" title="Switch color theme" type="button" aria-label="Switch color theme" aria-pressed="false">{{template "icon-sun"}}</button>
+		<a href="/timeline" class="icon-btn" title="Recent activity" aria-label="Recent activity">{{template "icon-bell"}}</a>
 		<details class="profile-menu">
 			<summary aria-label="Account menu">
 				<span class="avatar">{{if .Username}}{{slice .Username 0 1}}{{else}}A{{end}}</span>
@@ -108,16 +116,32 @@ current lesson from nav.Active. */}}
 		</details>
 	</div>
 </div>
-<div class="cmdk-backdrop" id="cmdk" hidden>
-	<div class="cmdk" role="dialog" aria-modal="true" aria-label="Command palette">
-		<input type="text" id="cmdk-input" class="cmdk-input" placeholder="Jump to a page or action&hellip;" autocomplete="off" spellcheck="false" aria-label="Command palette" aria-controls="cmdk-list" aria-expanded="false" role="combobox">
-		<ul class="cmdk-list" id="cmdk-list" role="listbox" aria-label="Results"></ul>
-		<div class="cmdk-foot"><span><span class="kbd">↑</span><span class="kbd">↓</span> move</span><span><span class="kbd">↵</span> open</span><span><span class="kbd">esc</span> close</span></div>
+<div id="command-palette" class="command-palette" hidden>
+	<div class="command-panel" role="dialog" aria-modal="true" aria-label="Command palette">
+		<div class="command-search"><input type="search" placeholder="Find a page or action&hellip;" aria-label="Search commands" autocomplete="off"><span class="kbd-hint">Esc</span></div>
+		<nav class="command-list">
+			<div class="command-group">Navigate</div>
+			<a href="/" data-command>Dashboard <span>G</span></a>
+			<a href="/ruleset" data-command>Live ruleset <span>R</span></a>
+			<a href="/connections" data-command>Connections <span>N</span></a>
+			<a href="/logs" data-command>Firewall log <span>L</span></a>
+			<a href="/firewall" data-command>Firewall &mdash; tables, chains, rules <span>F</span></a>
+			<a href="/lists" data-command>Named sets <span>S</span></a>
+			<a href="/simulate" data-command>Simulate a packet <span>P</span></a>
+			<a href="/changes" data-command>Review &amp; apply changes <span>C</span></a>
+			<a href="/harden" data-command>Security posture <span>H</span></a>
+			<a href="/timeline" data-command>Activity timeline <span>T</span></a>
+			<a href="/learn" data-command>Concepts &amp; recipes <span>?</span></a>
+			<a href="/settings" data-command>Settings <span>,</span></a>
+			<div class="command-group">Create</div>
+			<a href="/firewall" data-command>Add a firewall rule <span>New</span></a>
+			<a href="/lists" data-command>Add a named set <span>New</span></a>
+			<a href="/presets" data-command>Apply a preset <span>New</span></a>
+		</nav>
 	</div>
 </div>
 <script src="/static/topbar.js" defer></script>
 <script src="/static/ui.js" defer></script>
-<script src="/static/palette.js" defer></script>
 <script src="/static/paginate.js" defer></script>
 {{end}}
 
@@ -125,7 +149,7 @@ current lesson from nav.Active. */}}
      topbar, then the caller's "content" block, closed out with the scripts. */}}
 {{define "shell-open"}}
 <!doctype html>
-<html lang="en"{{if .ThemeMode}} data-theme="{{.ThemeMode}}"{{end}}{{if ne .ThemeAccent "ocean"}} data-theme-accent="{{.ThemeAccent}}"{{end}}{{if ne .ThemeDensity "comfortable"}} data-theme-style="{{.ThemeDensity}}"{{end}}>
+<html lang="en" data-theme-style="modern"{{if .ThemeMode}} data-theme="{{.ThemeMode}}"{{end}}{{if and .ThemeAccent (ne .ThemeAccent "green")}} data-theme-accent="{{.ThemeAccent}}"{{end}}>
 <head>
 	<title>nftably{{if .RouterLabel}} — {{.RouterLabel}}{{end}}</title>
 	{{template "head" .}}

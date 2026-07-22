@@ -11,14 +11,16 @@ import (
 // these, so the theme is applied server-side — no flash, no flaky client JS.
 
 var (
-	themeAccents   = map[string]bool{"ocean": true, "emerald": true, "violet": true, "amber": true}
+	// Accents match birdy: green is the base theme (no attribute), the rest are the
+	// switchable hues. "emerald" (the old green accent) folds into the green base.
+	themeAccents   = map[string]bool{"green": true, "ocean": true, "violet": true, "amber": true}
 	themeDensities = map[string]bool{"comfortable": true, "compact": true}
 	themeModes     = map[string]bool{"": true, "light": true, "dark": true}
 )
 
-// currentTheme returns the stored theme, filled with defaults.
+// currentTheme returns the stored theme, filled with defaults (green Modern).
 func (s *Server) currentTheme() (mode, accent, density string) {
-	accent, density = "ocean", "comfortable"
+	accent, density = "green", "comfortable"
 	if st, ok, err := s.store.GetSettings(); err == nil && ok {
 		mode = st.ThemeMode
 		if st.ThemeAccent != "" {
@@ -28,21 +30,43 @@ func (s *Server) currentTheme() (mode, accent, density string) {
 			density = st.ThemeDensity
 		}
 	}
+	// "emerald" was the pre-redesign green accent; it is now the base, so map it to
+	// the default so upgraded installs land on the same green as fresh ones.
+	if accent == "emerald" {
+		accent = "green"
+	}
 	return
 }
 
-// handleThemeMode toggles light/dark from the top-bar button and returns to the
-// page it was clicked on. From dark it goes light; from light or system it goes
-// dark.
+// isFetch reports whether the request came from theme.js (fetch), which wants a
+// bare 204 rather than a redirect to a page.
+func isFetch(r *http.Request) bool { return r.Header.Get("X-Requested-With") == "fetch" }
+
+// handleThemeMode applies the light/dark/system mode. theme.js POSTs the chosen
+// mode via fetch and wants a 204; a no-JS form fallback toggles and redirects.
 func (s *Server) handleThemeMode(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
 	mode, accent, density := s.currentTheme()
-	if mode == "dark" {
+	// A present "mode" field sets it (theme.js and the settings form send one);
+	// its absence means a no-JS toggle, which flips light/dark.
+	if r.PostForm.Has("mode") {
+		if v := r.PostForm.Get("mode"); themeModes[v] {
+			mode = v
+		}
+	} else if mode == "dark" {
 		mode = "light"
 	} else {
 		mode = "dark"
 	}
 	if err := s.store.SaveTheme(mode, accent, density); err != nil {
 		s.serverError(w, "save theme", err)
+		return
+	}
+	if isFetch(r) {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	http.Redirect(w, r, backTo(r), http.StatusSeeOther)
@@ -65,11 +89,17 @@ func (s *Server) handleThemeSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	mode, _, _ := s.currentTheme()
+	mode, _, density := s.currentTheme()
+	// The Theme form sends mode alongside accent; theme.js's accent-only POST omits
+	// it, so only override the stored mode when the field is actually present.
+	if r.PostForm.Has("mode") {
+		if v := r.PostForm.Get("mode"); themeModes[v] {
+			mode = v
+		}
+	}
 	accent := r.FormValue("accent")
-	density := r.FormValue("density")
 	if !themeAccents[accent] {
-		accent = "ocean"
+		accent = "green"
 	}
 	if !themeDensities[density] {
 		density = "comfortable"
@@ -79,6 +109,10 @@ func (s *Server) handleThemeSave(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.store.SaveTheme(mode, accent, density); err != nil {
 		s.serverError(w, "save theme", err)
+		return
+	}
+	if isFetch(r) {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	http.Redirect(w, r, "/settings?tab=theme&saved="+urlEscape("Theme saved."), http.StatusSeeOther)

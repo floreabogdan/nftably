@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS settings (
 	-- Theme preferences, kept on the account so they follow the operator across
 	-- logins: mode ('' = system | light | dark), accent, and layout density.
 	theme_mode       TEXT NOT NULL DEFAULT '',
-	theme_accent     TEXT NOT NULL DEFAULT 'ocean',
+	theme_accent     TEXT NOT NULL DEFAULT 'green',
 	theme_density    TEXT NOT NULL DEFAULT 'comfortable',
 	-- Fingerprint of the owned tables as they were in the kernel at the last
 	-- confirmed apply; the poller compares the live fingerprint against it to

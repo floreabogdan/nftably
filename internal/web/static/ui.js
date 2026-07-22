@@ -138,6 +138,43 @@
 	});
 })();
 
+// Sidebar collapse (icons-only rail) and compact layout — both remembered per
+// browser in localStorage, toggled from the sidebar chevron and the top-bar list
+// button. They're view preferences, so they live in the browser, not the account.
+(function () {
+	var sidebarCollapse = document.getElementById("sidebar-collapse");
+	if (sidebarCollapse) {
+		var collapsed = false;
+		try { collapsed = localStorage.getItem("nftably-sidebar-collapsed") === "1"; } catch (_) {}
+		var setCollapsed = function (value) {
+			collapsed = value;
+			document.body.classList.toggle("sidebar-collapsed", value);
+			sidebarCollapse.setAttribute("aria-pressed", value ? "true" : "false");
+			sidebarCollapse.setAttribute("aria-label", value ? "Expand navigation" : "Collapse navigation");
+			sidebarCollapse.title = value ? "Expand navigation" : "Collapse navigation";
+			try { localStorage.setItem("nftably-sidebar-collapsed", value ? "1" : "0"); } catch (_) {}
+		};
+		setCollapsed(collapsed);
+		sidebarCollapse.addEventListener("click", function () { setCollapsed(!collapsed); });
+	}
+
+	var compact = document.getElementById("compact-toggle");
+	if (compact) {
+		var enabled = false;
+		try { enabled = localStorage.getItem("nftably-compact") === "1"; } catch (_) {}
+		var setCompact = function (value) {
+			enabled = value;
+			document.body.classList.toggle("compact", value);
+			compact.setAttribute("aria-pressed", value ? "true" : "false");
+			compact.setAttribute("aria-label", value ? "Use comfortable layout" : "Use compact layout");
+			compact.title = value ? "Use comfortable layout" : "Use compact layout";
+			try { localStorage.setItem("nftably-compact", value ? "1" : "0"); } catch (_) {}
+		};
+		setCompact(enabled);
+		compact.addEventListener("click", function () { setCompact(!enabled); });
+	}
+})();
+
 // Auto-ban quick-fill: the SSH / HTTP buttons beside "Auto-ban any service"
 // prefill the form with sensible starting values; the operator tweaks and submits.
 (function () {

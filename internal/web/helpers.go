@@ -75,7 +75,7 @@ type nav struct {
 }
 
 func (s *Server) navFor(r *http.Request, active string) nav {
-	n := nav{Active: active, Username: s.currentUser(r).Username, ThemeAccent: "ocean", ThemeDensity: "comfortable", Drifted: s.Drifted()}
+	n := nav{Active: active, Username: s.currentUser(r).Username, ThemeAccent: "green", ThemeDensity: "comfortable", Drifted: s.Drifted()}
 	if st, ok, err := s.store.GetSettings(); err == nil && ok {
 		n.RouterLabel = st.RouterLabel
 		n.ThemeMode = st.ThemeMode
@@ -85,6 +85,11 @@ func (s *Server) navFor(r *http.Request, active string) nav {
 		if st.ThemeDensity != "" {
 			n.ThemeDensity = st.ThemeDensity
 		}
+	}
+	// "emerald" was the old green accent; it is now the base green, so upgraded
+	// installs render with no accent attribute like a fresh one.
+	if n.ThemeAccent == "emerald" {
+		n.ThemeAccent = "green"
 	}
 	return n
 }
