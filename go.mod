@@ -1,10 +1,10 @@
 module github.com/floreabogdan/nftably
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/oschwald/maxminddb-golang v1.13.1
-	golang.org/x/crypto v0.54.0
+	golang.org/x/crypto v0.56.0
 	modernc.org/sqlite v1.55.0
 )
 
