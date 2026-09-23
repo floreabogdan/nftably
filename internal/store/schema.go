@@ -38,6 +38,11 @@ CREATE TABLE IF NOT EXISTS settings (
 	applied_fingerprint TEXT NOT NULL DEFAULT '',
 	api_token        TEXT NOT NULL DEFAULT '',
 	backup_auto      INTEGER NOT NULL DEFAULT 0,
+	-- Opt-in: after every confirmed apply, write the ruleset to boot_persist_path
+	-- so the system's nftables unit restores it at boot. Off by default because
+	-- the target file (/etc/nftables.conf) is one nftably does not own.
+	boot_persist      INTEGER NOT NULL DEFAULT 0,
+	boot_persist_path TEXT NOT NULL DEFAULT '',
 	created_at       TEXT NOT NULL,
 	updated_at       TEXT NOT NULL
 );

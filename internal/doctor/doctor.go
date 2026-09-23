@@ -154,7 +154,8 @@ func checkSystemd(cfg Config) Result {
 	out, _ := exec.CommandContext(ctx, path, "is-enabled", unit).Output()
 	state := strings.TrimSpace(string(out))
 	if state == "enabled" {
-		return Result{"nftables service", OK, fmt.Sprintf("systemd unit %q is enabled — the ruleset is restored at boot", unit)}
+		return Result{"nftables service", OK, fmt.Sprintf(
+			"systemd unit %q is enabled — it loads its ruleset file at boot (turn on Settings › Restore at boot so nftably keeps that file current)", unit)}
 	}
 	if state == "" {
 		state = "not found"

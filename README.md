@@ -91,6 +91,12 @@ make** and **easy to get right**:
   window, the previous ruleset is restored, even if your SSH session drops, and even
   if nftably itself is restarted mid-window (the revert snapshot is persisted). A
   lint pass warns before an apply that would leave no way back in.
+- **Rules that survive a reboot.** An apply loads the ruleset into the running kernel;
+  turn on **Restore at boot** and nftably also writes the file your system's `nftables`
+  unit reads, after every *confirmed* apply — so a config that auto-reverted is never
+  the one the box comes back to. It writes only the tables nftably owns, never a
+  `flush ruleset`, so Docker's (and anyone else's) survive it, and it backs up whatever
+  was at the path once before the first write.
 - **Know before you apply.** A built-in **packet simulator**: describe a packet —
   protocol, source, port, interface, connection state — and get a step-by-step
   trace of exactly which rule decides it, ending in accept, drop or reject. It
@@ -138,6 +144,12 @@ make** and **easy to get right**:
   external tcp/443 to 192.168.1.10:8443" into the DNAT rule (creating a nat table and
   prerouting chain if needed) plus the matching forward-accept — model-only, so it
   lands on Changes for review first.
+- **Fix "some sites just hang" over a tunnel.** An **MSS clamp wizard**: give it the
+  path MTU and it writes the clamp rules, doing the per-family arithmetic (an IPv6
+  header is 20 bytes larger, so one MTU means two MSS values) and splitting the rule on
+  `meta nfproto`. It can follow the route (`rt mtu`) instead where that works. The flag
+  test is the masked `tcp flags & syn == syn`, so it catches the SYN+ACK of an inbound
+  connection — not just outbound SYNs, which is where hand-written clamps usually leak.
 - **A block API for your own tooling.** An opt-in, token-gated HTTP API
   (`/api/block`, `/api/unblock`, `/api/blocked`) lets a script or SIEM feed addresses
   into a blocklist set — wire up your own detection and let nftably do the dropping.

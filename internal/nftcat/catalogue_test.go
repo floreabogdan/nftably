@@ -26,6 +26,15 @@ func TestRenderMatch(t *testing.T) {
 		{"ct.helper", "==", "ftp", `ct helper "ftp"`},
 		{"ip.dscp", "==", "ef", "ip dscp ef"},
 		{"ip6.dscp", "!=", "cs0", "ip6 dscp != cs0"},
+		// Address family — how one inet rule splits into a v4 and a v6 case.
+		{"meta.nfproto", "==", "ipv4", "meta nfproto ipv4"},
+		{"meta.nfproto", "!=", "ipv6", "meta nfproto != ipv6"},
+		// TCP flags: `==` compares the whole flags byte, `has` masks it so only the
+		// named flags are examined (matching a SYN+ACK, and an ECN SYN, too).
+		{"tcp.flags", "==", "syn", "tcp flags syn"},
+		{"tcp.flags", "has", "syn", "tcp flags & syn == syn"},
+		{"tcp.flags", "has", "syn, ack", "tcp flags & (syn|ack) == (syn|ack)"},
+		{"tcp.flags", "has", " syn ,  ack ", "tcp flags & (syn|ack) == (syn|ack)"},
 	}
 	for _, c := range cases {
 		got, err := RenderMatch(c.key, c.op, c.value, Ctx{Family: "inet"})
@@ -182,6 +191,8 @@ func TestRejectsBadOperator(t *testing.T) {
 		{"ct.mark", ">"},       // marks are bitmasks, == / != only
 		{"ct.state", ">="},     // flag sets, == / != only
 		{"tcp.dport", "badop"}, // not an operator at all
+		{"tcp.dport", "has"},   // masked compare is a flags-field thing only
+		{"ct.state", "has"},    //
 	}
 	for _, c := range rejected {
 		if _, err := RenderMatch(c.key, c.op, "1", Ctx{Family: "inet"}); err == nil {
@@ -192,6 +203,16 @@ func TestRejectsBadOperator(t *testing.T) {
 	for _, op := range []string{"==", "!=", "<", ">", "<=", ">="} {
 		if _, err := RenderMatch("tcp.dport", op, "22", Ctx{Family: "inet"}); err != nil {
 			t.Errorf("RenderMatch(tcp.dport, %q): unexpected error %v", op, err)
+		}
+	}
+}
+
+// TestFlagsHasRejectsUnknownFlag keeps the masked compare from rendering a flag
+// name nft doesn't know — the whole point of picking from the catalogue.
+func TestFlagsHasRejectsUnknownFlag(t *testing.T) {
+	for _, v := range []string{"synn", "syn, established", ""} {
+		if got, err := RenderMatch("tcp.flags", "has", v, Ctx{Family: "inet"}); err == nil {
+			t.Errorf("RenderMatch(tcp.flags, has, %q) rendered %q, want an error", v, got)
 		}
 	}
 }

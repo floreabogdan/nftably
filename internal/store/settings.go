@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // Settings is nftably's single-row configuration: how the box is labelled,
@@ -38,6 +39,24 @@ type Settings struct {
 	APIToken string
 	// BackupAuto turns on the daily local config backup to the data directory.
 	BackupAuto bool
+	// BootPersist writes the ruleset to BootPersistPath after every confirmed
+	// apply, so the system's nftables unit restores it at boot. Without it the
+	// apply only ever reaches the running kernel and a reboot comes up empty.
+	// Off by default: the file it writes is one nftably does not own.
+	BootPersist     bool
+	BootPersistPath string
+}
+
+// DefaultBootPersistPath is where a Debian/Ubuntu nftables.service reads its
+// ruleset from, and so the default target for boot persistence.
+const DefaultBootPersistPath = "/etc/nftables.conf"
+
+// BootPath is the configured persistence path, defaulted.
+func (s Settings) BootPath() string {
+	if p := strings.TrimSpace(s.BootPersistPath); p != "" {
+		return p
+	}
+	return DefaultBootPersistPath
 }
 
 // GetSettings returns the single settings row, or (Settings{}, false, nil) if
@@ -46,10 +65,10 @@ func (s *Store) GetSettings() (Settings, bool, error) {
 	var st Settings
 	row := s.db.QueryRow(`
 		SELECT router_label, listen_addr, nft_binary, access_whitelist, geoip_db, geoip_autoupdate, metrics_token,
-			theme_mode, theme_accent, theme_density, api_token, backup_auto
+			theme_mode, theme_accent, theme_density, api_token, backup_auto, boot_persist, boot_persist_path
 		FROM settings WHERE id = 1`)
 	err := row.Scan(&st.RouterLabel, &st.ListenAddr, &st.NftBinary, &st.AccessWhitelist, &st.GeoIPDB, &st.GeoIPAutoUpdate, &st.MetricsToken,
-		&st.ThemeMode, &st.ThemeAccent, &st.ThemeDensity, &st.APIToken, &st.BackupAuto)
+		&st.ThemeMode, &st.ThemeAccent, &st.ThemeDensity, &st.APIToken, &st.BackupAuto, &st.BootPersist, &st.BootPersistPath)
 	if err == sql.ErrNoRows {
 		return Settings{}, false, nil
 	}
@@ -132,6 +151,17 @@ func (s *Store) SaveBackupAuto(on bool) error {
 	res, err := s.db.Exec(`UPDATE settings SET backup_auto = ?, updated_at = ? WHERE id = 1`, on, now())
 	if err != nil {
 		return fmt.Errorf("store: save backup_auto: %w", err)
+	}
+	return notFoundIfZero(res)
+}
+
+// SaveBootPersist turns boot persistence on or off and records where the
+// ruleset is written. An empty path means DefaultBootPersistPath.
+func (s *Store) SaveBootPersist(on bool, path string) error {
+	res, err := s.db.Exec(`UPDATE settings SET boot_persist = ?, boot_persist_path = ?, updated_at = ? WHERE id = 1`,
+		on, strings.TrimSpace(path), now())
+	if err != nil {
+		return fmt.Errorf("store: save boot_persist: %w", err)
 	}
 	return notFoundIfZero(res)
 }

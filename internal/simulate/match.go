@@ -109,6 +109,20 @@ func (e *eval) matchOne(m store.RuleMatch) matchResult {
 			return unknown
 		}
 		return applyNeg(tokenIn(p.Proto, m.Value), neg)
+	case "meta.nfproto":
+		// The packet's IP version, read off whichever address it carries.
+		addr := p.Dst
+		if !addr.IsValid() {
+			addr = p.Src
+		}
+		if !addr.IsValid() {
+			return unknown
+		}
+		fam := "ipv4"
+		if addr.Is6() {
+			fam = "ipv6"
+		}
+		return applyNeg(tokenIn(fam, m.Value), neg)
 	case "tcp.dport":
 		return portMatch(p.Proto, "tcp", p.DPort, m)
 	case "tcp.sport":

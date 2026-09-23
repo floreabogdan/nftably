@@ -193,6 +193,16 @@ func main() {
 		store.ChainRule{Enabled: true, Matches: []store.RuleMatch{mt("ip.saddr", "==", "10.0.0.0/8")}, Statements: acc}))
 	emit("tweak:ip6-family", render(ctx{family: "ip6", hook: "input", ctype: "filter", prio: "filter", policy: "drop"},
 		store.ChainRule{Enabled: true, Matches: []store.RuleMatch{mt("ip6.saddr", "==", "2001:db8::/32")}, Statements: acc}))
+	// The masked flag compare, with more than one flag — the form where the mask
+	// and the value are both parenthesised, which only a real nft settles.
+	emit("tweak:flags-has-multi", render(base(), store.ChainRule{Enabled: true,
+		Matches: []store.RuleMatch{mt("tcp.flags", "has", "syn, ack")}, Statements: acc}))
+	// Exactly what the MSS-clamp wizard writes: the family split plus the masked
+	// SYN test, in a forward chain.
+	emit("tweak:mss-clamp", render(ctx{family: "inet", hook: "forward", ctype: "filter", prio: "filter", policy: "accept"},
+		store.ChainRule{Enabled: true,
+			Matches:    []store.RuleMatch{mt("meta.nfproto", "==", "ipv6"), mt("tcp.flags", "has", "syn")},
+			Statements: []store.RuleStatement{stmt("tcp.mss.clamp", map[string]string{"size": "1388"})}}))
 	emit("tweak:combo-ssh", render(base(), store.ChainRule{Enabled: true,
 		Matches:    []store.RuleMatch{mt("ip.saddr", "==", "192.168.0.0/16"), mt("tcp.dport", "==", "22"), mt("ct.state", "==", "new")},
 		Statements: []store.RuleStatement{stmt("limit", map[string]string{"rate": "10", "per": "minute", "burst": "5"}), stmt("log", map[string]string{"prefix": "ssh "}), {Key: "accept", Params: "{}"}}}))

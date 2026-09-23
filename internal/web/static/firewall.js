@@ -21,7 +21,7 @@
 	// Friendlier words for the operator dropdown. The value stays the real nft
 	// operator (so the "Renders as" panel and the save are unaffected); only the
 	// label reads in plain language.
-	var OP_LABEL = { "==": "is", "!=": "is not", "<": "<", "<=": "≤", ">": ">", ">=": "≥" };
+	var OP_LABEL = { "==": "is", "!=": "is not", "<": "<", "<=": "≤", ">": ">", ">=": "≥", "has": "has all of" };
 	var DEFAULT_OPS = ["==", "!="];
 
 	function readJSON(id) {
@@ -350,7 +350,14 @@
 		sel.hidden = !fieldKey;
 		sel.innerHTML = "";
 		var keep = ops.indexOf(current) !== -1 ? current : ops[0];
-		ops.forEach(function (op) { sel.appendChild(opt(op, OP_LABEL[op] || op, op === keep)); });
+		// On a flags field, `==` compares the whole flags byte — "is exactly" says
+		// that where a bare "is" would read as the looser "has" the operator next to
+		// it actually means.
+		var isFlags = info && info.kind === "flags";
+		ops.forEach(function (op) {
+			var label = (isFlags && op === "==") ? "is exactly" : (OP_LABEL[op] || op);
+			sel.appendChild(opt(op, label, op === keep));
+		});
 	}
 
 	// makeRemove builds the per-row "remove" control (an ×) and wires it to the

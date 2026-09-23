@@ -72,6 +72,10 @@ func migrate(db *sql.DB) error {
 		{"settings", "backup_auto", `INTEGER NOT NULL DEFAULT 0`},
 		// version < 17: freeform rule tags.
 		{"nft_rules", "tags", `TEXT NOT NULL DEFAULT ''`},
+		// version < 18: write the confirmed ruleset to disk so it is restored at
+		// boot. Off by default — it overwrites a file nftably does not own.
+		{"settings", "boot_persist", `INTEGER NOT NULL DEFAULT 0`},
+		{"settings", "boot_persist_path", `TEXT NOT NULL DEFAULT ''`},
 	}
 	for _, a := range adds {
 		if err := addColumnIfMissing(tx, a.table, a.column, a.ddl); err != nil {

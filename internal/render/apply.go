@@ -30,6 +30,36 @@ func BuildApplyFile(tables []TableTree, remove []store.TableRef) string {
 	return b.String()
 }
 
+// BuildBootFile is the apply file as a standalone script for the system's
+// nftables unit to load at boot, so a reboot comes back to the confirmed
+// ruleset instead of an empty one.
+//
+// It is the same ensure+delete+create triple as BuildApplyFile, which is what
+// makes it safe to run against a kernel that already has tables: only the tables
+// nftably owns are named, so a `flush ruleset` — which would take Docker's and
+// everyone else's tables with it — is never needed. Deleted tables are left out;
+// at boot they do not exist to begin with.
+func BuildBootFile(tables []TableTree, nftBin, stamp string) string {
+	var b strings.Builder
+	if nftBin == "" {
+		nftBin = "/usr/sbin/nft"
+	}
+	fmt.Fprintf(&b, "#!%s -f\n", nftBin)
+	b.WriteString("#\n# Managed by nftably — rewritten after every confirmed apply.\n")
+	b.WriteString("# Edits here are lost; change the rules in nftably instead.\n")
+	if stamp != "" {
+		fmt.Fprintf(&b, "# %s\n", stamp)
+	}
+	b.WriteString("#\n")
+	b.WriteString(BuildApplyFile(tables, nil))
+	return b.String()
+}
+
+// BootFileMarker appears in every file BuildBootFile writes. nftably looks for
+// it before overwriting a path, so a hand-written ruleset is backed up once
+// rather than silently replaced.
+const BootFileMarker = "Managed by nftably"
+
 // BuildRevertFile is the inverse: restore every captured table to exactly its
 // pre-apply state. A snapshot that did not exist before is left deleted (the
 // ensure+delete removes the table nftably created); one that existed is

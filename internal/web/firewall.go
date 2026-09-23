@@ -60,6 +60,10 @@ type fwChain struct {
 	store.Chain
 	HookLine string
 	Rules    []fwRule
+	// Active marks the chain whose tab opens selected in its table. It follows
+	// ?chain=<id> so that saving, moving or deleting a rule returns the operator to
+	// the chain they were working in instead of the table's first one.
+	Active bool
 }
 
 type fwRule struct {
@@ -99,11 +103,13 @@ func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
 	if s.modelInSyncWithApplied(m) {
 		counters = s.readCounters(r.Context(), m)
 	}
+	// The chain to open selected, if the operator was just working in one.
+	activeChain, _ := strconv.ParseInt(r.URL.Query().Get("chain"), 10, 64)
 	for _, t := range m.Tables {
 		ft := fwTable{Table: t.Table, Flowtables: t.Flowtables}
 		tblCounters := counters[t.Family+"/"+t.Name]
 		for _, c := range t.Chains {
-			fc := fwChain{Chain: c.Chain, HookLine: hookLine(c.Chain)}
+			fc := fwChain{Chain: c.Chain, HookLine: hookLine(c.Chain), Active: c.ID == activeChain}
 			// The kernel holds only enabled rules, in model order, so counters
 			// line up with the enabled model rules by position — but only when the
 			// counts match (i.e. the model has not drifted from what's applied).
@@ -135,6 +141,17 @@ func (s *Server) handleFirewall(w http.ResponseWriter, r *http.Request) {
 				fc.Rules = append(fc.Rules, fr)
 			}
 			ft.Chains = append(ft.Chains, fc)
+		}
+		// Each table opens on exactly one chain: the selected one when it lives
+		// here, otherwise the first.
+		if len(ft.Chains) > 0 {
+			shown := false
+			for _, c := range ft.Chains {
+				shown = shown || c.Active
+			}
+			if !shown {
+				ft.Chains[0].Active = true
+			}
 		}
 		vm.Tables = append(vm.Tables, ft)
 	}
@@ -349,7 +366,7 @@ func (s *Server) handleChainSave(w http.ResponseWriter, r *http.Request) {
 	}
 	var err error
 	if isNew {
-		_, err = s.store.CreateChain(c)
+		c.ID, err = s.store.CreateChain(c)
 	} else {
 		err = s.store.UpdateChain(c)
 	}
@@ -358,7 +375,7 @@ func (s *Server) handleChainSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "saved chain "+c.Name)
-	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, fwChainURL(c.ID, true), http.StatusSeeOther)
 }
 
 func (s *Server) handleChainDelete(w http.ResponseWriter, r *http.Request) {
@@ -371,8 +388,9 @@ func (s *Server) handleChainDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleChainMove(w http.ResponseWriter, r *http.Request) {
-	_ = s.store.MoveChain(pathID(r), moveDir(r))
-	http.Redirect(w, r, "/firewall", http.StatusSeeOther)
+	id := pathID(r)
+	_ = s.store.MoveChain(id, moveDir(r))
+	http.Redirect(w, r, fwChainURL(id, false), http.StatusSeeOther)
 }
 
 // ── rule editor ─────────────────────────────────────────────────────────────
@@ -473,7 +491,10 @@ func (s *Server) ruleForm(w http.ResponseWriter, r *http.Request, vm ruleFormVM)
 	vm.MatchGroups = nftcat.MatchGroups()
 	vm.StatementGroups = nftcat.StatementGroups()
 	vm.ParamKeys = paramKeys
-	vm.Ops = []string{"==", "!=", "<", ">", "<=", ">="}
+	// The no-JS operator list is the union of every knob's operators; RenderMatch
+	// rejects one the chosen field doesn't offer, with a message naming the field.
+	// (With JS on, buildOps narrows this to the field's own set.)
+	vm.Ops = []string{"==", "!=", "<", ">", "<=", ">=", "has"}
 	vm.CatalogueJSON = template.JS(nftcat.CatalogueJSON())
 	vm.PageDataJSON = template.JS(s.rulePageData(vm.Chain))
 
@@ -685,7 +706,18 @@ func (s *Server) handleRuleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "saved a rule in chain "+target.Name)
-	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, fwChainURL(target.ID, true), http.StatusSeeOther)
+}
+
+// fwChainURL is the Firewall page with one chain's tab already open. Every
+// rule-scoped action returns through it, so editing a rule in the fourth chain
+// of a table doesn't drop the operator back on the first chain's tab.
+func fwChainURL(chainID int64, saved bool) string {
+	u := "/firewall?chain=" + strconv.FormatInt(chainID, 10)
+	if saved {
+		u += "&saved=1"
+	}
+	return u
 }
 
 // handleRulePreview renders the rule the form currently describes and returns it
@@ -718,12 +750,17 @@ func (s *Server) handleRulePreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRuleDelete(w http.ResponseWriter, r *http.Request) {
+	// Read the rule before deleting it — its chain is where the operator goes back to.
+	chainID := int64(0)
+	if rule, err := s.store.GetChainRule(pathID(r)); err == nil {
+		chainID = rule.ChainID
+	}
 	if err := s.store.DeleteChainRule(pathID(r)); err != nil {
 		redirectErr(w, r, "/firewall", "Could not delete rule: "+err.Error())
 		return
 	}
 	s.audit(r, "deleted a rule")
-	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, fwChainURL(chainID, true), http.StatusSeeOther)
 }
 
 func (s *Server) handleRuleToggle(w http.ResponseWriter, r *http.Request) {
@@ -733,12 +770,16 @@ func (s *Server) handleRuleToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.store.SetChainRuleEnabled(rule.ID, !rule.Enabled)
-	http.Redirect(w, r, "/firewall", http.StatusSeeOther)
+	http.Redirect(w, r, fwChainURL(rule.ChainID, false), http.StatusSeeOther)
 }
 
 func (s *Server) handleRuleMove(w http.ResponseWriter, r *http.Request) {
+	chainID := int64(0)
+	if rule, err := s.store.GetChainRule(pathID(r)); err == nil {
+		chainID = rule.ChainID
+	}
 	_ = s.store.MoveChainRule(pathID(r), moveDir(r))
-	http.Redirect(w, r, "/firewall", http.StatusSeeOther)
+	http.Redirect(w, r, fwChainURL(chainID, false), http.StatusSeeOther)
 }
 
 // handleRuleReorder persists a drag-and-drop reordering of one chain's rules.
@@ -926,7 +967,7 @@ func (s *Server) handleRuleDuplicate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "duplicated a rule")
-	http.Redirect(w, r, "/firewall?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, fwChainURL(targetChain, true), http.StatusSeeOther)
 }
 
 // ── form row parsing ────────────────────────────────────────────────────────
@@ -1000,8 +1041,15 @@ func moveDir(r *http.Request) int {
 	return 1
 }
 
+// redirectErr sends the operator back to a page with the failure in ?err=. The
+// base may already carry a query (a tab, a chain), so the separator is chosen
+// rather than assumed — "?tab=general?err=…" would silently swallow the message.
 func redirectErr(w http.ResponseWriter, r *http.Request, base, msg string) {
-	http.Redirect(w, r, base+"?err="+urlEscape(msg), http.StatusSeeOther)
+	sep := "?"
+	if strings.Contains(base, "?") {
+		sep = "&"
+	}
+	http.Redirect(w, r, base+sep+"err="+urlEscape(msg), http.StatusSeeOther)
 }
 
 func (s *Server) notFoundOr(w http.ResponseWriter, err error) {

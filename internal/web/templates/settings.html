@@ -45,6 +45,46 @@
 			</form>
 		</div>
 	</div>
+
+	{{if eq .Saved "boot"}}<div class="card card-success"><div class="card-body">Saved.</div></div>{{end}}
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">{{template "icon-power"}}Restore at boot</span>
+			{{if .Settings.BootPersist}}<span class="badge badge-success">on</span>{{else}}<span class="badge badge-warning">off</span>{{end}}
+		</div>
+		<div class="card-body">
+			<p class="field-hint text-muted">Applying loads the rules into the running kernel and nothing else — so unless
+			something writes them to disk, a reboot comes back with an empty firewall. Turn this on and nftably rewrites the
+			file your system's <span class="mono">nftables</span> unit reads at boot, every time you <em>confirm</em> an apply.
+			Confirmed only: a config that auto-reverted never reaches the disk, so the box always boots into a ruleset you
+			proved you could still reach it through.</p>
+			{{if not .Settings.BootPersist}}
+			<p class="field-hint text-muted">It is off by default because the file it writes —
+			<span class="mono">/etc/nftables.conf</span> — is one nftably does not own. Whatever is there now is copied to
+			<span class="mono">.pre-nftably</span> before the first write.</p>
+			{{end}}
+			<form method="post" action="/settings/boot-persist">
+				<label class="check-label"><input type="checkbox" name="enabled" {{if .Settings.BootPersist}}checked{{end}}> Write the confirmed ruleset for boot</label>
+				<div class="field">
+					<label for="boot_path">File</label>
+					<input type="text" id="boot_path" name="path" value="{{.Settings.BootPersistPath}}" class="mono" placeholder="/etc/nftables.conf" autocomplete="off">
+					<div class="field-hint text-muted">Blank uses <span class="mono">/etc/nftables.conf</span>, what a Debian/Ubuntu
+					<span class="mono">nftables.service</span> loads. nftably must be able to write it, and that unit must be enabled
+					(<span class="mono">systemctl enable --now nftables</span>, which <span class="mono">nftably doctor</span> checks).
+					<a href="/harden">Posture</a> tracks whether the file is current.</div>
+				</div>
+				<div class="form-actions"><button type="submit" class="btn btn-primary">Save</button></div>
+			</form>
+			{{if .Settings.BootPersist}}
+			<div class="field-hint text-muted mt-md">
+				{{if not .BootFileExists}}<span class="badge badge-warning">not written yet</span> Confirm an apply and it appears.
+				{{else if .BootFileCurrent}}<span class="badge badge-success">current</span> <span class="mono">{{.BootPath}}</span> holds the rules you last confirmed.
+				{{else}}<span class="badge badge-warning">stale</span> <span class="mono">{{.BootPath}}</span> does not match your current model — confirm an apply to refresh it.
+				{{end}}
+			</div>
+			{{end}}
+		</div>
+	</div>
 </section>
 
 <section data-tab-panel="access" id="panel-access" role="tabpanel" aria-labelledby="tab-access" {{if ne .Tab "access"}}hidden{{end}} class="tab-panel">

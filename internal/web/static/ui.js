@@ -30,6 +30,14 @@
 		group.querySelectorAll(".chain-panel").forEach(function (p) {
 			p.classList.toggle("active", p.id === panelId);
 		});
+		// Keep ?chain= in step with the visible tab, so a refresh — and the redirect
+		// after editing a rule, which reads it back — lands on the same chain.
+		var id = tab.getAttribute("data-sortable-id");
+		if (id && window.history && history.replaceState) {
+			var url = new URL(window.location.href);
+			url.searchParams.set("chain", id);
+			history.replaceState(null, "", url.toString());
+		}
 		if (focus) tab.focus();
 	}
 

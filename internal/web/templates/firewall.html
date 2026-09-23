@@ -13,6 +13,7 @@
 	<div class="page-header-actions">
 		<a class="btn btn-ghost" href="/presets">{{template "icon-spark"}} Use a preset</a>
 		<button type="button" class="btn btn-ghost" data-modal-open="modal-port-forward">{{template "icon-route"}} Port forward</button>
+		<button type="button" class="btn btn-ghost" data-modal-open="modal-mss-clamp">{{template "icon-route"}} MSS clamp</button>
 		{{if .Tables}}<button type="button" class="btn btn-ghost" data-modal-open="modal-flowtable">{{template "icon-route"}} Flowtable</button>{{end}}
 		<button type="button" class="btn btn-success" data-modal-open="modal-new-table">{{template "icon-plus"}} New table</button>
 	</div>
@@ -60,7 +61,7 @@
 		<div class="chain-group" data-table="{{$t.ID}}">
 			<div class="chain-tabs" role="tablist" aria-label="Chains in table {{$t.Name}}" data-sortable data-sortable-axis="x" data-sortable-endpoint="/firewall/tables/{{$t.ID}}/chains/reorder">
 				{{range $ci, $ch := $t.Chains}}
-				<button type="button" role="tab" id="tab-t{{$t.ID}}c{{$ch.ID}}" aria-controls="t{{$t.ID}}c{{$ch.ID}}" aria-selected="{{if eq $ci 0}}true{{else}}false{{end}}" tabindex="{{if eq $ci 0}}0{{else}}-1{{end}}" class="chain-tab{{if eq $ci 0}} active{{end}}" data-panel="t{{$t.ID}}c{{$ch.ID}}" data-sortable-id="{{$ch.ID}}">
+				<button type="button" role="tab" id="tab-t{{$t.ID}}c{{$ch.ID}}" aria-controls="t{{$t.ID}}c{{$ch.ID}}" aria-selected="{{if $ch.Active}}true{{else}}false{{end}}" tabindex="{{if $ch.Active}}0{{else}}-1{{end}}" class="chain-tab{{if $ch.Active}} active{{end}}" data-panel="t{{$t.ID}}c{{$ch.ID}}" data-sortable-id="{{$ch.ID}}">
 					<span class="sort-grip sort-grip-tab" data-sort-grip title="Drag to reorder chains" aria-hidden="true"></span>chain {{$ch.Name}}
 					{{if $ch.IsBase}}<span class="tab-hook">{{$ch.Hook}}</span>{{else}}<span class="tab-hook">regular</span>{{end}}
 					<span class="tab-count">{{len $ch.Rules}}</span>
@@ -69,7 +70,7 @@
 				<a class="btn btn-sm btn-ghost chain-add" href="/firewall/tables/{{$t.ID}}/chains/new">{{template "icon-plus"}} Add chain</a>
 			</div>
 			{{range $ci, $ch := $t.Chains}}
-			<div class="chain-panel{{if eq $ci 0}} active{{end}}" id="t{{$t.ID}}c{{$ch.ID}}" role="tabpanel" aria-labelledby="tab-t{{$t.ID}}c{{$ch.ID}}" tabindex="0">
+			<div class="chain-panel{{if $ch.Active}} active{{end}}" id="t{{$t.ID}}c{{$ch.ID}}" role="tabpanel" aria-labelledby="tab-t{{$t.ID}}c{{$ch.ID}}" tabindex="0">
 				<div class="chain-head">
 					<div>{{if $ch.Rules}}<label class="bulk-all" title="Select or clear all rules"><input type="checkbox" data-bulk-all aria-label="Select all rules in {{$ch.Name}}"> <span class="text-muted">Select</span></label>{{end}}<span class="hint">{{$ch.HookLine}}</span></div>
 					<div class="row-actions">
@@ -207,6 +208,69 @@
 	</div>
 </div>
 
+<div class="modal-backdrop" id="modal-mss-clamp" data-modal>
+	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-mss-clamp-title">
+		<div class="modal-head">
+			<h2 id="modal-mss-clamp-title">{{template "icon-route"}} MSS clamp</h2>
+			<button type="button" class="icon-btn" data-modal-close title="Close">&times;</button>
+		</div>
+		<div class="modal-body">
+			<p class="hint">The cure for “most sites work but some just hang” over a VPN, PPPoE or tunnel: lower the segment size
+			TCP advertises when a connection opens, so nothing on that path is too big to get through. nftably matches
+			<span class="mono">tcp flags &amp; syn == syn</span> — the form that catches the SYN+ACK of an inbound connection too, not
+			just outbound SYNs — and puts the rules at the top of the chain, where an <span class="mono">accept</span> can't get in first.
+			Running it again replaces the clamp it built before. Review and apply on <a href="/changes">Changes</a>.</p>
+			<form method="post" action="/firewall/mss-clamp">
+				<div class="field">
+					<label for="mss-mode">Segment size</label>
+					<select name="mode" id="mss-mode" data-mss-mode>
+						<option value="pmtu">From a path MTU — nftably does the per-family arithmetic</option>
+						<option value="auto">Follow the route automatically (<span class="mono">rt mtu</span>)</option>
+						<option value="mss">A fixed MSS, both families</option>
+					</select>
+				</div>
+				<div class="field" data-mss-field="pmtu">
+					<label for="mss-pmtu">Path MTU (bytes)</label>
+					<input type="text" name="pmtu" id="mss-pmtu" class="mono" placeholder="1448" inputmode="numeric">
+					<span class="field-hint text-muted">The smallest MTU on the path — your tunnel or PPPoE interface's MTU.
+					IPv6 headers are 20 bytes larger than IPv4's, so this becomes two rules: MSS <span class="mono">MTU−40</span> for IPv4
+					and <span class="mono">MTU−60</span> for IPv6.</span>
+				</div>
+				<div class="field" data-mss-field="auto">
+					<span class="field-hint text-muted"><span class="mono">rt mtu</span> is the route's TCP MSS — the kernel picks the
+					right size per family, and follows it if the link's MTU changes. It only works when the route this box looks up
+					actually points down the constrained link: if the small MTU is on the <em>return</em> path (asymmetric routing, or a
+					tunnel that only carries inbound traffic), the lookup sees the big outgoing interface and clamps nothing. Use a path
+					MTU then.</span>
+				</div>
+				<div class="field" data-mss-field="mss">
+					<label for="mss-mss">MSS (bytes)</label>
+					<input type="text" name="mss" id="mss-mss" class="mono" placeholder="1388" inputmode="numeric">
+					<span class="field-hint text-muted">One value for both families. Safe, but IPv4 then carries 20 bytes
+					less per segment than it could.</span>
+				</div>
+				<div class="field">
+					<span class="field-label">Clamp in</span>
+					<label class="check-label"><input type="checkbox" name="hook" value="forward" checked> <span class="mono">forward</span> — traffic routed through this box</label>
+					<label class="check-label"><input type="checkbox" name="hook" value="output" checked> <span class="mono">output</span> — connections this box opens or answers itself</label>
+					<span class="field-hint text-muted">nftably uses your existing base filter chains on those hooks, or adds an
+					accept-policy chain if there is none.</span>
+				</div>
+				<div class="field">
+					<label for="mss-iface">Only leaving on interface <span class="text-muted">(optional)</span></label>
+					<input type="text" name="iface" id="mss-iface" class="mono" placeholder="ppp0 / gre1" autocomplete="off">
+					<span class="field-hint text-muted">Leave blank to clamp everything. Name the egress interface to scope the
+					clamp to one path.</span>
+				</div>
+				<div class="form-actions">
+					<button type="submit" class="btn btn-primary">{{template "icon-route"}} Build clamp rules</button>
+					<button class="btn" type="button" data-modal-close>Cancel</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
 <div class="modal-backdrop" id="modal-flowtable" data-modal>
 	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-flowtable-title">
 		<div class="modal-head">
@@ -277,5 +341,6 @@
 </div>
 
 <script src="/static/sortable.js" defer></script>
+<script src="/static/mssclamp.js" defer></script>
 <script src="/static/bulk.js" defer></script>
 {{template "shell-close" .}}{{end}}

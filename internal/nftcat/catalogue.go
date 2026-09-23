@@ -124,6 +124,12 @@ var matches = []Match{
 		Help: "The UDP port the packet came from.", Example: "53"},
 
 	// Protocol
+	{Key: "meta.nfproto", Label: "Address family (IPv4 / IPv6)", Group: "Protocol", Expr: "meta nfproto", Kind: KindEnum, Ops: []string{"==", "!="}, Families: []string{"inet"},
+		Help: "Which IP version the packet is. An `inet` table carries both, so this is how you split one dual-stack rule into an IPv4 case and an IPv6 case without matching on an address — the usual reason being a size that differs by 20 bytes between the two headers (MSS clamping).", Example: "ipv4",
+		Options: []Option{
+			{"ipv4", "IPv4", "The packet is IPv4."},
+			{"ipv6", "IPv6", "The packet is IPv6."},
+		}},
 	{Key: "meta.l4proto", Label: "Layer-4 protocol", Group: "Protocol", Expr: "meta l4proto", Kind: KindEnum, Ops: []string{"==", "!="},
 		Help: "Match the transport protocol itself, with no port condition — e.g. allow all ICMP, or match any TCP.", Example: "tcp",
 		Options: []Option{
@@ -181,8 +187,8 @@ var matches = []Match{
 		}},
 
 	// TCP flags
-	{Key: "tcp.flags", Label: "TCP flags", Group: "TCP flags", Expr: "tcp flags", Kind: KindFlags, Ops: []string{"==", "!="}, NeedsL4: "tcp",
-		Help: "Match packets carrying particular TCP control flags set — e.g. 'syn' for connection openers.", Example: "syn",
+	{Key: "tcp.flags", Label: "TCP flags", Group: "TCP flags", Expr: "tcp flags", Kind: KindFlags, Ops: []string{"has", "==", "!="}, NeedsL4: "tcp",
+		Help: "Match packets carrying particular TCP control flags. 'has all of' examines only the flags you name and leaves the rest free — 'has all of syn' catches a bare SYN, a SYN+ACK and an ECN-negotiating SYN alike, which is what you almost always want. 'is exactly' compares the whole flags byte, so 'is exactly syn' matches a bare SYN and nothing else.", Example: "syn",
 		Options: []Option{
 			{"fin", "fin", "Sender is finished."},
 			{"syn", "syn", "Opening a connection."},
@@ -953,6 +959,9 @@ func RenderMatch(key, op, value string, _ Ctx) (string, error) {
 	if !slices.Contains(m.matchOps(), op) {
 		return "", fmt.Errorf("%s: operator %q not allowed here", m.Label, op)
 	}
+	if op == opHas {
+		return renderFlagsHas(m, value)
+	}
 	switch op {
 	case "==":
 		return m.Expr + " " + val, nil
@@ -961,6 +970,48 @@ func RenderMatch(key, op, value string, _ Ctx) (string, error) {
 	default: // <, >, <=, >= — already checked against the field's allowed set
 		return m.Expr + " " + op + " " + val, nil
 	}
+}
+
+// opHas is the masked-comparison operator: only the named flags are examined,
+// and all of them must be set. Every other flag is left free, which is what
+// separates it from `==` — an equality match on a flags field compares the whole
+// byte, so `tcp flags syn` matches a bare SYN but not a SYN+ACK and not an
+// ECN-negotiating SYN (syn|ece|cwr). `has` is the form `iptables-translate`
+// emits for --tcp-flags, and the one an MSS clamp needs to catch both directions
+// of a handshake.
+const opHas = "has"
+
+// renderFlagsHas renders a masked flag comparison: `tcp flags & syn == syn` for
+// one flag, `tcp flags & (syn|ack) == (syn|ack)` for several (all must be set).
+func renderFlagsHas(m Match, value string) (string, error) {
+	var toks []string
+	for _, t := range strings.Split(value, ",") {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		if len(m.Options) > 0 && !slices.ContainsFunc(m.Options, func(o Option) bool { return o.Value == t }) {
+			return "", fmt.Errorf("%s: %q is not one of the flags (%s)", m.Label, t, optionValues(m.Options))
+		}
+		toks = append(toks, t)
+	}
+	if len(toks) == 0 {
+		return "", fmt.Errorf("%s needs at least one flag", m.Label)
+	}
+	set := strings.Join(toks, "|")
+	if len(toks) > 1 {
+		set = "(" + set + ")"
+	}
+	return m.Expr + " & " + set + " == " + set, nil
+}
+
+// optionValues lists a knob's allowed values for an error message.
+func optionValues(opts []Option) string {
+	vals := make([]string, 0, len(opts))
+	for _, o := range opts {
+		vals = append(vals, o.Value)
+	}
+	return strings.Join(vals, ", ")
 }
 
 // renderValue formats a stored value: a single token is emitted bare, a comma

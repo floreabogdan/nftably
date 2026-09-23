@@ -205,6 +205,22 @@ func (s *Server) handleApplyConfirm(w http.ResponseWriter, r *http.Request) {
 	_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventConfigApply,
 		fmt.Sprintf("confirmed config #%d", p.VersionID))
 	s.notifier.Notify(store.AlertApplyConfirmed, "", fmt.Sprintf("Config #%d confirmed and kept.", p.VersionID))
+
+	// Only now — with the config proved reachable — does it become the one the box
+	// boots into. A failure here doesn't undo the apply (the kernel is running the
+	// new rules either way), but it does mean a reboot would lose them, so say so
+	// instead of redirecting as if all is well.
+	if note, err := s.persistForBoot(); err != nil {
+		s.log.Warn("boot persistence failed", "err", err)
+		_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventConfigApply,
+			"could not write the boot ruleset: "+err.Error())
+		redirectErr(w, r, "/changes", "The rules are live, but writing them for boot failed: "+err.Error()+
+			" — they will be lost on reboot until this is fixed (Settings › Restore at boot).")
+		return
+	} else if note != "" {
+		s.log.Info("boot ruleset written", "note", note)
+		_ = s.store.InsertAudit(s.currentUser(r).Username, store.EventConfigApply, note)
+	}
 	http.Redirect(w, r, "/changes", http.StatusSeeOther)
 }
 

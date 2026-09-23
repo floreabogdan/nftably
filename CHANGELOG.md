@@ -6,6 +6,44 @@ All notable changes to nftably are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Rules survive a reboot (Settings › Restore at boot).** An apply only ever loaded the
+  ruleset into the running kernel, so a reboot came up with an empty firewall until
+  someone logged in and applied again. With this on, nftably rewrites the file the
+  system's `nftables` unit reads (`/etc/nftables.conf` by default) after every
+  **confirmed** apply — confirmed only, so a config that auto-reverted never becomes the
+  one the box boots into. The file is the same ensure+delete+create triple the apply uses,
+  never `flush ruleset`, so tables nftably doesn't own (Docker's, another tool's) survive
+  it. It stays off until you turn it on, and whatever is already at the path is copied to
+  `<path>.pre-nftably` once before the first write. The Posture page grades it, and warns
+  when the file is stale.
+- **MSS clamp wizard (Firewall › MSS clamp).** Builds the connection-opening rules that
+  fix "most sites work but some just hang" over a VPN, PPPoE or tunnel. Give it the path
+  MTU and it does the per-family arithmetic — an IPv6 header is 20 bytes larger, so one
+  MTU means two MSS values — and splits the rule on `meta nfproto`. It can also follow the
+  route (`rt mtu`), or take a fixed MSS. Rules go in at the top of the chain, where an
+  `accept` can't get in first.
+- **`meta nfproto` condition.** Match a packet's IP version, so one `inet` rule can be
+  split into an IPv4 and an IPv6 case without matching on an address.
+- **"has all of" operator on TCP flags.** `tcp flags syn` compares the whole flags byte,
+  so it matches a bare SYN and misses the SYN+ACK of an inbound connection (and an
+  ECN-negotiating SYN). The new operator renders the masked form —
+  `tcp flags & syn == syn` — which is what `iptables-translate` emits for `--tcp-flags`
+  and what MSS clamping needs to catch both directions of a handshake.
+
+### Changed
+
+- **Editing a rule returns you to the chain you were in.** Saving, deleting, toggling,
+  moving or duplicating a rule dropped you back on the table's first chain tab; every
+  rule- and chain-scoped action now carries the chain, and the tab opens selected.
+
+### Fixed
+
+- **An error redirect to a page that already had a query lost its message.** `redirectErr`
+  appended `?err=` unconditionally, producing `?tab=general?err=…` — the message was
+  swallowed and the page rendered as though nothing had gone wrong.
+
 ## [0.1.6] - 2026-07-21
 
 ### Added

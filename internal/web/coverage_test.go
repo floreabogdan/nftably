@@ -28,8 +28,11 @@ func TestRuleSaveCreatesAndRejects(t *testing.T) {
 		"c_field_0": {"tcp.dport"}, "c_op_0": {"=="}, "c_val_0": {"22"},
 		"a_key_0": {"accept"}, "enabled": {"on"},
 	}, cookie)
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/firewall?saved=1" {
-		t.Fatalf("valid rule: code=%d loc=%q, want 303 /firewall?saved=1", rec.Code, rec.Header().Get("Location"))
+	// The redirect carries the chain, so the Firewall page reopens on the tab the
+	// rule was authored in rather than the table's first chain.
+	wantLoc := "/firewall?chain=" + strconv.FormatInt(chainID, 10) + "&saved=1"
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != wantLoc {
+		t.Fatalf("valid rule: code=%d loc=%q, want 303 %s", rec.Code, rec.Header().Get("Location"), wantLoc)
 	}
 	rules, err := srv.store.ListChainRules(chainID)
 	if err != nil {

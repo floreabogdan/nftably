@@ -36,6 +36,11 @@ type settingsVM struct {
 	BackupAuto  bool
 	BackupDirOK bool
 	AutoBackups []autoBackupFile
+	// Boot persistence: where the ruleset is written for boot, and whether what's
+	// there now still matches the model.
+	BootPath        string
+	BootFileExists  bool
+	BootFileCurrent bool
 }
 
 // settingsTabs are the settings tab keys in display order; the first is the
@@ -45,7 +50,7 @@ var settingsTabs = []string{"general", "access", "geoip", "metrics", "import", "
 // savedTab maps a just-saved section to the tab it lives on, so a save banner
 // shows on the right tab.
 var savedTab = map[string]string{
-	"identity": "general", "access": "access",
+	"identity": "general", "access": "access", "boot": "general",
 	"geoip": "geoip", "geoip-download": "geoip", "metrics": "metrics",
 	"backup": "backup",
 }
@@ -76,6 +81,8 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, saved st
 	vm.BackupAuto = st.BackupAuto
 	vm.BackupDirOK = s.backupDir() != ""
 	vm.AutoBackups = s.listAutoBackups()
+	vm.BootPath = st.BootPath()
+	vm.BootFileExists, vm.BootFileCurrent = s.bootFileState(st.BootPath())
 	if m := r.URL.Query().Get("saved"); m != "" && saved == "" {
 		vm.Flash = m
 	}

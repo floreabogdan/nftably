@@ -247,7 +247,45 @@ func (s *Server) postureFrom(m nftconf.Model) ([]postureCheck, inputView) {
 			Detail: "No rules scope traffic by address, so there's no IPv4/IPv6 asymmetry to worry about here."})
 	}
 
+	// 9. Survives a reboot. Every other check on this page grades rules that are
+	// only ever loaded into the running kernel — nothing about a healthy live
+	// ruleset reveals that a reboot would come up with none of it.
+	checks = append(checks, s.bootPersistCheck(len(m.Tables) > 0))
+
 	return checks, v
+}
+
+// bootPersistCheck grades whether the rules would come back after a reboot.
+// hasRules keeps it from shouting at an empty install that has nothing to lose.
+func (s *Server) bootPersistCheck(hasRules bool) postureCheck {
+	const (
+		id    = "boot-persist"
+		title = "Rules survive a reboot"
+	)
+	off := postureFail
+	if !hasRules {
+		off = postureInfo
+	}
+	set, ok, err := s.store.GetSettings()
+	if err != nil || !ok || !set.BootPersist {
+		return postureCheck{ID: id, Title: title, Status: off,
+			Detail:  "Applying loads the rules into the running kernel and nowhere else. Nothing writes them to disk, so a reboot brings this box up with an empty firewall until someone logs in and applies again. Turn on “Restore at boot” and nftably rewrites the file your nftables unit reads, every time you confirm an apply.",
+			FixHref: "/settings?tab=general", FixLabel: "Turn on"}
+	}
+	path := set.BootPath()
+	exists, current := s.bootFileState(path)
+	switch {
+	case !exists:
+		return postureCheck{ID: id, Title: title, Status: postureWarn,
+			Detail:  "Boot persistence is on, but " + path + " hasn't been written yet — it appears the next time you confirm an apply. Until then a reboot loses the rules.",
+			FixHref: "/changes", FixLabel: "Review changes"}
+	case !current:
+		return postureCheck{ID: id, Title: title, Status: postureWarn,
+			Detail:  path + " doesn't match your current model, so a reboot would come back to an older ruleset. Confirming an apply rewrites it. (Only a confirmed apply does — one that auto-reverted never reaches the disk, which is what keeps the boot file to a config you proved you could reach the box through.)",
+			FixHref: "/changes", FixLabel: "Review changes"}
+	}
+	return postureCheck{ID: id, Title: title, Status: posturePass,
+		Detail: path + " holds the rules you last confirmed, so a reboot comes back to them. That needs the system's nftables unit enabled to load it — `systemctl enable --now nftables`."}
 }
 
 // boolCheck builds a pass/needs-attention check with an inline fix when it fails.
